@@ -1,5 +1,5 @@
-# QR parcel sort task. All gripper numbers are WALLX units (G gripper, 0 = closed, 1.526 = open).
-# CALIBRATE on the real robot / sim: gripper bands, timeouts.
+# QR parcel sort task, harness v2. Gripper numbers are WALLX units (G gripper, 0 = closed, 1.526 = open).
+# CALIBRATE on the real robot / sim: gripper bands, budgets, scene thresholds.
 
 zones:            # code zone -> bin color. Bin comes from the code, never from box color.
   ZONE-A: blue
@@ -7,46 +7,46 @@ zones:            # code zone -> bin color. Bin comes from the code, never from 
 code_pattern: '^LL\|(ZONE-[AB])\|\d{3}$'   # group 1 = zone
 
 qr_confirm_frames: 2      # same value must decode in N consecutive model calls
-agent_every: 4            # ask the vision agent every N model calls
-state_max_calls: 20       # per-state budget in MODEL CALLS (~1.6 s of sim motion each); not wall time,
-                          # which depends on WALLX latency (8-10 s/call measured)
-calls_per_attempt: 4      # model calls that make one LOOK attempt / one PRESENT face
-look_attempts: 3
-present_faces: 3
-grasp_retries: 3
+agent_every: 4            # ask the vision agent every N model calls (optional; harness works with agent=None)
 
-# Calibrated from 160 WALLX calls in X2Real (results/phase1_passthrough.md): closed-empty ~0.00,
-# approach opening 0.5-0.99 (rarely >1.0), holding a ~55 mm object = steady plateau 0.31-0.37.
-gripper:                  # left arm holds the box
+# Budgets are in MODEL CALLS (~1.6 s of sim motion each; WALLX takes 8-10 s/call), not wall time.
+place_max_calls: 30
+place_retries: 2          # PLACE budget expiries per code before it is treated as an unknown block (FETCH)
+fetch_max_calls: 20
+place_held_max_calls: 20
+reject_max_calls: 15
+
+# Calibrated in X2Real: closed-empty ~0.0, idle 0.1-0.25, holding a 60 mm cube = steady plateau 0.45-0.47, release > 0.6.
+gripper:                  # applied to BOTH arms
   empty_max: 0.08         # at/below = closed on nothing
-  hold_max: 0.60          # holding band (empty_max, hold_max) ...
+  hold_min: 0.30          # holding band (hold_min, hold_max) ...
+  hold_max: 0.60
   hold_tol: 0.03          # ... and steady: |change| <= hold_tol between calls
-  hold_calls: 2           # N consecutive steady in-band readings = grasped
-  opened_min: 0.45        # GRASP must see the gripper open to this first (a real grasp opens, then closes)
-  open_min: 0.60          # at/above = open / released
+  hold_calls: 2           # N consecutive steady in-band readings (after the arm opened) = holding
+  open_min: 0.60          # at/above = open: arms the grasp detector, and releasing a held cube
 
-# Sub-goal wording. {bin} -> blue|orange. Index 0 is used unless instruction_variant says otherwise.
+# Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
+# Calibrated on 1280x720 and 640x480 sim head frames (tests/data): kraft S 60-155, bins S > 120.
+scene:
+  blue: [[95, 120, 80], [125, 255, 255]]
+  orange: [[10, 150, 150], [30, 255, 255]]
+  kraft: [[8, 60, 60], [28, 155, 200]]
+  bin_min_area: 0.004
+  block_min_area: 0.0015
+  bin_gain: 0.0015        # kraft area (image fraction) that must appear inside a bin to count as a cube landing there
+
+# Wording. {bin} -> blue|orange, {where} -> "on the left" | "in the middle" | "on the right".
+# "put the block into the blue bin" sorted 2/2 zero-shot (results/phase4_case1_wording.md); engineered sub-goals failed 0/8.
 instruction_variant: 0
 instructions:
-  LOOK:
-    - "Move the right gripper above the box nearest the middle, camera pointing down."
-    - "Hold the right gripper over the middle box with its camera looking down."
-    - "Position the right arm above the closest box to the center, gripper camera facing down."
-  GRASP:
-    - "Pick up that box with the left arm."
-    - "Grasp the box with the left gripper and lift it."
-    - "Use the left arm to pick up the box."
-  PRESENT:
-    - "Turn the box so its side faces the right gripper camera."
-    - "Rotate the held box to show another side to the right gripper camera."
-    - "Show a different face of the box to the right wrist camera."
   PLACE:
-    - "Put the box into the {bin} bin."
-    - "Place the box in the {bin} bin and release it."
-    - "Drop the box into the {bin} bin."
+    - "put the block {where} into the {bin} bin"
+    - "put the block into the {bin} bin"
+  FETCH:
+    - "pick up the block {where}"
+  PLACE_HELD:
+    - "put the block into the {bin} bin"
   REJECT:
-    - "Put the box on the left edge of the table."
-    - "Set the box down at the left edge of the table and release it."
-    - "Place the box on the far left side of the table."
+    - "put the block at the left edge of the table"
   DONE:
-    - "Move both arms back to the home position."
+    - "put both arms back to the home position"

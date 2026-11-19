@@ -27,7 +27,7 @@ def fake_clock():
 def check_episode(scene, harness):
     assert harness.done
     assert scene.bin_of == {A: "blue", B: "orange"}
-    assert harness.sm.memory.rejected_count == 1
+    assert harness.sm.rejected_count == 1
 
 
 def test_x2real_link_full_episode():
@@ -38,11 +38,11 @@ def test_x2real_link_full_episode():
     k = ROBOT["gripper"]["sim_max"] / ROBOT["gripper"]["wallx_max"]
     try:
         for _ in range(200):
-            imgs, _ = scene.observe()
-            grip = scene.grip * k
+            imgs, st = scene.observe()
+            grip, grip2 = st["left_ee"]["gripper"] * k, st["right_ee"]["gripper"] * k
             obs = {"images": {"camera_front": imgs["front"], "camera_left": imgs["left_wrist"],
                               "camera_right": imgs["right_wrist"]},
-                   "state": {"follow1_pos": np.r_[np.zeros(6), grip], "follow2_pos": np.r_[np.zeros(6), 1.5 * k]}}
+                   "state": {"follow1_pos": np.r_[np.zeros(6), grip], "follow2_pos": np.r_[np.zeros(6), grip2]}}
             chunk = link.step(obs)
             assert chunk.shape == (33, 14)
             # stub echoes state -> arm holds at home: relative pose ~0, gripper unchanged

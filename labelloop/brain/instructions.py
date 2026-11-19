@@ -1,3 +1,3 @@
-def instruction(state, cfg, bin=None):
+def instruction(state, cfg, **kw):
     options = cfg["instructions"][state]
-    return options[cfg["instruction_variant"] % len(options)].format(bin=bin)
+    return options[cfg["instruction_variant"] % len(options)].format(**kw)

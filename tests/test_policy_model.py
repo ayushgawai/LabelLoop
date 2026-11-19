@@ -32,9 +32,9 @@ def test_model_wrapper_serves_33x14(tmp_path, monkeypatch):
         img = np.full((480, 640, 3), 128, np.uint8)
         m.ingest_observation({"images": {"camera_front": img, "camera_left": img, "camera_right": img},
                               "state": {"follow1_pos": np.zeros(7), "follow2_pos": np.zeros(7)}})
-        for _ in range(3):  # no agent: SURVEY decides on call 1 and goes straight to LOOK
+        for _ in range(3):  # blank scene, no agent: call 1 holds (no WALLX call), then DONE sends the home instruction
             assert m.infer_actions().shape == (33, 14)
-        assert len(stub.requests) == 3 and (tmp_path / "sim.jsonl").exists()
+        assert len(stub.requests) == 2 and (tmp_path / "sim.jsonl").exists()
     finally:
         m.close()
         stub.stop()

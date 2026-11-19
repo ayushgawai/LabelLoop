@@ -1,14 +1,16 @@
 # LabelLoop
 
-Harness that makes X Square's dual-arm desktop robot sort parcels by QR label, reading codes with the wrist cameras only.
+Harness that makes X Square's dual-arm desktop robot sort parcels by QR label, reading codes with the head camera (wrist cameras for hidden labels).
 WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short sub-goal per model call, from QR evidence,
-the left gripper value and a vision agent (Gemini Robotics-ER via a Chat Completions endpoint).
+both gripper values and, optionally, a vision agent (Gemini Robotics-ER via a Chat Completions endpoint; works with none).
+WALLX gets one training-style sentence per call ("put the block on the left into the blue bin").
 Plan: `instructions/LabelLoop Simulation-First Plan.pdf` (gitignored: the organizer PDFs contain the API key).
 
 ```
-labelloop/harness.py            shared core: QR -> agent (every 4 calls) -> state machine -> instruction | hold
-labelloop/brain/                state_machine (SURVEY LOOK GRASP PRESENT PLACE REJECT DONE), agent, memory, instructions
-labelloop/perception/qr.py      zxing-cpp, OpenCV fallback, 2-frame confirm
+labelloop/harness.py            shared core: QR + scene -> state machine -> instruction | hold
+labelloop/brain/                state_machine (SURVEY PLACE FETCH PLACE_HELD REJECT DONE), agent (optional), instructions
+labelloop/perception/qr.py      zxing-cpp (+ pixel position), OpenCV fallback, 2-frame confirm
+labelloop/perception/scene.py   HSV bins / kraft blocks on the head camera
 labelloop/wallx_client.py       public_v2 msgpack client, Bearer auth, reset_history, hold replies
 labelloop/pose.py               X2Real home-relative <-> WALLX absolute, gripper 0..1.89 <-> 0..1.526
 labelloop/robots/x2real_server.py   sim link (33x14 chunks, row 0 = state echo)

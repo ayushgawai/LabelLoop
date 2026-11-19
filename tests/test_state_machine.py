@@ -1,173 +1,218 @@
 from pathlib import Path
 
-import pytest
-
-from labelloop.brain.instructions import instruction
 from labelloop.brain.state_machine import StateMachine
 from labelloop.config import load_yaml
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
 A, B = "LL|ZONE-A|001", "LL|ZONE-B|002"
+W, H = 1280, 720
+BINS = {"blue": (700, 100, 900, 280), "orange": (380, 100, 580, 280)}
+KEEP = object()
 
 
-def at(state, code=None):
+def ev(front=(), wrist=(), blocks=(), kraft=None, grips=(0.2, 0.2), verdict=None, confirmed=KEEP):
+    front = list(front)
+    return {"w": W, "h": H, "front": front, "wrist": set(wrist), "bins": BINS, "blocks": list(blocks),
+            "kraft": kraft or {"blue": 0.0, "orange": 0.0}, "grips": grips, "verdict": verdict,
+            "confirmed": {t for t, _ in front} | set(wrist) if confirmed is KEEP else confirmed}
+
+
+def sm_in(state, code=A):
     sm = StateMachine(CFG)
-    sm._enter(state, 0.0)
-    sm.memory.current_code = code
-    if code:
-        sm.memory.seen[code] = "ZONE-A"
+    sm.step(ev())
+    sm.step(ev())  # leave SURVEY: no evidence -> DONE; force state instead
+    sm.state, sm.code, sm.calls, sm.transitions = state, code, 0, []
     return sm
 
 
-def go(sm, now=1.0, grip=1.5, codes=(), verdict=None):
-    return sm.step({"now": now, "grip": grip, "codes": list(codes), "verdict": verdict})
-
-
-def test_instruction_variant_and_bin():
-    assert instruction("PLACE", CFG, "blue") == "Put the box into the blue bin."
-    assert instruction("PLACE", {**CFG, "instruction_variant": 4}, "blue").startswith("Place the box in the blue")
-
-
-def test_survey_holds_then_looks_and_agent_none_is_fine():
+def survey():
     sm = StateMachine(CFG)
-    assert sm.state == "SURVEY" and sm.instruction() is None
-    assert go(sm, verdict=None) == instruction("LOOK", CFG) and sm.state == "LOOK"
+    assert sm.step(ev()) is None  # first frame: wait for the QR confirmation window
+    return sm
 
 
-def test_survey_zero_boxes_is_done_and_stays():
-    sm = StateMachine(CFG)
-    assert go(sm, verdict={"unsorted_boxes": 0}) == instruction("DONE", CFG)
-    go(sm, codes=[(A, "front")])
-    assert sm.state == "DONE" and sm.memory.seen[A] == "ZONE-A"
+def test_survey_place_wording_and_where_each_third():
+    for x, word in ((100, "on the left"), (640, "in the middle"), (1200, "on the right")):
+        sm = survey()
+        assert sm.step(ev([(A, (x, 450))])) == "put the block %s into the blue bin" % word
+    sm = survey()
+    assert sm.step(ev([(B, (640, 450))])) == "put the block in the middle into the orange bin"
 
 
-def test_survey_stores_estimate():
-    sm = StateMachine(CFG)
-    go(sm, verdict={"unsorted_boxes": 3, "bin_side": {"blue": "left"}})
-    assert sm.memory.unsorted_estimate == 3 and sm.memory.bin_side == {"blue": "left"}
+def test_survey_prefers_target_nearest_centre_and_skips_unconfirmed_and_in_bin():
+    sm = survey()
+    sm.step(ev([(A, (100, 450)), (B, (500, 400))]))
+    assert sm.code == B
+    sm = survey()
+    sm.step(ev([(A, (640, 450))], blocks=[(640, 450)], confirmed=set()))
+    assert sm.state == "FETCH"  # unconfirmed code is not a target yet
+    sm = survey()
+    sm.step(ev([(A, (800, 200))]))  # code seen inside the blue bin: not a target
+    assert sm.state == "DONE"
 
 
-def test_look_prefers_right_wrist():
-    sm = at("LOOK")
-    go(sm, codes=[(B, "front"), (A, "right_wrist")])
-    assert sm.state == "GRASP" and sm.memory.current_code == A
+def test_survey_fetch_for_block_without_code_done_when_nothing():
+    sm = survey()
+    assert sm.step(ev(blocks=[(250, 450)])) == "pick up the block on the left" and sm.state == "FETCH"
+    sm = survey()
+    assert sm.step(ev()) == "put both arms back to the home position" and sm.state == "DONE"
+    assert sm.step(ev([(A, (640, 450))], blocks=[(1, 1)])) == "put both arms back to the home position"
 
 
-def test_look_gives_up_after_attempts():
-    sm = at("LOOK")
-    for i in range(11):
-        go(sm)
-        assert sm.state == "LOOK"
-    go(sm)
-    assert sm.state == "GRASP" and sm.memory.current_code is None
+def test_agent_zero_means_done():
+    sm = survey()
+    sm.step(ev(blocks=[(250, 450)], verdict={"unsorted_boxes": 0}))
+    assert sm.state == "DONE"
 
 
-def test_codes_in_bins_and_malformed_are_ignored():
-    sm = at("LOOK")
-    sm.memory.sorted.add(A)
-    go(sm, codes=[(A, "right_wrist"), ("hello", "right_wrist"), ("LL|ZONE-C|001", "front")])
-    assert sm.state == "LOOK" and sm.memory.seen == {}
+def test_place_success_needs_code_gone_two_calls_and_kraft_in_right_bin():
+    sm = sm_in("PLACE")
+    sm.base = {"blue": 0.001, "orange": 0.0}
+    gain = {"blue": 0.005, "orange": 0.0}
+    sm.step(ev(kraft=gain))
+    assert sm.state == "PLACE"  # gone only once
+    sm.step(ev(kraft=gain))
+    assert sm.state == "SURVEY" and sm.sorted == {A} and not sm.wrong
 
 
-def test_present_ignores_front_and_uses_wrist():
-    sm = at("PRESENT")
-    go(sm, codes=[(B, "front")])
-    assert sm.state == "PRESENT"
-    go(sm, codes=[(B, "right_wrist")])
-    assert sm.state == "PLACE" and instruction("PLACE", CFG, "orange") == sm.instruction()
-
-
-def test_present_gives_up_to_reject():
-    sm = at("PRESENT")
-    for _ in range(12):
-        go(sm)
-    assert sm.state == "REJECT"
-
-
-def test_grasp_hold_goes_to_place_or_present():
-    sm = at("GRASP", A)
-    go(sm, grip=0.35), go(sm, grip=0.35)
-    assert sm.state == "GRASP"  # never opened first: idle gripper, not a grasp
-    go(sm, grip=0.9), go(sm, grip=0.35)
-    assert sm.state == "GRASP"
-    assert go(sm, grip=0.35) == "Put the box into the blue bin."
-    sm = at("GRASP")
-    go(sm, grip=0.9), go(sm, grip=0.35), go(sm, grip=0.35)
-    assert sm.state == "PRESENT"
-
-
-def test_grasp_closed_on_nothing_retries_then_survey():
-    sm = at("GRASP", A)
-    for i in range(3):
-        assert sm.state == "GRASP"
-        go(sm, grip=1.5)
-        go(sm, grip=0.05)
-    assert sm.state == "SURVEY" and sm.memory.current_code is None
-
-
-def test_grasp_closed_without_ever_opening_is_not_a_retry():
-    sm = at("GRASP", A)
-    for _ in range(5):
-        go(sm, grip=0.05)
-    assert sm.state == "GRASP" and sm.retries == 0
-
-
-def test_grasp_agent_done_but_not_holding_counts_retry():
-    sm = at("GRASP", A)
+def test_place_code_still_on_table_keeps_going_and_updates_where():
+    sm = sm_in("PLACE")
+    sm.base = {"blue": 0.0, "orange": 0.0}
     for _ in range(3):
-        go(sm, grip=1.5, verdict={"done": True})
+        assert sm.step(ev([(A, (1100, 450))], kraft={"blue": 0.005, "orange": 0.0})) == \
+            "put the block on the right into the blue bin"
+    assert sm.state == "PLACE"
+
+
+def test_place_wrong_bin_logged():
+    sm = sm_in("PLACE")
+    sm.base = {"blue": 0.0, "orange": 0.0}
+    sm.step(ev(kraft={"blue": 0.0, "orange": 0.004}))
+    sm.step(ev(kraft={"blue": 0.0, "orange": 0.004}))
+    assert sm.state == "SURVEY" and sm.wrong == {A} and A in sm.sorted
+    assert sm.flags == ["wrong_bin:%s:orange" % A]
+
+
+def test_place_code_seen_inside_bin_counts_without_kraft():
+    sm = sm_in("PLACE")
+    sm.step(ev([(A, (800, 200))]))
+    sm.step(ev([(A, (800, 200))]))
+    assert sm.state == "SURVEY" and sm.sorted == {A}
+
+
+def test_place_budget_then_give_up_after_retries():
+    sm = sm_in("PLACE")
+    for _ in range(CFG["place_max_calls"]):
+        sm.step(ev([(A, (640, 450))]))
+    assert sm.state == "SURVEY" and sm.retries == {A: 1} and not sm.gave_up
+    sm.step(ev([(A, (640, 450))]))
+    assert sm.state == "PLACE"  # retry
+    for _ in range(CFG["place_max_calls"]):
+        sm.step(ev([(A, (640, 450))]))
+    assert sm.gave_up == {A} and sm.state == "SURVEY"
+    assert sm.step(ev([(A, (640, 450))], blocks=[(640, 450)])) == "pick up the block in the middle"  # FETCH-able
+
+
+def hold(sm, grip=0.46):
+    sm.step(ev(grips=(0.2, 1.0)))
+    sm.step(ev(grips=(0.2, grip)))
+    sm.step(ev(grips=(0.2, grip)))
+
+
+def test_fetch_wrist_code_while_holding_goes_to_place_held():
+    sm = sm_in("FETCH", None)
+    sm.step(ev(wrist={B}, grips=(0.2, 1.0)))
+    assert sm.state == "FETCH"  # not holding yet
+    sm.step(ev(wrist={B}, grips=(0.2, 0.46)))
+    assert sm.step(ev(wrist={B}, grips=(0.2, 0.46))) == "put the block into the orange bin" and sm.state == "PLACE_HELD"
+
+
+def test_fetch_holding_arm_can_be_left():
+    sm = sm_in("FETCH", None)
+    sm.step(ev(grips=(1.0, 0.2)))
+    sm.step(ev(wrist={A}, grips=(0.46, 0.2)))
+    sm.step(ev(wrist={A}, grips=(0.46, 0.2)))
+    assert sm.state == "PLACE_HELD" and sm.code == A
+
+
+def test_fetch_idle_plateau_is_not_a_hold():
+    sm = sm_in("FETCH", None)
+    for _ in range(4):
+        sm.step(ev(wrist={A}, grips=(0.2, 0.2)))  # never opened: idle 0.2 plateau
+    assert sm.state == "FETCH"
+
+
+def test_fetch_budget_reject_if_holding_else_survey():
+    sm = sm_in("FETCH", None)
+    hold(sm)
+    for _ in range(CFG["fetch_max_calls"]):
+        sm.step(ev(grips=(0.2, 0.46)))
+    assert sm.state == "REJECT"
+    sm = sm_in("FETCH", None)
+    for _ in range(CFG["fetch_max_calls"]):
+        sm.step(ev())
     assert sm.state == "SURVEY"
 
 
-def test_place_release_marks_sorted():
-    sm = at("PLACE", A)
-    go(sm, grip=0.35)
-    assert sm.state == "PLACE"
-    go(sm, grip=1.5)
-    assert sm.state == "SURVEY" and A in sm.memory.sorted
+def test_reject_on_release_and_budget():
+    sm = sm_in("FETCH", None)
+    hold(sm)
+    for _ in range(CFG["fetch_max_calls"]):
+        sm.step(ev(grips=(0.2, 0.46)))
+    assert sm.step(ev(grips=(0.2, 0.46))) == "put the block at the left edge of the table"
+    sm.step(ev(grips=(0.2, 1.0)))
+    assert sm.state == "SURVEY" and sm.rejected_count == 1
+    sm = sm_in("REJECT", None)
+    for _ in range(CFG["reject_max_calls"]):
+        sm.step(ev())
+    assert sm.state == "SURVEY" and sm.rejected_count == 0
 
 
-def test_place_drop_is_not_sorted():
-    sm = at("PLACE", A)
-    go(sm, grip=0.05)
-    assert sm.state == "SURVEY" and A not in sm.memory.sorted
+def test_rejected_block_is_ignored_afterwards():
+    sm = sm_in("REJECT", None)
+    sm.before = [(640, 450)]
+    sm.step(ev(grips=(0.2, 0.46), blocks=[(640, 450)]))
+    sm.arms[1].update(held=True, open=True)
+    sm.step(ev(grips=(0.2, 1.0), blocks=[(640, 450)]))
+    assert sm.state == "SURVEY" and sm.learn
+    sm.step(ev(blocks=[(640, 450), (60, 400)]))  # the rejected cube now sits at the left edge
+    assert sm.state == "FETCH" and sm.ignored == [(60, 400)]
+    sm.state = "SURVEY"
+    assert sm.step(ev(blocks=[(60, 400)])) == "put both arms back to the home position"
 
 
-def test_reject_release_counts():
-    sm = at("REJECT")
-    go(sm, grip=1.5)
-    assert sm.state == "SURVEY" and sm.memory.rejected_count == 1
+def test_place_held_release_plus_kraft_in_bin():
+    sm = sm_in("PLACE_HELD", B)
+    sm.base = {"blue": 0.0, "orange": 0.0}
+    sm.step(ev(grips=(0.2, 1.0)))
+    sm.arms[1].update(held=True, open=True)
+    sm.step(ev(grips=(0.2, 0.46), kraft={"blue": 0.0, "orange": 0.005}))
+    assert sm.state == "PLACE_HELD"  # cube over the bin but not released
+    sm.step(ev(grips=(0.2, 1.0), kraft={"blue": 0.0, "orange": 0.005}))
+    assert sm.state == "SURVEY" and sm.sorted == {B} and not sm.wrong
 
 
-@pytest.mark.parametrize("state,grip,expect", [("LOOK", 1.5, "GRASP"), ("GRASP", 1.5, "SURVEY"),
-                                               ("PRESENT", 1.5, "REJECT"), ("PLACE", 0.35, "SURVEY"),
-                                               ("REJECT", 0.35, "SURVEY")])
-def test_state_timeout(state, grip, expect):
-    sm = at(state, A)
-    sm.cfg = {**CFG, "state_max_calls": 5}  # below the LOOK/PRESENT attempt budgets
-    for _ in range(4):
-        go(sm, grip=grip)
-    assert sm.state == state
-    go(sm, grip=grip)
-    assert sm.state == expect and sm.transitions[-1][2] == "timeout"
+def test_place_held_wrong_bin_and_budget():
+    sm = sm_in("PLACE_HELD", B)
+    sm.base = {"blue": 0.0, "orange": 0.0}
+    sm.arms[0].update(held=True, open=True)
+    sm.step(ev(grips=(1.0, 0.2), kraft={"blue": 0.005, "orange": 0.0}))  # left arm releases
+    assert sm.wrong == {B}
+    sm = sm_in("PLACE_HELD", B)
+    for _ in range(CFG["place_held_max_calls"]):
+        sm.step(ev())
+    assert sm.state == "SURVEY" and not sm.sorted
 
 
-def test_look_ignores_front_codes_but_remembers_them():
-    sm = at("LOOK")
-    go(sm, codes=[(A, "front")])
-    assert sm.state == "LOOK" and A in sm.memory.seen
-
-
-def test_reject_drop_goes_to_survey_without_counting():
-    sm = at("REJECT")
-    go(sm, grip=0.05)
-    assert sm.state == "SURVEY" and sm.memory.rejected_count == 0
-
-
-def test_grasp_needs_steady_reading_not_a_passing_value():
-    sm = at("GRASP", A)
-    for g in (0.9, 0.2, 0.4, 0.55, 0.3):  # opened, then moving through the band = not holding
-        go(sm, grip=g)
-    assert sm.state == "GRASP"
-    go(sm, grip=0.31)
-    assert sm.state == "PLACE"  # 0.30 -> 0.31 is steady
+def test_gripper_both_arms_and_drop():
+    sm = StateMachine(CFG)
+    sm.step(ev(grips=(1.0, 0.2)))
+    sm.step(ev(grips=(0.46, 0.2)))
+    sm.step(ev(grips=(0.47, 0.2)))
+    assert [a["held"] for a in sm.arms] == [True, False]
+    sm.step(ev(grips=(0.0, 0.2)))  # closed on nothing: dropped
+    assert not sm.arms[0]["held"] and not sm.arms[0]["open"]
+    sm.step(ev(grips=(1.0, 0.2)))
+    sm.step(ev(grips=(0.46, 0.2)))
+    sm.step(ev(grips=(0.7, 0.2)))  # not steady, and above hold band
+    assert not sm.arms[0]["held"]

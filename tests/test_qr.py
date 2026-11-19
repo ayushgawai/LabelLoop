@@ -32,3 +32,14 @@ def test_confirmer_needs_consecutive_frames():
     assert c.update({"a", "b"}) == {"a"}
     assert c.update({"b"}) == {"b"}
     assert c.update({"a", "b"}) == {"b"}   # a's streak was reset when it dropped out
+
+
+def test_locate_returns_pixel_centre():
+    (text, (cx, cy)), = qr.locate(img("LL|ZONE-A|001"))
+    assert text == "LL|ZONE-A|001" and abs(cx - 200) < 5 and abs(cy - 200) < 5  # QR pasted at 100..300
+
+
+def test_locate_opencv_fallback_centre(monkeypatch):
+    monkeypatch.setattr(zxingcpp, "read_barcodes", lambda *a, **k: [])
+    (text, (cx, cy)), = qr.locate(img("LL|ZONE-B|002"))
+    assert text == "LL|ZONE-B|002" and abs(cx - 200) < 8 and abs(cy - 200) < 8
