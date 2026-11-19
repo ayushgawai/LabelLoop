@@ -23,8 +23,11 @@ def code_for(zone, n):
     return f"LL|ZONE-{zone}|{n:03d}"
 
 
+ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # GS1 AI 420 = ship-to ZIP5 / seq3
+
+
 def safe(code):
-    return code.replace("|", "_")
+    return code.replace("|", "_").replace("/", "_")
 
 
 def px(mm, dpi):
@@ -104,6 +107,19 @@ def main(argv=None):
         img = texture(FACE_MM, a.dpi, color)
         check(img, [], f"decoy_{i}")
         img.save(out / f"decoy_{i}.png", dpi=(a.dpi, a.dpi))
+    for name, code in ROUTES.items():  # lane-sort parcels (cases 7-12)
+        s = safe(code)
+        lab = label_image(code, QR_MM, a.dpi)
+        face = texture(FACE_MM, a.dpi, KRAFT[0], lab)
+        side = texture(SIDE_MM, a.dpi, KRAFT[0], lab)
+        for kind, img in (("qr", lab), ("face", face), ("side", side)):
+            check(img, [code], f"{s}_{kind}")
+        lab.save(out / f"{s}_qr.png", dpi=(a.dpi, a.dpi))
+        face.save(out / f"{s}_face.png", dpi=(a.dpi, a.dpi))
+        side.save(out / f"{s}_side.png", dpi=(a.dpi, a.dpi))
+    img = texture(FACE_MM, a.dpi, KRAFT[0])
+    check(img, [], "nolabel")
+    img.save(out / "nolabel.png", dpi=(a.dpi, a.dpi))
     page = sheet(codes, 300)
     got = sorted(decode(page))
     if got != sorted(codes):

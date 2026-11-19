@@ -13,6 +13,7 @@ from PIL import Image
 
 CUBE = 0.06  # keep equal to make_qr_boxes.CUBE_MM / 1000
 HX = HY = HZ = CUBE / 2
+ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # keep equal to make_qr_boxes.ROUTES
 CODES = [f"{z}{n:03d}" for z in "AB" for n in (1, 2, 3)]
 
 
@@ -104,8 +105,8 @@ def omni(tex=None, color=(0.8, 0.8, 0.8)):
     return d
 
 
-def bin_body(color_name):
-    w, h, t = 0.172, 0.08, 0.006
+def bin_body(color_name, w=0.172, h=0.08):
+    t = 0.006
     parts = [cube("floor", (w, w, t), (0, 0, t / 2), color_name)]
     for i, (sx, sy, px_, py_) in enumerate([(t, w, (w - t) / 2, 0), (t, w, -(w - t) / 2, 0), (w, t, 0, (w - t) / 2), (w, t, 0, -(w - t) / 2)]):
         parts.append(cube(f"wall{i}", (sx, sy, h), (px_, py_, h / 2), color_name))
@@ -144,6 +145,19 @@ def main():
         (out / f"box_decoy_{i}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_decoy_{i}"), mass=0.08))
     for name, rgb in (("blue", (0.05, 0.25, 0.9)), ("orange", (1.0, 0.45, 0.05))):
         (out / f"bin_{name}.usda").write_text(usda("bin", bin_body("m"), material("m", omni(color=rgb)), kinematic=True, mass=1.0))
+    for name, code in ROUTES.items():  # lane-sort parcels: payload 420/<ZIP5>/<seq3>
+        s = code.replace("/", "_")
+        atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{name}")
+        (out / f"box_{name}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{name}"), mass=0.08))
+    atlas(labels / "nolabel.png", None, "box_nolabel")
+    (out / "box_nolabel.usda").write_text(usda("box", box_mesh("pic"), pic("box_nolabel"), mass=0.08))
+    g = 0.05  # garbage: plain red 50 mm cube, no kraft, no QR
+    (out / "box_garbage.usda").write_text(usda("box", cube("g", (g, g, g), (0, 0, g / 2), "m"), material("m", omni(color=(0.85, 0.05, 0.05))), mass=0.06))
+    for name, rgb in (("blue", (0.05, 0.25, 0.9)), ("orange", (1.0, 0.45, 0.05))):  # lane mats: 140x140x2 mm, visual only
+        (out / f"lane_{name}.usda").write_text(usda("lane", cube("slab", (0.14, 0.14, 0.002), (0, 0, 0.001), "m", collide=False),
+                                                    material("m", omni(color=rgb)), kinematic=True, mass=1.0))
+    (out / "reject_basket.usda").write_text(usda("basket", bin_body("m", 0.25, 0.15), material("m", omni(color=(0.22, 0.22, 0.24))),
+                                                 kinematic=True, mass=2.0))
     mat_texture(out / "textures" / "mat_1.png", (60, 60, 64), 1)
     mat_texture(out / "textures" / "mat_2.png", (200, 205, 190), 2)
     (out / "mat.usda").write_text(usda("mat", cube("slab", (0.5, 0.9, 0.001), (0, 0, 0.0005), "top", collide=False),

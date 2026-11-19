@@ -102,3 +102,12 @@ Layout copied from the built-in fruit scene (`fruits_to_basket/vnext.yaml`, the 
 min_spacing 0.03; bins at x -0.105 (middle of the fruit basket's x -0.14..-0.07), y +-0.15 (case 4: +-0.26).
 Zero-action runs, case 1 and 6 (1 episode each): complete, cubes upright with the QR on top, bins far side (orange left, blue right), nothing intersecting.
 QR gate (label 40 mm + 5 mm margin, same `--up 0.45` method): 10 cm 10/10 (98 px symbol), 15 cm 10/10 (67 px), 20 cm 10/10 (51 px), 25 cm 10/10 (41 px).
+
+## Phase 6: lane sort, cases 7-12 (`build_task.py` LANE_CASES)
+A parcel is slid by a human into the induction zone (tabletop-local x 0.10..0.24, y -0.15..0.15, yaw +-0.3, random per episode; empty at
+reset, every parcel parked off-table and teleported in by `disturb(to_xy_range=...)` from 3 cm up; first at t=6 s). QR payload `420/<ZIP5>/<seq3>`
+(GS1 AI 420). Assets: `box_z95112` (lane A), `box_z90210` (lane B), `box_z10001` (unknown ZIP, reject), `box_nolabel` (plain kraft), `box_garbage`
+(red 50 mm cube, no kraft). Visual-only 140x140x2 mm mats: blue (lane A) at x -0.08, y -0.20; orange (lane B) at x -0.08, y +0.20 (image far-left /
+far-right). Reject basket 0.25x0.25x0.15 m, grey, kinematic, `pose` placement beside the +y table edge (y 0.68, x 0.12), rim 4 cm below the tabletop.
+Cases: 7 z95112 | 8 z90210 | 9 z10001 | 10 nolabel | 11 garbage | 12 stream (z95112 at 6 s, z90210 at 60 s, nolabel at 120 s, 240 s timeout).
+Success `lanes_sorted` (assignments object -> mat id or `reject_basket`; `on_mat` / `in_reject`), then `return` home as in cases 1-6.

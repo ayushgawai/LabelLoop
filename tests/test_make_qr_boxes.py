@@ -16,6 +16,11 @@ def test_generate_and_roundtrip(tmp_path):
         for kind in ("qr", "face", "side"):
             img = Image.open(tmp_path / f"{s}_{kind}.png").convert("L")
             assert [r.text for r in zxingcpp.read_barcodes(np.array(img))] == [code]
+    for code in m.ROUTES.values():  # lane-sort payloads 420/<ZIP5>/<seq3>
+        for kind in ("qr", "face", "side"):
+            img = Image.open(tmp_path / f"{m.safe(code)}_{kind}.png").convert("L")
+            assert [r.text for r in zxingcpp.read_barcodes(np.array(img))] == [code]
+    assert zxingcpp.read_barcodes(np.array(Image.open(tmp_path / "nolabel.png").convert("L"))) == []
     assert Image.open(tmp_path / "LL_ZONE-A_001_face.png").size == (709, 709)
     assert Image.open(tmp_path / "LL_ZONE-A_001_side.png").size == (709, 709)
     for d in ("decoy_1.png", "decoy_2.png"):
