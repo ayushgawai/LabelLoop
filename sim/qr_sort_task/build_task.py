@@ -18,6 +18,8 @@ TIMEOUT_S = 90
 SIDE, DOWN = [0.7071, 0.0, 0.0, 0.7071], [1.0, 0.0, 0.0, 0.0]  # label sideways / down (box quats XYZW, roll about x)
 SURF_TO_ENV = (0.0, -0.27)  # tabletop-local xy -> env xy (read off classify_objects_color poses; VERIFY in Kit)
 TABLE_Z = -0.235
+BIN_X = -0.105  # centre of the fruit scene's basket x range
+# cube region copied from fruits_to_basket scene (object_start_region): x 0.05..0.28, y -0.38..0.38, yaws +-0.1
 # boxes: asset suffix; tilt: label orientation; late: boxes parked at start, put on the table by a human at t
 CASES = {
     1: dict(boxes=["a001"]),
@@ -38,7 +40,7 @@ def obj(oid, asset, tags, **kw):
 
 def scene(n, c):
     boxes, late, decoys = c["boxes"], c.get("late", {}), c.get("decoys", [])
-    mass = [0.08, 0.12]
+    mass = [0.07, 0.09]
     objs = [obj(f"box_{b}", f"labelloop_box_{b}", ["pickable", "qr_box"], spawn_mass=mass, spawn_static_friction=1.0,
                 spawn_dynamic_friction=1.0, **({"orientation": c["tilt"][b]} if b in c.get("tilt", {}) else {}))
             for b in boxes + list(late)]
@@ -47,7 +49,8 @@ def scene(n, c):
     objs += [obj("bin_blue", "labelloop_bin_blue", ["container", "bin_blue"], kinematic=True),
              obj("bin_orange", "labelloop_bin_orange", ["container", "bin_orange"], kinematic=True)]
     movable = [f"box_{b}" for b in boxes] + [f"decoy_{i}" for i in decoys]
-    far = {"blue": [0.0, 0.30], "orange": [0.0, -0.30]} if c.get("bins_moved") else {"blue": [-0.02, 0.22], "orange": [-0.02, -0.22]}
+    # bins sit where the fruit scene's basket does (x -0.14..-0.07, y +-0.08), split left/right of centre
+    far = {"blue": [BIN_X, 0.26], "orange": [BIN_X, -0.26]} if c.get("bins_moved") else {"blue": [BIN_X, 0.15], "orange": [BIN_X, -0.15]}
     nodes = {o: {"object": o} for o in movable}
     for col, (x, y) in far.items():
         nodes[f"bin_{col}"] = {"object": f"bin_{col}", "placement": {"type": "surface", "surface": "tabletop",
@@ -62,9 +65,9 @@ def scene(n, c):
         "background": BG, "objects": objs,
         "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes,
                    "groups": {"box_start_region": {"type": "region", "nodes": movable, "surface": "tabletop",
-                              "ranges": {"x": [0.09, 0.32], "y": [-0.30, 0.30]}, "yaws": [-0.1, 0.1] if decoys else [-0.5, 0.5],
-                              "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.01 if decoys else 0.03,
-                              "jitter": 0.2 if decoys else 0.35, "max_attempts": 20000}}},
+                              "ranges": {"x": [0.05, 0.28], "y": [-0.38, 0.38]}, "yaws": [-0.1, 0.1],
+                              "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.03,
+                              "jitter": 0.35, "max_attempts": 20000}}},
         "variants": {"materialization": [], "assignments": []},
     }
 

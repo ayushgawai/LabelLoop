@@ -2,7 +2,7 @@
 
   python sim/qr_sort_task/make_usd.py --labels sim/assets --out $MANAENV_ASSET_ROOT/labelloop
 
-Box 100x100x50 mm, one OmniPBR material /<root>/Looks/pic, one atlas texture (top face | labeled +Y side | kraft).
+Cube 60 mm (CUBE), one OmniPBR material /<root>/Looks/pic, one atlas texture (three stacked squares: top | labeled +Y side | kraft).
 NOT LOADED IN ISAAC SIM (no simulator here): check in Kit, esp. UV orientation and rigid-body schema.
 """
 import argparse
@@ -11,7 +11,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-HX, HY, HZ = 0.05, 0.05, 0.025
+CUBE = 0.06  # keep equal to make_qr_boxes.CUBE_MM / 1000
+HX = HY = HZ = CUBE / 2
 CODES = [f"{z}{n:03d}" for z in "AB" for n in (1, 2, 3)]
 
 
@@ -32,7 +33,7 @@ def material(path, shader_inputs):
 '''
 
 
-def usda(root, body, looks, rigid=True, kinematic=False, mass=0.1):
+def usda(root, body, looks, rigid=True, kinematic=False, mass=0.08):
     api = '    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]\n' if rigid else ""
     props = f"    float physics:mass = {mass}\n" + ("    bool physics:kinematicEnabled = 1\n" if kinematic else "") if rigid else ""
     return f'''#usda 1.0
@@ -53,7 +54,7 @@ def Xform "ROOT" (
 
 
 def box_mesh(mat):
-    # (normal-side corners CCW seen from outside) -> faces: +Z top, +Y labeled, others kraft; UV atlas v: kraft 0-.25, side .25-.5, top .5-1
+    # (normal-side corners CCW seen from outside) -> faces: +Z top, +Y labeled, others kraft; UV atlas v: kraft 0-1/3, side 1/3-2/3, top 2/3-1
     t = [(-HX, -HY, HZ), (HX, -HY, HZ), (HX, HY, HZ), (-HX, HY, HZ)]
     py = [(HX, HY, -HZ), (-HX, HY, -HZ), (-HX, HY, HZ), (HX, HY, HZ)]
     ny = [(-HX, -HY, -HZ), (HX, -HY, -HZ), (HX, -HY, HZ), (-HX, -HY, HZ)]
@@ -61,7 +62,7 @@ def box_mesh(mat):
     nx = [(-HX, HY, -HZ), (-HX, -HY, -HZ), (-HX, -HY, HZ), (-HX, HY, HZ)]
     nz = [(HX, -HY, -HZ), (-HX, -HY, -HZ), (-HX, HY, -HZ), (HX, HY, -HZ)]
     uv = lambda v0, v1: [(0, v0), (1, v0), (1, v1), (0, v1)]
-    faces = [(t, uv(.5, 1)), (py, uv(.25, .5)), (ny, uv(0, .25)), (px, uv(0, .25)), (nx, uv(0, .25)), (nz, uv(0, .25))]
+    faces = [(t, uv(2 / 3, 1)), (py, uv(1 / 3, 2 / 3)), (ny, uv(0, 1 / 3)), (px, uv(0, 1 / 3)), (nx, uv(0, 1 / 3)), (nz, uv(0, 1 / 3))]
     pts = ", ".join(str(p) for f, _ in faces for p in f)
     uvs = ", ".join(str(u) for _, f in faces for u in f)
     return f'''    def Mesh "Geom" (
@@ -126,21 +127,21 @@ def main():
 
     def atlas(top, side, name):
         t, s = Image.open(top), Image.open(side) if side else None
-        kraft = Image.new("RGB", (t.width, t.height // 2), t.getpixel((2, 2)))
-        img = Image.new("RGB", (t.width, t.height + 2 * kraft.height))
+        kraft = Image.new("RGB", t.size, t.getpixel((2, 2)))
+        img = Image.new("RGB", (t.width, 3 * t.height))
         img.paste(t, (0, 0))
         img.paste(s.convert("RGB") if s else kraft, (0, t.height))
-        img.paste(kraft, (0, t.height + kraft.height))
+        img.paste(kraft, (0, 2 * t.height))
         img.save(out / "textures" / f"{name}_atlas.png")
 
     pic = lambda name: material("pic", omni(f"./textures/{name}_atlas.png"))
     for c in CODES:
         s = f"LL_ZONE-{c[0]}_{c[1:]}"
         atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{c.lower()}")
-        (out / f"box_{c.lower()}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{c.lower()}"), mass=0.1))
+        (out / f"box_{c.lower()}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{c.lower()}"), mass=0.08))
     for i in (1, 2):
         atlas(labels / f"decoy_{i}.png", None, f"box_decoy_{i}")
-        (out / f"box_decoy_{i}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_decoy_{i}"), mass=0.1))
+        (out / f"box_decoy_{i}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_decoy_{i}"), mass=0.08))
     for name, rgb in (("blue", (0.05, 0.25, 0.9)), ("orange", (1.0, 0.45, 0.05))):
         (out / f"bin_{name}.usda").write_text(usda("bin", bin_body("m"), material("m", omni(color=rgb)), kinematic=True, mass=1.0))
     mat_texture(out / "textures" / "mat_1.png", (60, 60, 64), 1)

@@ -52,7 +52,7 @@ def pose_for(cam, d):
 
     R = matrix_from_quat(r.unsqueeze(0))[0]
     right, down, fwd = R[:, 0], R[:, 1], R[:, 2]
-    top = pos + fwd * (d + 0.025) - down * (A.up * d)  # label face (+Z of box, half height 25 mm) sits d from the camera
+    top = pos + fwd * (d + 0.03) - down * (A.up * d)  # label face (+Z of box, half height 30 mm) sits d from the camera
     Rb = torch.stack([right, -down, -fwd], dim=1)
     return top, quat_from_matrix(Rb.unsqueeze(0))[0], pos, R
 

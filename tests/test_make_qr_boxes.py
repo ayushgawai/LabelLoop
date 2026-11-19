@@ -16,8 +16,9 @@ def test_generate_and_roundtrip(tmp_path):
         for kind in ("qr", "face", "side"):
             img = Image.open(tmp_path / f"{s}_{kind}.png").convert("L")
             assert [r.text for r in zxingcpp.read_barcodes(np.array(img))] == [code]
-    assert Image.open(tmp_path / "LL_ZONE-A_001_face.png").size == (1181, 1181)
-    assert Image.open(tmp_path / "LL_ZONE-A_001_side.png").size == (1181, 591)
+    assert Image.open(tmp_path / "LL_ZONE-A_001_face.png").size == (709, 709)
+    assert Image.open(tmp_path / "LL_ZONE-A_001_side.png").size == (709, 709)
     for d in ("decoy_1.png", "decoy_2.png"):
         assert zxingcpp.read_barcodes(np.array(Image.open(tmp_path / d).convert("L"))) == []
+    assert round(m.QR_MM + 2 * m.MARGIN_MM) == 50 and m.CUBE_MM == 60
     assert Image.open(tmp_path / "sheet_a4.png").size == (2480, 3508)
