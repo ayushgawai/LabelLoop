@@ -1,10 +1,31 @@
 """Policy Space deployment of LabelLoop. Thin wrapper; all logic lives in labelloop/."""
+import os
 from pathlib import Path
 
 import numpy as np
 from policy_space.base import PolicyModel
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class Passthrough:
+    """Phase 1: one fixed instruction every call, no state machine (LABELLOOP_PASSTHROUGH="...")."""
+    state_name, done, subgoal_changed = "PASSTHROUGH", False, False
+
+    def __init__(self, instruction, runlog):
+        self.instruction, self.runlog, self.calls = instruction, runlog, 0
+
+    def reset(self):
+        self.calls = 0
+
+    def step(self, images, state):
+        self.calls += 1
+        self.runlog.write(call=self.calls, state=self.state_name, instruction=self.instruction,
+                          left_gripper=state["left_ee"]["gripper"], right_gripper=state["right_ee"]["gripper"])
+        return self.instruction
+
+    def log_reply(self, latency_s, error=None):
+        self.runlog.write(call=self.calls, latency_s=latency_s, error=error)
 
 
 class Model(PolicyModel):
@@ -19,8 +40,11 @@ class Model(PolicyModel):
 
         load_env(str(ROOT / ".env"))
         robot_cfg = load_yaml(str(ROOT / cfg.get("robot", "configs/ex001_6r.yaml")))
-        harness = Harness(load_yaml(str(ROOT / cfg.get("task", "configs/task_qr_sort.yaml"))),
-                          VisionAgent.from_env(), RunLog(str(ROOT / cfg.get("log", "runs/sim.jsonl"))))
+        runlog = RunLog(str(ROOT / cfg.get("log", "runs/sim.jsonl")))
+        fixed = os.environ.get("LABELLOOP_PASSTHROUGH", "").strip()
+        harness = (Passthrough(fixed, runlog) if fixed else
+                   Harness(load_yaml(str(ROOT / cfg.get("task", "configs/task_qr_sort.yaml"))),
+                           VisionAgent.from_env(), runlog))
         self.wallx = WallxClient.from_env()
         self.link = X2RealLink(harness, self.wallx, robot_cfg)
         self._obs = None
