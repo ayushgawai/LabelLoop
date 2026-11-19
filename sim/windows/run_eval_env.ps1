@@ -5,4 +5,7 @@ $env:MANAENV_ASSET_ROOT='C:\x2\x2real-assets'
 $board, $envname, $n = (Get-Content C:\x2\eval_args.txt -Raw).Trim() -split '\s+'
 Set-Location C:\x2\x2real
 & C:\x2\venv\Scripts\python.exe manaenv/scripts/x2real_eval.py --board $board --env $envname --num-episodes $n --num-parallel-envs 1 --policy-config policy/x2real_ps@v1.0.0.yaml --server-address 127.0.0.1 --server-port 8001 --enable_cameras
-"EXIT $LASTEXITCODE"
+$rc = $LASTEXITCODE
+# x2real_eval.py relaunches itself as manaenv\scripts\main.py and returns at once; wait for that child.
+while (Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -match 'manaenv\\scripts\\main.py' }) { Start-Sleep 10 }
+"EXIT $rc"
