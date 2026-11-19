@@ -32,7 +32,7 @@ CASES = {
 # lane sort (cases 7-12). Tabletop is 0.685 x 1.11 m; induction zone = where a human slides a parcel in.
 MAT_XY = {"lane_blue": (-0.08, -0.20), "lane_orange": (-0.08, 0.20)}
 BASKET_XY, BASKET_Z = (0.12, 0.68), -0.425  # tabletop-local xy (inner edge at y=0.555 = table edge); base z env (rim -0.275 = 4 cm below tabletop)
-INDUCT = {"x": [0.10, 0.24], "y": [-0.15, 0.15]}
+INDUCT = {"x": [0.17, 0.28], "y": [-0.12, 0.12]}  # nearer the robot: clear of the mats in the head image
 LANE_TARGET = {"z95112": "lane_blue", "z90210": "lane_orange", "z10001": "reject_basket", "nolabel": "reject_basket", "garbage": "reject_basket"}
 LANE_INSTR = ("Read each parcel's QR label: push ZIP 950-951 parcels onto the blue mat, ZIP 900-902 onto the orange mat; "
               "put anything else in the basket on the right; return home.")
