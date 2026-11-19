@@ -145,7 +145,7 @@ def main():
         (out / f"bin_{name}.usda").write_text(usda("bin", bin_body("m"), material("m", omni(color=rgb)), kinematic=True, mass=1.0))
     mat_texture(out / "textures" / "mat_1.png", (60, 60, 64), 1)
     mat_texture(out / "textures" / "mat_2.png", (200, 205, 190), 2)
-    (out / "mat.usda").write_text(usda("mat", cube("slab", (0.9, 0.6, 0.001), (0, 0, 0.0005), "top", collide=False),
+    (out / "mat.usda").write_text(usda("mat", cube("slab", (0.5, 0.9, 0.001), (0, 0, 0.0005), "top", collide=False),
                                        material("top", omni("./textures/mat_1.png")), rigid=False))
     print(f"wrote {len(list(out.glob('*.usda')))} usda + textures to {out}")
 

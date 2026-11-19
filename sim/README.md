@@ -1,6 +1,7 @@
 # LabelLoop in X2Real (sim) — research + draft
 
-Nothing here has been run: Isaac Sim does not run on the Mac and X2Real code was only read, never imported.
+Status (Windows run, Isaac Sim 6.0.1): cases 1-6 build; case 1 verified (frames + QR gate below). Cases 2-6: see Phase 3 results.
+Text below written before running; **[UNVERIFIED]** tags not mentioned in Phase 3 results are still unverified.
 `X2` = X2Real checkout (`manaenv/` paths are relative to it). Items marked **[UNVERIFIED]** need the Linux box.
 
 ## Answers
@@ -79,3 +80,16 @@ YAML schema accepted by the vNext parser (degenerate `ranges` for the mat, node-
 USDA loads and rigid/collision schema; UV/label orientation; `asset_module` import path; that `register_asset(type(...))` accepts
 dynamically built classes; `boxes_sorted` tensor shapes (copied from classified_object_on_color_target); board/CSV registration
 passing `load_eval_cases`; interval-event one-shot behavior; fisheye readability at 15 cm; table coordinates.
+
+
+## Phase 3 results (Windows, `C:\x2`)
+Install: `make_qr_boxes.py` -> `make_usd.py --out C:\x2\x2real-assets\labelloop` -> copy `labelloop_qr_sort.py` to `manaenv/assets/objects/` -> `build_task.py --x2real C:\x2\x2real`
+(`x2real_eval.py --list --board labelloop_tabletop` lists 6 cases). Fixes needed vs the draft: x2real_eval reads the suite YAML *raw* (no include expansion), so
+`build_task.py` now copies `x2real.yaml` and replaces the four lists; the table mat was dropped (its footprint made `box_start_region` unsolvable;
+tabletop is 0.685 x 1.11 m, node ranges are centred on it). Run: `scripts/run_sim_case.py` or `C:\x2\scripts\run_eval_env.ps1` with
+`C:\x2\eval_args.txt` = `labelloop_tabletop <env> 1` (server on 8001).
+Case 1 head-cam frame: box on table, label up, QR upright and not mirrored, orange bin left / blue bin right, scale plausible, grippers visible at the table edge.
+**QR gate** (`sim/qr_gate.py`: box pinned label-towards-camera at distance d in front of the right wrist camera, label shifted up 0.45*d in the image because the
+gripper fingers fill the lower half of the wrist view; 10 frames each; zxing-cpp on raw RGB; label 55 mm + 8 mm quiet zone):
+10 cm 10/10 (132 px symbol), 15 cm 10/10 (91 px), 20 cm 10/10 (70 px), 25 cm 10/10 (57 px), 30 cm 8/10 (47 px), 40 cm 0/10. Gate passed at 55 mm; no bigger label needed.
+Caveat: with the label centred on the optical axis it is half hidden by the fingers (0/10 at all distances), so the real arm must tilt/offset the wrist to read it.

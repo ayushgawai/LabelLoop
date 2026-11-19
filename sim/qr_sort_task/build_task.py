@@ -18,7 +18,6 @@ TIMEOUT_S = 90
 SIDE, DOWN = [0.7071, 0.0, 0.0, 0.7071], [1.0, 0.0, 0.0, 0.0]  # label sideways / down (box quats XYZW, roll about x)
 SURF_TO_ENV = (0.0, -0.27)  # tabletop-local xy -> env xy (read off classify_objects_color poses; VERIFY in Kit)
 TABLE_Z = -0.235
-MATS = [f"assets/labelloop/textures/mat_{i}.png" for i in (1, 2)]
 # boxes: asset suffix; tilt: label orientation; late: boxes parked at start, put on the table by a human at t
 CASES = {
     1: dict(boxes=["a001"]),
@@ -26,7 +25,7 @@ CASES = {
     3: dict(boxes=["a001", "b001", "a002"]),
     4: dict(boxes=["a001", "b001", "a002"], tilt={"a001": SIDE, "b001": DOWN, "a002": SIDE}, bins_moved=True),
     5: dict(boxes=["a001", "b001"], late={"a002": 12.0}, move={"a001": (8.0, [0.0, 0.08, 0.0])}),
-    6: dict(boxes=["a001", "b001"], decoys=[1, 2], mats=MATS[1:]),
+    6: dict(boxes=["a001", "b001"], decoys=[1, 2]),  # ponytail: no table mat (its footprint blocked box placement)
 }
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
@@ -46,17 +45,13 @@ def scene(n, c):
     objs += [obj(f"decoy_{i}", f"labelloop_decoy_{i}", ["pickable", "decoy"], spawn_mass=mass, spawn_static_friction=1.0,
                  spawn_dynamic_friction=1.0) for i in decoys]
     objs += [obj("bin_blue", "labelloop_bin_blue", ["container", "bin_blue"], kinematic=True),
-             obj("bin_orange", "labelloop_bin_orange", ["container", "bin_orange"], kinematic=True),
-             obj("mat", "labelloop_mat", ["mat"], kinematic=True,
-                 material_variants=[{"id": "top", "path": "Looks/top", "candidates": c.get("mats", MATS)}])]
+             obj("bin_orange", "labelloop_bin_orange", ["container", "bin_orange"], kinematic=True)]
     movable = [f"box_{b}" for b in boxes] + [f"decoy_{i}" for i in decoys]
     far = {"blue": [0.0, 0.30], "orange": [0.0, -0.30]} if c.get("bins_moved") else {"blue": [-0.02, 0.22], "orange": [-0.02, -0.22]}
     nodes = {o: {"object": o} for o in movable}
     for col, (x, y) in far.items():
         nodes[f"bin_{col}"] = {"object": f"bin_{col}", "placement": {"type": "surface", "surface": "tabletop",
                                "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
-    nodes["mat"] = {"object": "mat", "placement": {"type": "surface", "surface": "tabletop",
-                    "ranges": {"x": [0.2, 0.2], "y": [0.0, 0.0]}, "orientation": [0, 0, 0, 1]}}
     for i, b in enumerate(late):  # parked far below the table until the human event fires
         nodes[f"box_{b}"] = {"object": f"box_{b}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5, 3.0 + i, -5.0], "orientation": [0, 0, 0, 1]}]}}
@@ -67,9 +62,9 @@ def scene(n, c):
         "background": BG, "objects": objs,
         "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes,
                    "groups": {"box_start_region": {"type": "region", "nodes": movable, "surface": "tabletop",
-                              "ranges": {"x": [0.10, 0.30], "y": [-0.12, 0.12]}, "yaws": [-0.5, 0.5],
-                              "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.05,
-                              "jitter": 0.35, "max_attempts": 2000}}},
+                              "ranges": {"x": [0.09, 0.32], "y": [-0.30, 0.30]}, "yaws": [-0.1, 0.1] if decoys else [-0.5, 0.5],
+                              "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.01 if decoys else 0.03,
+                              "jitter": 0.2 if decoys else 0.35, "max_attempts": 20000}}},
         "variants": {"materialization": [], "assignments": []},
     }
 
@@ -94,9 +89,7 @@ def dag(n, c):
         "task_type": f"labelloop_qr_sort_case{n}",
         "layout": {"runtime_sample": {"id": "runtime", "targets": {
             "placements": [{"id": "box_start_region", "target": {"type": "group", "id": "box_start_region"}, "sample": {"type": "inherit"}},
-                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in ("bin_blue", "bin_orange", "mat"))],
-            "materials": [{"id": "mat_top", "target": {"type": "object_material", "object": "mat", "material": "top"},
-                           "selector": {"type": "uniform"}}]}}},
+                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in ("bin_blue", "bin_orange"))]}}},
         "component_sections": sections},
         "nodes": [
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
@@ -137,8 +130,9 @@ def main():
     for n, c in CASES.items():
         dump(d / f"labelloop/scene/case{n}.yaml", scene(n, c))
         dump(d / f"labelloop/task/case{n}_dag.yaml", dag(n, c))
-    suite = {"include": "x2real.yaml",  # lists below REPLACE x2real.yaml's; robot_orders/pipeline/output are inherited
-             "scene_orders": [{"include": f"labelloop/scene/case{n}.yaml"} for n in CASES],
+    # x2real_eval reads the suite raw (no include expansion), so copy x2real.yaml and replace its four lists.
+    suite = yaml.safe_load((d / "x2real.yaml").read_text())
+    suite.update({"scene_orders": [{"include": f"labelloop/scene/case{n}.yaml"} for n in CASES],
              "task_orders": [{"include": f"labelloop/task/case{n}_dag.yaml"} for n in CASES],
              "assembly_orders": [{"assembly_generator": {
                  "name": ENV(n), "scene_generator_name": SCENE(n), "robot_generator_name": "EX001-6R-G",
@@ -146,7 +140,7 @@ def main():
                  "metadata": {"x2real": {"embodiment": "artixon_arm6a", "capabilities": ["benchmark"],
                                          "robot_generator_identity": "EX001-6R-G", "board": "labelloop_tabletop"}}}} for n in CASES],
              "rollout": [{"env_ref": ENV(n), "num_episodes": 40, "episode_length_s": TIMEOUT_S, "max_steps": TIMEOUT_S * 30,
-                          "num_parallel_envs": 4, "show_evaluation_overlay": True, "planner": policy} for n in CASES]}
+                          "num_parallel_envs": 4, "show_evaluation_overlay": True, "planner": policy} for n in CASES]})
     dump(d / "labelloop.yaml", suite)
     rows = ["subcategory,task,x2real_package,n_id,id_envs,id_timeout_s"]
     rows += [f"labelloop,qr_sort_case{n},labelloop/qr_sort_case{n},1,{ENV(n)},{TIMEOUT_S}" for n in CASES]
