@@ -55,7 +55,7 @@ class FakeScene:
         self.kw = kw
         table, hand = self.at("table"), self.at("hand")
         if kw == "GRASP":
-            self.grip = 1.5 if self.n < 2 else 0.6
+            self.grip = 1.5 if self.n < 2 else 0.35
             if self.n >= 2 and table:
                 table[0]["at"] = "hand"
         elif kw in ("PLACE", "REJECT") and self.n >= 2:

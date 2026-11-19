@@ -21,7 +21,7 @@ class StateMachine:
         self._enter("SURVEY", now)
 
     def _enter(self, state, now):
-        self.state, self.t0, self.calls, self.hold, self.was_open = state, now, 0, 0, False
+        self.state, self.t0, self.calls, self.hold, self.was_open, self.prev_grip = state, now, 0, 0, False, 0.0
         if state == "SURVEY":
             self.memory.current_code, self.retries = None, 0
 
@@ -100,8 +100,10 @@ class StateMachine:
     def _grasp(self, grip, verdict, now):
         g = self.cfg["gripper"]
         self.was_open |= grip >= g["open_min"]
-        holding = g["empty_max"] < grip < g["open_min"]
-        self.hold = self.hold + 1 if holding else 0
+        holding = g["empty_max"] < grip < g["hold_max"]
+        steady = self.hold and abs(grip - self.prev_grip) <= g["hold_tol"]
+        self.hold = (self.hold + 1 if steady else 1) if holding else 0
+        self.prev_grip = grip
         if self.hold >= g["hold_calls"]:
             self._go("PLACE" if self.memory.current_code else "PRESENT", "grasped", now)
             return

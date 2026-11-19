@@ -14,10 +14,14 @@ look_attempts: 3
 present_faces: 3
 grasp_retries: 3
 
+# Calibrated from 160 WALLX calls in X2Real (results/phase1_passthrough.md): closed-empty ~0.00,
+# approach opening 0.5-0.99 (rarely >1.0), holding a ~55 mm object = steady plateau 0.31-0.37.
 gripper:                  # left arm holds the box
-  empty_max: 0.15         # closed below this = closed on nothing
-  open_min: 1.30          # above this = open / released
-  hold_calls: 2           # holding band (empty_max, open_min) for N calls = grasped
+  empty_max: 0.08         # at/below = closed on nothing
+  hold_max: 0.60          # holding band (empty_max, hold_max) ...
+  hold_tol: 0.03          # ... and steady: |change| <= hold_tol between calls
+  hold_calls: 2           # N consecutive steady in-band readings = grasped
+  open_min: 0.60          # at/above = open / released
 
 # Sub-goal wording. {bin} -> blue|orange. Index 0 is used unless instruction_variant says otherwise.
 instruction_variant: 0

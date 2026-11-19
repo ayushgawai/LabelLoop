@@ -86,11 +86,11 @@ def test_present_gives_up_to_reject():
 
 def test_grasp_hold_goes_to_place_or_present():
     sm = at("GRASP", A)
-    go(sm, grip=0.6)
+    go(sm, grip=0.35)
     assert sm.state == "GRASP"
-    assert go(sm, grip=0.6) == "Put the box into the blue bin."
+    assert go(sm, grip=0.35) == "Put the box into the blue bin."
     sm = at("GRASP")
-    go(sm, grip=0.6), go(sm, grip=0.6)
+    go(sm, grip=0.35), go(sm, grip=0.35)
     assert sm.state == "PRESENT"
 
 
@@ -119,7 +119,7 @@ def test_grasp_agent_done_but_not_holding_counts_retry():
 
 def test_place_release_marks_sorted():
     sm = at("PLACE", A)
-    go(sm, grip=0.6)
+    go(sm, grip=0.35)
     assert sm.state == "PLACE"
     go(sm, grip=1.5)
     assert sm.state == "SURVEY" and A in sm.memory.sorted
@@ -138,8 +138,8 @@ def test_reject_release_counts():
 
 
 @pytest.mark.parametrize("state,grip,expect", [("LOOK", 1.5, "GRASP"), ("GRASP", 1.5, "SURVEY"),
-                                               ("PRESENT", 1.5, "REJECT"), ("PLACE", 0.6, "SURVEY"),
-                                               ("REJECT", 0.6, "SURVEY")])
+                                               ("PRESENT", 1.5, "REJECT"), ("PLACE", 0.35, "SURVEY"),
+                                               ("REJECT", 0.35, "SURVEY")])
 def test_state_timeout(state, grip, expect):
     sm = at(state, A)
     go(sm, now=44, grip=grip)
@@ -158,3 +158,12 @@ def test_reject_drop_goes_to_survey_without_counting():
     sm = at("REJECT")
     go(sm, grip=0.05)
     assert sm.state == "SURVEY" and sm.memory.rejected_count == 0
+
+
+def test_grasp_needs_steady_reading_not_a_passing_value():
+    sm = at("GRASP", A)
+    for g in (0.2, 0.4, 0.55, 0.3):  # gripper moving through the band = not holding
+        go(sm, grip=g)
+    assert sm.state == "GRASP"
+    go(sm, grip=0.31)
+    assert sm.state == "PLACE"  # 0.30 -> 0.31 is steady
