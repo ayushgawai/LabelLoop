@@ -1,0 +1,31 @@
+# Launch: PYTHONPATH=<repo> policy-space serve <repo>/policies/labelloop/deploy.yaml --port 8001
+# Policy Space loads <this dir>/model.py and class `model.class` (model.module is ignored by the loader).
+policy_name: labelloop
+
+model:
+  module: model
+  class: Model
+  cfg:
+    task: configs/task_qr_sort.yaml    # relative to repo root
+    robot: configs/ex001_6r.yaml
+    log: runs/sim.jsonl
+    action_horizon: 33
+
+server:
+  host: "0.0.0.0"
+  port: 8001
+  session_mode: multiplexed_serial
+
+metadata:
+  supported_schema_pairs:
+    - observation_schema: bimanual_rgb_ee@1
+      action_schema: bimanual_ee_absolute@1
+      embodiment_constraints: [ex001_6r@1]
+  protocol: policy_space
+  protocol_version: "2"
+  embodiment: ArtiXon Arm-6A
+  action_mode: ik_eef_abs
+  action_dim: 14
+  action_horizon: 33   # row 0 = state echo (skipped by X2Real), rows 1..32 = WALLX
+  action_type: absolute_ee
+  # gripper_convention deliberately omitted -> raw sim radians; we map to WALLX units via configs/ex001_6r.yaml

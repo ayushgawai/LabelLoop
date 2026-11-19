@@ -1,0 +1,46 @@
+# QR parcel sort task. All gripper numbers are WALLX units (G gripper, 0 = closed, 1.526 = open).
+# CALIBRATE on the real robot / sim: gripper bands, timeouts.
+
+zones:            # code zone -> bin color. Bin comes from the code, never from box color.
+  ZONE-A: blue
+  ZONE-B: orange
+code_pattern: '^LL\|(ZONE-[AB])\|\d{3}$'   # group 1 = zone
+
+qr_confirm_frames: 2      # same value must decode in N consecutive model calls
+agent_every: 4            # ask the vision agent every N model calls
+state_timeout_s: 45       # per-state wall-clock timeout
+calls_per_attempt: 4      # model calls that make one LOOK attempt / one PRESENT face
+look_attempts: 3
+present_faces: 3
+grasp_retries: 3
+
+gripper:                  # left arm holds the box
+  empty_max: 0.15         # closed below this = closed on nothing
+  open_min: 1.30          # above this = open / released
+  hold_calls: 2           # holding band (empty_max, open_min) for N calls = grasped
+
+# Sub-goal wording. {bin} -> blue|orange. Index 0 is used unless instruction_variant says otherwise.
+instruction_variant: 0
+instructions:
+  LOOK:
+    - "Move the right gripper above the box nearest the middle, camera pointing down."
+    - "Hold the right gripper over the middle box with its camera looking down."
+    - "Position the right arm above the closest box to the center, gripper camera facing down."
+  GRASP:
+    - "Pick up that box with the left arm."
+    - "Grasp the box with the left gripper and lift it."
+    - "Use the left arm to pick up the box."
+  PRESENT:
+    - "Turn the box so its side faces the right gripper camera."
+    - "Rotate the held box to show another side to the right gripper camera."
+    - "Show a different face of the box to the right wrist camera."
+  PLACE:
+    - "Put the box into the {bin} bin."
+    - "Place the box in the {bin} bin and release it."
+    - "Drop the box into the {bin} bin."
+  REJECT:
+    - "Put the box on the left edge of the table."
+    - "Set the box down at the left edge of the table and release it."
+    - "Place the box on the far left side of the table."
+  DONE:
+    - "Move both arms back to the home position."
