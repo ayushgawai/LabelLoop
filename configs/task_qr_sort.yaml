@@ -1,52 +1,47 @@
-# QR parcel sort task, harness v2. Gripper numbers are WALLX units (G gripper, 0 = closed, 1.526 = open).
-# CALIBRATE on the real robot / sim: gripper bands, budgets, scene thresholds.
+# Lane sorter v3: a human slides parcels one at a time into the induction zone; we read the QR (GS1 AI 420 = ship-to ZIP),
+# route by ZIP3 like a sortation computer, and push the parcel onto its lane mat. CALIBRATE in sim / on the robot.
 
-zones:            # code zone -> bin color. Bin comes from the code, never from box color.
-  ZONE-A: blue
-  ZONE-B: orange
-code_pattern: '^LL\|(ZONE-[AB])\|\d{3}$'   # group 1 = zone
+code_pattern: '^420/(\d{5})/\d{3}$'   # group 1 = ZIP5
+sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> reject basket
+  A: ["950", "951", "940", "941"]
+  B: ["900", "901", "902"]
+lanes: {A: blue, B: orange}   # lane -> mat colour
+max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
-qr_confirm_frames: 2      # same value must decode in N consecutive model calls
-agent_every: 4            # ask the vision agent every N model calls (optional; harness works with agent=None)
-
-# Budgets are in MODEL CALLS (~1.6 s of sim motion each; WALLX takes 8-10 s/call), not wall time.
-place_max_calls: 30
-place_retries: 2          # PLACE budget expiries per code before it is treated as an unknown block (FETCH)
-fetch_max_calls: 20
-place_held_max_calls: 20
-reject_max_calls: 15
-
-# Calibrated in X2Real: closed-empty ~0.0, idle 0.1-0.25, holding a 60 mm cube = steady plateau 0.45-0.47, release > 0.6.
-gripper:                  # applied to BOTH arms
-  empty_max: 0.08         # at/below = closed on nothing
-  hold_min: 0.30          # holding band (hold_min, hold_max) ...
-  hold_max: 0.60
-  hold_tol: 0.03          # ... and steady: |change| <= hold_tol between calls
-  hold_calls: 2           # N consecutive steady in-band readings (after the arm opened) = holding
-  open_min: 0.60          # at/above = open: arms the grasp detector, and releasing a held cube
+# All counts are MODEL CALLS (~1.6 s of motion each; WALLX takes 8-10 s/call), not wall time.
+qr_confirm_frames: 2      # same value must decode in N consecutive calls
+stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
+settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
+scan_max_calls: 6         # kraft object, no confirmed decode after this many SCAN calls -> no-label reject
+home_calls: 3             # HOME instruction calls, then VERIFY holds
+verify_calls: 2
+ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
+max_calls: {PUSH: 12, PLACE: 20, REJECT: 15}
+tries: {PUSH: 2, PLACE: 1, REJECT: 2}   # attempts per parcel; PUSH exhausted -> PLACE fallback
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
-# Calibrated on 1280x720 and 640x480 sim head frames (tests/data): kraft S 60-155, bins S > 120.
+# Calibrated on 1280x720 and 640x480 sim head frames (tests/data): kraft S 60-155, mats S > 120.
 scene:
   blue: [[95, 120, 80], [125, 255, 255]]
   orange: [[10, 150, 150], [30, 255, 255]]
   kraft: [[8, 60, 60], [28, 155, 200]]
-  bin_min_area: 0.004
-  block_min_area: 0.0015
-  bin_gain: 0.0015        # kraft area (image fraction) that must appear inside a bin to count as a cube landing there
+  mat_min_area: 0.004
+  mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a mat bbox to count as landed there
+  induction_roi: [0.30, 0.40, 0.75, 0.80]   # x0, y0, x1, y1 as fractions of the image
+  presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
+  presence_min: 0.02      # fraction of the ROI that differs = something is there
+  kraft_min: 0.005        # fraction of the ROI that is kraft = a parcel (else garbage)
+  ref_refresh_calls: 5    # IDLE sees an empty zone this many calls -> refresh the reference
 
-# Wording. {bin} -> blue|orange, {where} -> "on the left" | "in the middle" | "on the right".
-# "put the block into the blue bin" sorted 2/2 zero-shot (results/phase4_case1_wording.md); engineered sub-goals failed 0/8.
+# Wording, one sentence per call, as WALLX was trained. {mat} -> blue|orange, {obj} -> "block" (kraft) | "object".
+# "put the block into the blue bin" sorted 2/2 zero-shot (results/phase4_case1_wording.md); no location phrases.
 instruction_variant: 0
 instructions:
+  PUSH:
+    - "push the {obj} onto the {mat} mat"
   PLACE:
-    - "put the block {where} into the {bin} bin"
-    - "put the block into the {bin} bin"
-  FETCH:
-    - "pick up the block {where}"
-  PLACE_HELD:
-    - "put the block into the {bin} bin"
+    - "put the {obj} on the {mat} mat"
   REJECT:
-    - "put the block at the left edge of the table"
-  DONE:
+    - "put the {obj} into the basket on the right"
+  HOME:
     - "put both arms back to the home position"

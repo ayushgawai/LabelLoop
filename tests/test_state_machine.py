@@ -4,215 +4,115 @@ from labelloop.brain.state_machine import StateMachine
 from labelloop.config import load_yaml
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
-A, B = "LL|ZONE-A|001", "LL|ZONE-B|002"
-W, H = 1280, 720
-BINS = {"blue": (700, 100, 900, 280), "orange": (380, 100, 580, 280)}
-KEEP = object()
+A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
+GAIN = 0.01  # > mat_gain
 
 
-def ev(front=(), wrist=(), blocks=(), kraft=None, grips=(0.2, 0.2), verdict=None, confirmed=KEEP):
-    front = list(front)
-    return {"w": W, "h": H, "front": front, "wrist": set(wrist), "bins": BINS, "blocks": list(blocks),
-            "kraft": kraft or {"blue": 0.0, "orange": 0.0}, "grips": grips, "verdict": verdict,
-            "confirmed": {t for t, _ in front} | set(wrist) if confirmed is KEEP else confirmed}
+def ev(presence=0.0, kroi=0.0, codes=(), kmats=None):
+    return {"presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "orange": 0.0}}
 
 
-def sm_in(state, code=A):
+def parcel(sm, code, kroi=0.08):
+    """Drive IDLE -> SCAN -> routed; returns the instruction after the SCAN call."""
+    assert sm.step(ev(0.06, kroi)) is None and sm.state == "IDLE"
+    assert sm.step(ev(0.06, kroi)) is None and sm.state == "SCAN"
+    return sm.step(ev(0.06, kroi, [code] if code else []))
+
+
+def lane_a(sm):
+    parcel(sm, A)
+    assert sm.state == "PUSH"
+
+
+def finish(sm, **landed):
+    """Object gone from the zone, kraft gained on the given mats: through HOME and VERIFY."""
+    for _ in range(2):
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}))
+    states = []
+    while sm.state in ("HOME", "VERIFY"):
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}))
+        states.append(sm.state)
+    return states
+
+
+def test_lane_a_push_ok_early_end_home_verify_idle_and_counts():
     sm = StateMachine(CFG)
-    sm.step(ev())
-    sm.step(ev())  # leave SURVEY: no evidence -> DONE; force state instead
-    sm.state, sm.code, sm.calls, sm.transitions = state, code, 0, []
-    return sm
+    assert parcel(sm, A) == "push the block onto the blue mat"
+    assert sm.step(ev(0.06, 0.08)) == "push the block onto the blue mat" and sm.state == "PUSH"
+    assert sm.step(ev(0.0, kmats={"blue": GAIN, "orange": 0.0})) == "push the block onto the blue mat"  # ok 1 of 2
+    assert sm.step(ev(0.0, kmats={"blue": GAIN, "orange": 0.0})) == "put both arms back to the home position"
+    assert sm.state == "HOME" and sm.calls == 0
+    assert finish(sm, blue=GAIN)[-1] == "IDLE"
+    assert sm.parcels == 1 and sm.results[0]["outcome"] == "ok" and sm.results[0]["lane"] == "A"
+    assert sm.state == "IDLE"  # never DONE with max_parcels null
 
 
-def survey():
+def test_lane_b_push_fails_twice_then_place_fallback_then_ok():
     sm = StateMachine(CFG)
-    assert sm.step(ev()) is None  # first frame: wait for the QR confirmation window
-    return sm
+    parcel(sm, B)
+    assert sm.state == "PUSH"
+    for attempt in (1, 2):
+        for _ in range(CFG["max_calls"]["PUSH"]):
+            assert sm.step(ev(0.06, 0.08)) == "push the block onto the orange mat" or sm.state == "HOME"
+        assert sm.state == "HOME"
+        while sm.state != "PUSH" and sm.state != "PLACE":
+            sm.step(ev(0.06, 0.08))
+        assert sm.state == ("PUSH" if attempt == 1 else "PLACE")
+    assert sm.step(ev(0.06, 0.08)) == "put the block on the orange mat"
+    for _ in range(2):
+        sm.step(ev(0.0, kmats={"orange": GAIN, "blue": 0.0}))
+    assert sm.state == "HOME"
+    assert finish(sm, orange=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
 
 
-def test_survey_place_wording_and_where_each_third():
-    for x, word in ((100, "on the left"), (640, "in the middle"), (1200, "on the right")):
-        sm = survey()
-        assert sm.step(ev([(A, (x, 450))])) == "put the block %s into the blue bin" % word
-    sm = survey()
-    assert sm.step(ev([(B, (640, 450))])) == "put the block in the middle into the orange bin"
+def test_unknown_zip_and_bad_code_reject_to_basket():
+    for code, reason in ((NOZIP, "unknown_zip"), (BAD, "bad_code")):
+        sm = StateMachine(CFG)
+        assert parcel(sm, code) == "put the block into the basket on the right"
+        assert sm.reason == reason and sm.lane is None
 
 
-def test_survey_prefers_target_nearest_centre_and_skips_unconfirmed_and_in_bin():
-    sm = survey()
-    sm.step(ev([(A, (100, 450)), (B, (500, 400))]))
-    assert sm.code == B
-    sm = survey()
-    sm.step(ev([(A, (640, 450))], blocks=[(640, 450)], confirmed=set()))
-    assert sm.state == "FETCH"  # unconfirmed code is not a target yet
-    sm = survey()
-    sm.step(ev([(A, (800, 200))]))  # code seen inside the blue bin: not a target
-    assert sm.state == "DONE"
-
-
-def test_survey_fetch_for_block_without_code_done_when_nothing():
-    sm = survey()
-    assert sm.step(ev(blocks=[(250, 450)])) == "pick up the block on the left" and sm.state == "FETCH"
-    sm = survey()
-    assert sm.step(ev()) == "put both arms back to the home position" and sm.state == "DONE"
-    assert sm.step(ev([(A, (640, 450))], blocks=[(1, 1)])) == "put both arms back to the home position"
-
-
-def test_agent_zero_means_done():
-    sm = survey()
-    sm.step(ev(blocks=[(250, 450)], verdict={"unsorted_boxes": 0}))
-    assert sm.state == "DONE"
-
-
-def test_place_success_needs_code_gone_two_calls_and_kraft_in_right_bin():
-    sm = sm_in("PLACE")
-    sm.base = {"blue": 0.001, "orange": 0.0}
-    gain = {"blue": 0.005, "orange": 0.0}
-    sm.step(ev(kraft=gain))
-    assert sm.state == "PLACE"  # gone only once
-    sm.step(ev(kraft=gain))
-    assert sm.state == "SURVEY" and sm.sorted == {A} and not sm.wrong
-
-
-def test_place_code_still_on_table_keeps_going_and_updates_where():
-    sm = sm_in("PLACE")
-    sm.base = {"blue": 0.0, "orange": 0.0}
-    for _ in range(3):
-        assert sm.step(ev([(A, (1100, 450))], kraft={"blue": 0.005, "orange": 0.0})) == \
-            "put the block on the right into the blue bin"
-    assert sm.state == "PLACE"
-
-
-def test_place_wrong_bin_logged():
-    sm = sm_in("PLACE")
-    sm.base = {"blue": 0.0, "orange": 0.0}
-    sm.step(ev(kraft={"blue": 0.0, "orange": 0.004}))
-    sm.step(ev(kraft={"blue": 0.0, "orange": 0.004}))
-    assert sm.state == "SURVEY" and sm.wrong == {A} and A in sm.sorted
-    assert sm.flags == ["wrong_bin:%s:orange" % A]
-
-
-def test_place_code_seen_inside_bin_counts_without_kraft():
-    sm = sm_in("PLACE")
-    sm.step(ev([(A, (800, 200))]))
-    sm.step(ev([(A, (800, 200))]))
-    assert sm.state == "SURVEY" and sm.sorted == {A}
-
-
-def test_place_budget_then_give_up_after_retries():
-    sm = sm_in("PLACE")
-    for _ in range(CFG["place_max_calls"]):
-        sm.step(ev([(A, (640, 450))]))
-    assert sm.state == "SURVEY" and sm.retries == {A: 1} and not sm.gave_up
-    sm.step(ev([(A, (640, 450))]))
-    assert sm.state == "PLACE"  # retry
-    for _ in range(CFG["place_max_calls"]):
-        sm.step(ev([(A, (640, 450))]))
-    assert sm.gave_up == {A} and sm.state == "SURVEY"
-    assert sm.step(ev([(A, (640, 450))], blocks=[(640, 450)])) == "pick up the block in the middle"  # FETCH-able
-
-
-def hold(sm, grip=0.46):
-    sm.step(ev(grips=(0.2, 1.0)))
-    sm.step(ev(grips=(0.2, grip)))
-    sm.step(ev(grips=(0.2, grip)))
-
-
-def test_fetch_wrist_code_while_holding_goes_to_place_held():
-    sm = sm_in("FETCH", None)
-    sm.step(ev(wrist={B}, grips=(0.2, 1.0)))
-    assert sm.state == "FETCH"  # not holding yet
-    sm.step(ev(wrist={B}, grips=(0.2, 0.46)))
-    assert sm.step(ev(wrist={B}, grips=(0.2, 0.46))) == "put the block into the orange bin" and sm.state == "PLACE_HELD"
-
-
-def test_fetch_holding_arm_can_be_left():
-    sm = sm_in("FETCH", None)
-    sm.step(ev(grips=(1.0, 0.2)))
-    sm.step(ev(wrist={A}, grips=(0.46, 0.2)))
-    sm.step(ev(wrist={A}, grips=(0.46, 0.2)))
-    assert sm.state == "PLACE_HELD" and sm.code == A
-
-
-def test_fetch_idle_plateau_is_not_a_hold():
-    sm = sm_in("FETCH", None)
-    for _ in range(4):
-        sm.step(ev(wrist={A}, grips=(0.2, 0.2)))  # never opened: idle 0.2 plateau
-    assert sm.state == "FETCH"
-
-
-def test_fetch_budget_reject_if_holding_else_survey():
-    sm = sm_in("FETCH", None)
-    hold(sm)
-    for _ in range(CFG["fetch_max_calls"]):
-        sm.step(ev(grips=(0.2, 0.46)))
-    assert sm.state == "REJECT"
-    sm = sm_in("FETCH", None)
-    for _ in range(CFG["fetch_max_calls"]):
-        sm.step(ev())
-    assert sm.state == "SURVEY"
-
-
-def test_reject_on_release_and_budget():
-    sm = sm_in("FETCH", None)
-    hold(sm)
-    for _ in range(CFG["fetch_max_calls"]):
-        sm.step(ev(grips=(0.2, 0.46)))
-    assert sm.step(ev(grips=(0.2, 0.46))) == "put the block at the left edge of the table"
-    sm.step(ev(grips=(0.2, 1.0)))
-    assert sm.state == "SURVEY" and sm.rejected_count == 1
-    sm = sm_in("REJECT", None)
-    for _ in range(CFG["reject_max_calls"]):
-        sm.step(ev())
-    assert sm.state == "SURVEY" and sm.rejected_count == 0
-
-
-def test_rejected_block_is_ignored_afterwards():
-    sm = sm_in("REJECT", None)
-    sm.before = [(640, 450)]
-    sm.step(ev(grips=(0.2, 0.46), blocks=[(640, 450)]))
-    sm.arms[1].update(held=True, open=True)
-    sm.step(ev(grips=(0.2, 1.0), blocks=[(640, 450)]))
-    assert sm.state == "SURVEY" and sm.learn
-    sm.step(ev(blocks=[(640, 450), (60, 400)]))  # the rejected cube now sits at the left edge
-    assert sm.state == "FETCH" and sm.ignored == [(60, 400)]
-    sm.state = "SURVEY"
-    assert sm.step(ev(blocks=[(60, 400)])) == "put both arms back to the home position"
-
-
-def test_place_held_release_plus_kraft_in_bin():
-    sm = sm_in("PLACE_HELD", B)
-    sm.base = {"blue": 0.0, "orange": 0.0}
-    sm.step(ev(grips=(0.2, 1.0)))
-    sm.arms[1].update(held=True, open=True)
-    sm.step(ev(grips=(0.2, 0.46), kraft={"blue": 0.0, "orange": 0.005}))
-    assert sm.state == "PLACE_HELD"  # cube over the bin but not released
-    sm.step(ev(grips=(0.2, 1.0), kraft={"blue": 0.0, "orange": 0.005}))
-    assert sm.state == "SURVEY" and sm.sorted == {B} and not sm.wrong
-
-
-def test_place_held_wrong_bin_and_budget():
-    sm = sm_in("PLACE_HELD", B)
-    sm.base = {"blue": 0.0, "orange": 0.0}
-    sm.arms[0].update(held=True, open=True)
-    sm.step(ev(grips=(1.0, 0.2), kraft={"blue": 0.005, "orange": 0.0}))  # left arm releases
-    assert sm.wrong == {B}
-    sm = sm_in("PLACE_HELD", B)
-    for _ in range(CFG["place_held_max_calls"]):
-        sm.step(ev())
-    assert sm.state == "SURVEY" and not sm.sorted
-
-
-def test_gripper_both_arms_and_drop():
+def test_no_label_after_scan_budget_and_garbage_immediately():
     sm = StateMachine(CFG)
-    sm.step(ev(grips=(1.0, 0.2)))
-    sm.step(ev(grips=(0.46, 0.2)))
-    sm.step(ev(grips=(0.47, 0.2)))
-    assert [a["held"] for a in sm.arms] == [True, False]
-    sm.step(ev(grips=(0.0, 0.2)))  # closed on nothing: dropped
-    assert not sm.arms[0]["held"] and not sm.arms[0]["open"]
-    sm.step(ev(grips=(1.0, 0.2)))
-    sm.step(ev(grips=(0.46, 0.2)))
-    sm.step(ev(grips=(0.7, 0.2)))  # not steady, and above hold band
-    assert not sm.arms[0]["held"]
+    parcel(sm, None)
+    assert sm.state == "SCAN"
+    for _ in range(CFG["scan_max_calls"] - 2):
+        assert sm.step(ev(0.06, 0.08)) is None
+    assert sm.step(ev(0.06, 0.08)) == "put the block into the basket on the right" and sm.reason == "no_label"
+    sm = StateMachine(CFG)
+    assert parcel(sm, None, kroi=0.0) == "put the object into the basket on the right" and sm.reason == "garbage"
+
+
+def test_reject_success_then_failure_after_last_try_goes_idle_and_rebases():
+    sm = StateMachine(CFG)
+    parcel(sm, NOZIP)
+    assert finish(sm)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
+    sm = StateMachine(CFG)
+    parcel(sm, NOZIP)
+    for _ in range(CFG["tries"]["REJECT"]):  # object never leaves the zone
+        while sm.state != "IDLE" and (sm.state != "REJECT" or sm.calls == 0):
+            sm.step(ev(0.06, 0.08))
+        for _ in range(60):
+            if sm.state == "IDLE":
+                break
+            sm.step(ev(0.06, 0.08))
+    assert sm.state == "IDLE" and sm.results[0]["outcome"] == "failed" and sm.rebase
+    assert sm.step(ev()) is None and sm.parcels == 1
+
+
+def test_hand_in_zone_not_stable_no_action_and_one_frame_occlusion_harmless():
+    sm = StateMachine(CFG)
+    for f in (0.2, 0.35, 0.1, 0.2, 0.0):  # hand moving: presence keeps changing, then leaves
+        assert sm.step(ev(f, 0.08)) is None and sm.state == "IDLE"
+    parcel(sm, A)
+    assert sm.state == "PUSH"
+    sm = StateMachine(CFG)
+    sm.step(ev(0.06, 0.08)), sm.step(ev(0.06, 0.08))
+    assert sm.step(ev(0.06, 0.08, [])) is None and sm.state == "SCAN"  # code occluded: just wait
+    assert sm.step(ev(0.06, 0.08, [A])) and sm.state == "PUSH"
+
+
+def test_max_parcels_makes_done_and_holds():
+    sm = StateMachine({**CFG, "max_parcels": 1})
+    parcel(sm, NOZIP)
+    assert finish(sm)[-1] == "DONE" and sm.step(ev()) is None

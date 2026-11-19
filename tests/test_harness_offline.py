@@ -4,16 +4,15 @@ from pathlib import Path
 from labelloop.config import load_yaml
 from labelloop.eval.runlog import RunLog
 from labelloop.harness import Harness
-from labelloop.robots.mock import A, B, C, FakeAgent, FakeScene, cube
+from labelloop.robots.mock import A, B, BAD, UNKNOWN, FakeScene, garbage, nolabel, parcel
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
 
 
-def run(scene, agent=None, runlog=None, max_calls=120):
-    h = Harness(CFG, agent, runlog)
-    sent = []
+def run(scene, cfg=CFG, runlog=None, max_calls=500, until=lambda h: h.done):
+    h, sent = Harness(cfg, runlog=runlog), []
     for _ in range(max_calls):
-        if h.done:
+        if until(h):
             break
         instr = h.step(*scene.observe())
         sent.append((h.sm.state, instr))
@@ -22,58 +21,26 @@ def run(scene, agent=None, runlog=None, max_calls=120):
     return h, sent
 
 
-def bins(scene):
-    return {c["code"]: c["at"] for c in scene.cubes}
-
-
-def test_one_cube(tmp_path):
-    scene, log = FakeScene([cube(A)]), tmp_path / "sub" / "run.jsonl"
-    h, sent = run(scene, runlog=RunLog(str(log)))
-    assert h.done and h.sm.sorted == {A} and scene.bin_of == {A: "blue"} and scene.picks == 1
-    assert sent[0] == ("SURVEY", None)  # holds one call until the code is confirmed
-    assert sent[1] == ("PLACE", "put the block on the left into the blue bin")
+def test_stream_of_five_routes_each_parcel_and_never_latches_done(tmp_path):
+    objs = [parcel(A), parcel(B, fail_pushes=2), parcel(UNKNOWN), nolabel(), garbage()]
+    scene, log = FakeScene(objs), tmp_path / "sub" / "run.jsonl"
+    h, sent = run(scene, runlog=RunLog(str(log)), until=lambda h: h.sm.parcels == 5)
+    assert [scene.at[id(o)] for o in objs] == ["blue", "orange", "basket", "basket", "basket"]
+    assert [r["outcome"] for r in h.sm.results] == ["ok"] * 5 and not h.done
+    instrs = [i for _, i in sent if i]
+    assert "push the block onto the blue mat" in instrs and "put the block on the orange mat" in instrs
+    assert "put the object into the basket on the right" in instrs
+    for _ in range(20):  # keeps waiting for the next parcel, silently
+        assert h.step(*scene.observe()) is None and not h.done
     lines = [json.loads(l) for l in log.read_text().splitlines()]
     steps = [l for l in lines if "state" in l]
-    assert len(steps) == h.calls and sum("latency_s" in l for l in lines) == h.calls
-    assert steps[1]["codes"][0][0] == A and steps[1]["bins"]["blue"] and steps[1]["blocks"] == 1
+    assert len(steps) == h.calls and sum("latency_s" in l for l in lines) == h.calls - 20
+    assert {"codes", "lane", "presence", "kraft_roi", "mats", "kraft_mats", "transitions"} <= set(steps[0])
 
 
-def test_two_cubes_nearest_centre_first():
-    scene = FakeScene([cube(A), cube(B)])
-    h, sent = run(scene, FakeAgent(scene))
-    assert h.done and scene.bin_of == {A: "blue", B: "orange"} and scene.picks == 2
-    assert "put the block in the middle into the orange bin" in [i for _, i in sent]
-
-
-def test_hidden_label_read_by_wrist_after_pick():
-    scene = FakeScene([cube(A), cube(B), cube(C, "side")])
-    h, sent = run(scene)
-    assert h.done and scene.bin_of == {A: "blue", B: "orange", C: "blue"} and scene.picks == 3
-    assert any(s == "FETCH" for s, _ in sent) and any(s == "PLACE_HELD" for s, _ in sent)
-
-
-def test_decoy_rejected_no_repicks():
-    scene = FakeScene()  # A top, B hidden label, plain decoy
-    h, sent = run(scene)
-    assert h.done and scene.bin_of == {A: "blue", B: "orange"} and h.sm.rejected_count == 1
-    assert [c["at"] for c in scene.cubes] == ["blue", "orange", "edge"] and scene.picks == 3
-    assert any("left edge" in (i or "") for _, i in sent)
-
-
-def test_wrong_bin_detected_and_logged(tmp_path):
-    log = tmp_path / "run.jsonl"
-    scene = FakeScene([cube(A)], wrong_bin=True)
-    h, _ = run(scene, runlog=RunLog(str(log)))
-    assert h.done and h.sm.wrong == {A} and scene.bin_of == {A: "orange"}
-    flags = [f for l in log.read_text().splitlines() for f in json.loads(l).get("flags", [])]
-    assert flags == ["wrong_bin:%s:orange" % A]
-
-
-def test_agent_zero_does_not_block_visible_target_and_reset():
-    scene = FakeScene([cube(A)])
-    h = Harness(CFG, FakeAgent(scene))
-    h.step(*scene.observe())
-    h.step(*scene.observe())
-    assert h.state_name == "PLACE" and h.subgoal_changed
+def test_bad_code_goes_to_basket_and_max_parcels_done():
+    scene = FakeScene([parcel(BAD)])
+    h, _ = run(scene, {**CFG, "max_parcels": 1})
+    assert h.done and scene.at[id(scene.log[0])] == "basket"
     h.reset()
-    assert h.state_name == "SURVEY" and not h.done and h.calls == 0
+    assert h.state_name == "IDLE" and not h.done and h.calls == 0

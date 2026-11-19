@@ -1,22 +1,23 @@
 # LabelLoop
 
-Harness that makes X Square's dual-arm desktop robot sort parcels by QR label, reading codes with the head camera (wrist cameras for hidden labels).
-WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short sub-goal per model call, from QR evidence,
-both gripper values and, optionally, a vision agent (Gemini Robotics-ER via a Chat Completions endpoint; works with none).
-WALLX gets one training-style sentence per call ("put the block on the left into the blue bin").
+Lane sorter: a human slides parcels one at a time into an induction zone; the harness reads the QR (`420/<ZIP5>/<seq>`,
+GS1 AI 420 = ship-to ZIP), routes by ZIP3 through `sort_plan` and has X Square's dual-arm robot push the parcel onto its lane mat
+(A blue, B orange; fallback pick-and-place). Unknown ZIP, bad code, no label or non-parcel objects go to the reject basket.
+WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short training-style sentence per model call
+("push the block onto the blue mat") or holds still (None) while it waits.
 Plan: `instructions/LabelLoop Simulation-First Plan.pdf` (gitignored: the organizer PDFs contain the API key).
 
 ```
-labelloop/harness.py            shared core: QR + scene -> state machine -> instruction | hold
-labelloop/brain/                state_machine (SURVEY PLACE FETCH PLACE_HELD REJECT DONE), agent (optional), instructions
+labelloop/harness.py            shared core: QR + scene -> state machine -> instruction | hold; runlog line per call
+labelloop/brain/                state_machine, instructions (agent.py: unused vision agent, kept for the servers' imports)
 labelloop/perception/qr.py      zxing-cpp (+ pixel position), OpenCV fallback, 2-frame confirm
-labelloop/perception/scene.py   HSV bins / kraft blocks on the head camera
+labelloop/perception/scene.py   HSV mats, induction-zone presence (diff vs empty-zone reference), kraft-in-zone / in-mat
 labelloop/wallx_client.py       public_v2 msgpack client, Bearer auth, reset_history, hold replies
 labelloop/pose.py               X2Real home-relative <-> WALLX absolute, gripper 0..1.89 <-> 0..1.526
 labelloop/robots/x2real_server.py   sim link (33x14 chunks, row 0 = state echo)
 labelloop/robots/event_server.py    event-day relay for the X Square client (organizer harness.py pattern)
 policies/labelloop/             Policy Space deployment X2Real connects to
-configs/                        task_qr_sort.yaml (tunables, wording), ex001_6r.yaml (gripper ranges, home pose)
+configs/                        task_qr_sort.yaml (sort plan, budgets, scene thresholds, wording), ex001_6r.yaml (gripper ranges, home pose)
 sim/                            QR box textures, X2Real task draft (see sim/README.md), scripts/run_sim_case.py
 scripts/probe_wallx.py          live WALLX link test
 ```
@@ -25,9 +26,19 @@ scripts/probe_wallx.py          live WALLX link test
 ```bash
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 cp .env.example .env            # fill WALLX_API_KEY, AGENT_API_KEY (Gemini key)
-.venv/bin/python -m pytest -q   # unit + offline 3-box episode + both links end to end against a stub WALLX
+.venv/bin/python -m pytest -q   # unit + offline 5-parcel stream + both links end to end against a stub WALLX
 PYTHONPATH=. .venv/bin/python scripts/probe_wallx.py --n 50 --images <dir with front/left_wrist/right_wrist.jpg>
 ```
+
+## State machine (labelloop/brain/state_machine.py)
+```
+IDLE  hold until something sits stable in the induction zone (presence diff vs empty reference, 2 calls)
+SCAN  hold; kraft + code confirmed -> ZIP3 lane | non-kraft -> garbage | no decode after scan_max_calls -> no label
+PUSH (lane A/B, 2 tries) -> PLACE fallback (1 try)  |  REJECT (basket, 2 tries)   each ends early when the outcome check passes twice
+HOME  arms home, then VERIFY (hold, check outcome from the head image): ok -> IDLE | retry | last try failed -> log, IDLE
+DONE  only if max_parcels is set; otherwise the line never stops
+```
+The zone must be empty at the first IDLE call (that frame becomes the reference). Calibrate `induction_roi`, `presence_*`, `kraft_min`.
 
 ## Sim (Linux + RTX, X2Real installed per the plan)
 ```bash
