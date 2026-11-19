@@ -1,0 +1,25 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index a3bc1ad8b..b3decccdc 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -203,7 +203,7 @@ ovphysx = "0.5.9"
+ ovrtx = ">=0.4.0,<0.5.0"
+ ovstage = ">=0.1.0,<0.2.0"
+ # Newton tracks the publishable GitLab branch tip, not a pinned commit.
+-newton = "publication"
++newton = "x2real"
+ warp = ">=1.16.0"
+ 
+ [tool.ruff]
+@@ -386,9 +386,9 @@ override-dependencies = [
+     "mujoco~=3.11.0",
+     "mujoco-warp~=3.11.0",
+     # Internal publication branch tip with StablePD/schema support; every install pulls latest.
+-    "newton[sim,importers] @ git+ssh://git@gitlab.zbl.local:50022/mana/engine/newton.git@publication",
++    "newton[sim,importers] @ git+https://github.com/X-Square-Robot/Newton.git@x2real",
+     # Newton-matched schemas, vendored inside the newton repo; overrides isaacsim's ==0.2.0 pin.
+-    "newton-usd-schemas @ git+ssh://git@gitlab.zbl.local:50022/mana/engine/newton.git@publication#subdirectory=extern/newton-usd-schemas",
++    "newton-usd-schemas @ git+https://github.com/X-Square-Robot/Newton.git@x2real#subdirectory=extern/newton-usd-schemas",
+     "torch==2.11.0",
+     "torchvision==0.26.0",
+     "torchaudio==2.11.0",

@@ -1,0 +1,107 @@
+diff --git a/manaenv/controllers/batched_fk.py b/manaenv/controllers/batched_fk.py
+index 25790f6..123a142 100644
+--- a/manaenv/controllers/batched_fk.py
++++ b/manaenv/controllers/batched_fk.py
+@@ -85,6 +85,61 @@ def se3_log_batch(T: Tensor) -> Tensor:
+     return torch.cat([v, omega], dim=-1)  # [linear, angular] — matches Pinocchio Motion.vector
+ 
+ 
++def _chain_from_urdf_numpy(urdf_path, joint_names, base_frame, ee_frame):
++    """Pure-numpy stand-in for the Pinocchio extraction below (no PyPI Pinocchio wheel on Windows).
++
++    Returns (link_offsets, joint_axes, ee_offset, base_T) at q=0, matching the Pinocchio path.
++    """
++    import xml.etree.ElementTree as ET
++
++    import numpy as np
++
++    def _T(xyz, rpy):
++        r, p, y = rpy
++        cr, sr, cp, sp, cy, sy = np.cos(r), np.sin(r), np.cos(p), np.sin(p), np.cos(y), np.sin(y)
++        T = np.eye(4)
++        T[:3, :3] = np.array(
++            [
++                [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
++                [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
++                [-sp, cp * sr, cp * cr],
++            ]
++        )
++        T[:3, 3] = xyz
++        return T
++
++    joints = {}
++    for j in ET.parse(urdf_path).getroot().iter("joint"):
++        o = j.find("origin")
++        xyz = [float(v) for v in (o.get("xyz", "0 0 0") if o is not None else "0 0 0").split()]
++        rpy = [float(v) for v in (o.get("rpy", "0 0 0") if o is not None else "0 0 0").split()]
++        a = j.find("axis")
++        axis = tuple(float(v) for v in (a.get("xyz") if a is not None else "1 0 0").split())
++        joints[j.get("name")] = (j.find("parent").get("link"), j.find("child").get("link"), _T(xyz, rpy), axis, j.get("type"))
++    children = {c for _, c, *_ in joints.values()}
++    roots = {p for p, *_ in joints.values()} - children
++    world = {r: np.eye(4) for r in roots}
++    pending = dict(joints)
++    while pending:
++        for n, (p, c, T, *_rest) in list(pending.items()):
++            if p in world:
++                world[c] = world[p] @ T
++                del pending[n]
++    link = lambda f: joints[f][1] if f in joints else f  # joint-name frames resolve to the child link
++    offsets, axes, prev = [], [], np.eye(4)
++    for n in joint_names:
++        _, c, _, axis, _ = joints[n]
++        axes.append({(1.0, 0.0, 0.0): 0, (0.0, 1.0, 0.0): 1, (0.0, 0.0, 1.0): 2}.get(tuple(abs(v) + 0.0 for v in axis)))
++        if axes[-1] is None or min(axis) < 0:
++            raise ValueError(f"Unsupported joint axis {axis} for joint {n} (only +X/+Y/+Z, as in Pinocchio RX/RY/RZ)")
++        offsets.append(np.linalg.inv(prev) @ world[c])
++        prev = world[c]
++    ee_offset = np.linalg.inv(prev) @ world[link(ee_frame)]
++    base_T = world[link(base_frame)]
++    offsets[0] = np.linalg.inv(base_T) @ offsets[0]
++    return offsets, axes, ee_offset
++
++
+ # ---------------------------------------------------------------------------
+ # BatchedFK — serial-chain FK and geometric Jacobian
+ # ---------------------------------------------------------------------------
+@@ -107,7 +162,17 @@ class BatchedFK:
+         device: str,
+     ):
+         import numpy as np
+-        import pinocchio as pin
++
++        try:
++            import pinocchio as pin
++        except ImportError:  # Windows: no Pinocchio wheel; WINDOWS PATCH uses a numpy URDF parser
++            offsets, axes, ee_offset = _chain_from_urdf_numpy(urdf_path, joint_names, base_frame, ee_frame)
++            self._num_joints = len(joint_names)
++            self._device = device
++            self._link_offsets = torch.tensor(np.stack(offsets), device=device, dtype=torch.float32)
++            self._ee_offset = torch.tensor(ee_offset, device=device, dtype=torch.float32)
++            self._joint_axes = axes
++            return
+ 
+         full_model = pin.buildModelFromUrdf(urdf_path)
+         joint_ids_to_lock = []
+diff --git a/manaenv/pipeline/evaluation/report.py b/manaenv/pipeline/evaluation/report.py
+index 1ee8280..b1e4bec 100644
+--- a/manaenv/pipeline/evaluation/report.py
++++ b/manaenv/pipeline/evaluation/report.py
+@@ -89,11 +89,12 @@ def _write_jsonl_atomic(path: Path, payloads: list[dict[str, Any]]) -> str:
+             handle.flush()
+             os.fsync(handle.fileno())
+         os.replace(temporary, path)
+-        directory_fd = os.open(path.parent, os.O_RDONLY)
+-        try:
+-            os.fsync(directory_fd)
+-        finally:
+-            os.close(directory_fd)
++        if os.name != "nt":  # WINDOWS PATCH: directories cannot be opened/fsynced on Windows
++            directory_fd = os.open(path.parent, os.O_RDONLY)
++            try:
++                os.fsync(directory_fd)
++            finally:
++                os.close(directory_fd)
+     except Exception:
+         temporary.unlink(missing_ok=True)
+         raise

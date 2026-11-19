@@ -1,0 +1,43 @@
+diff --git a/isaaclab_arena/embodiments/__init__.py b/isaaclab_arena/embodiments/__init__.py
+index d63721b..7cddddf 100644
+--- a/isaaclab_arena/embodiments/__init__.py
++++ b/isaaclab_arena/embodiments/__init__.py
+@@ -3,10 +3,31 @@
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ 
+-from .agibot.agibot import *
+-from .droid.droid import *
+-from .franka.franka import *
+-from .g1.g1 import *
+-from .galbot.galbot import *
+-from .gr1t2.gr1t2 import *
+-from .kuka_allegro.kuka_allegro import *
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .agibot.agibot import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .droid.droid import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .franka.franka import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .g1.g1 import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .galbot.galbot import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .gr1t2.gr1t2 import *
++except ImportError:
++    pass
++try:  # WINDOWS PATCH: humanoid embodiments need pinocchio/pink (no Windows wheels)
++    from .kuka_allegro.kuka_allegro import *
++except ImportError:
++    pass
