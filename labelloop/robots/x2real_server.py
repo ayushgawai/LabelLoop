@@ -1,6 +1,7 @@
 """Sim robot link: X2Real obs (home-relative, sim gripper units) -> harness -> WALLX -> 33x14 sim chunk."""
 import time
 
+import cv2
 import numpy as np
 from websockets.exceptions import WebSocketException
 
@@ -8,6 +9,14 @@ from labelloop.pose import sim_to_wallx, wallx_to_sim
 from labelloop.wallx_client import WallxError, build_payload, encode_jpeg_b64, hold_response
 
 CAMERAS = {"camera_front": "front", "camera_left": "left_wrist", "camera_right": "right_wrist"}
+WALLX_HW = (480, 640)  # what WALLX was trained on and what X2Real's stock client sends
+
+
+def _for_wallx(rgb):
+    """X2Real may send a larger head image (for QR reading); WALLX gets X2Real's own resize (cv2 INTER_AREA)."""
+    if rgb.shape[:2] == WALLX_HW:
+        return rgb
+    return np.ascontiguousarray(cv2.resize(rgb, WALLX_HW[::-1], interpolation=cv2.INTER_AREA))
 
 
 def _rgb(a, name):
@@ -49,7 +58,7 @@ class X2RealLink:
             t0 = time.monotonic()
             try:
                 reply = self.wallx.infer(build_payload(self.embodiment, instruction,
-                                                       {k: encode_jpeg_b64(v) for k, v in images.items()}, state, reset))
+                                                       {k: encode_jpeg_b64(_for_wallx(v)) for k, v in images.items()}, state, reset))
                 chunk = wallx_to_sim(reply["actions"], self.cfg)
                 self.harness.log_reply(time.monotonic() - t0)
             except (WallxError, TimeoutError, ConnectionError, WebSocketException, KeyError, ValueError) as e:

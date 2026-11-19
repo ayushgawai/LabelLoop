@@ -90,3 +90,11 @@ def test_reset_history_first_call_and_subgoal(stub):
     h.subgoal_changed = False
     link.step(obs())
     assert ["reset_history" in r for r in stub.requests] == [True, False, True, True]
+
+
+def test_large_images_are_resized_for_wallx_only():
+    from labelloop.robots.x2real_server import _for_wallx
+    big = np.zeros((720, 1280, 3), np.uint8)
+    assert _for_wallx(big).shape == (480, 640, 3)
+    small = np.zeros((480, 640, 3), np.uint8)
+    assert _for_wallx(small) is small
