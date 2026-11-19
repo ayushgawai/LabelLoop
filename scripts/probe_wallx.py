@@ -74,7 +74,9 @@ def main():
 
     client = WallxClient.from_env()
     client.connect()
-    print("handshake:", client.metadata)
+    m = client.metadata
+    hist = (m.get("cb_history") or {}).get("server_auto_history")
+    print("handshake:", {"model": m.get("model"), "model_version": m.get("model_version"), "server_auto_history": hist})
     lat = []
     for i in range(a.n):
         p, kb = good(), len(pack(good())) / 1024
