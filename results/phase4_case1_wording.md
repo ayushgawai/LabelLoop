@@ -17,3 +17,16 @@ Passthrough sweep, case 1, 2 episodes each, score /8 (sort) + /2 (return):
 Root cause: the G gripper opens ~97 mm (finger travel 2 x 48.75 mm, URDF), so a 100x100x50 mm box lying flat
 cannot be grasped from above, and WALLX ignores the large slab. Same props were planned for event day.
 Decision: parcels become 60 mm kraft cubes with a 40 mm QR (50 mm label); re-run the sweep.
+
+## Sweep 2: 60 mm cubes, case 1 (box A -> blue), 2 episodes each, score /10 (8 = sorted, 2 = return home)
+
+| Instruction | Ep 0 | Ep 1 |
+|---|---|---|
+| put the block into the blue bin | **8** | **8** |
+| put the cube into the blue bin | 8 | 0 |
+| pick up the cube and put it in the blue bin | 0 | 0 |
+| put the brown box into the blue bin | 0 | 0 |
+
+WALLX does the whole pick-and-place zero-shot from one training-style sentence ("put the block into the X bin").
+The right arm did the grasps; holding plateau 0.45-0.47 (WALLX units). -> Harness v2: head-camera QR +
+position naming + bin-colour verification; both grippers.
