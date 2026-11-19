@@ -93,14 +93,14 @@ class StateMachine:
             elif grip <= g["empty_max"]:
                 self._go("SURVEY", "dropped", now)
 
-        if self.state == s and s in TIMEOUT_TO and now - self.t0 >= cfg["state_timeout_s"]:
+        if self.state == s and s in TIMEOUT_TO and self.calls >= cfg["state_max_calls"]:
             self._go(TIMEOUT_TO[s], "timeout", now)
         return self.instruction()
 
     def _grasp(self, grip, verdict, now):
         g = self.cfg["gripper"]
-        self.was_open |= grip >= g["open_min"]
-        holding = g["empty_max"] < grip < g["hold_max"]
+        self.was_open |= grip >= g["opened_min"]
+        holding = self.was_open and g["empty_max"] < grip < g["hold_max"]
         steady = self.hold and abs(grip - self.prev_grip) <= g["hold_tol"]
         self.hold = (self.hold + 1 if steady else 1) if holding else 0
         self.prev_grip = grip

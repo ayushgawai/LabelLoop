@@ -8,7 +8,8 @@ code_pattern: '^LL\|(ZONE-[AB])\|\d{3}$'   # group 1 = zone
 
 qr_confirm_frames: 2      # same value must decode in N consecutive model calls
 agent_every: 4            # ask the vision agent every N model calls
-state_timeout_s: 45       # per-state wall-clock timeout
+state_max_calls: 20       # per-state budget in MODEL CALLS (~1.6 s of sim motion each); not wall time,
+                          # which depends on WALLX latency (8-10 s/call measured)
 calls_per_attempt: 4      # model calls that make one LOOK attempt / one PRESENT face
 look_attempts: 3
 present_faces: 3
@@ -21,6 +22,7 @@ gripper:                  # left arm holds the box
   hold_max: 0.60          # holding band (empty_max, hold_max) ...
   hold_tol: 0.03          # ... and steady: |change| <= hold_tol between calls
   hold_calls: 2           # N consecutive steady in-band readings = grasped
+  opened_min: 0.45        # GRASP must see the gripper open to this first (a real grasp opens, then closes)
   open_min: 0.60          # at/above = open / released
 
 # Sub-goal wording. {bin} -> blue|orange. Index 0 is used unless instruction_variant says otherwise.

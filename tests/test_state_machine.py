@@ -86,11 +86,13 @@ def test_present_gives_up_to_reject():
 
 def test_grasp_hold_goes_to_place_or_present():
     sm = at("GRASP", A)
-    go(sm, grip=0.35)
+    go(sm, grip=0.35), go(sm, grip=0.35)
+    assert sm.state == "GRASP"  # never opened first: idle gripper, not a grasp
+    go(sm, grip=0.9), go(sm, grip=0.35)
     assert sm.state == "GRASP"
     assert go(sm, grip=0.35) == "Put the box into the blue bin."
     sm = at("GRASP")
-    go(sm, grip=0.35), go(sm, grip=0.35)
+    go(sm, grip=0.9), go(sm, grip=0.35), go(sm, grip=0.35)
     assert sm.state == "PRESENT"
 
 
@@ -142,9 +144,11 @@ def test_reject_release_counts():
                                                ("REJECT", 0.35, "SURVEY")])
 def test_state_timeout(state, grip, expect):
     sm = at(state, A)
-    go(sm, now=44, grip=grip)
+    sm.cfg = {**CFG, "state_max_calls": 5}  # below the LOOK/PRESENT attempt budgets
+    for _ in range(4):
+        go(sm, grip=grip)
     assert sm.state == state
-    go(sm, now=46, grip=grip)
+    go(sm, grip=grip)
     assert sm.state == expect and sm.transitions[-1][2] == "timeout"
 
 
@@ -162,7 +166,7 @@ def test_reject_drop_goes_to_survey_without_counting():
 
 def test_grasp_needs_steady_reading_not_a_passing_value():
     sm = at("GRASP", A)
-    for g in (0.2, 0.4, 0.55, 0.3):  # gripper moving through the band = not holding
+    for g in (0.9, 0.2, 0.4, 0.55, 0.3):  # opened, then moving through the band = not holding
         go(sm, grip=g)
     assert sm.state == "GRASP"
     go(sm, grip=0.31)
