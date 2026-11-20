@@ -111,3 +111,11 @@ reset, every parcel parked off-table and teleported in by `disturb(to_xy_range=.
 far-right). Reject basket 0.25x0.25x0.15 m, grey, kinematic, `pose` placement beside the +y table edge (y 0.68, x 0.12), rim 4 cm below the tabletop.
 Cases: 7 z95112 | 8 z90210 | 9 z10001 | 10 nolabel | 11 garbage | 12 stream (z95112 at 6 s, z90210 at 60 s, nolabel at 120 s, 240 s timeout).
 Success `lanes_sorted` (assignments object -> mat id or `reject_basket`; `on_mat` / `in_reject`), then `return` home as in cases 1-6.
+
+### Phase 6 follow-up: measured frames, per-episode RNG, cases 13-14
+Measured (probe episode printing env positions): the tabletop-local frame is rotated 180 deg about the table centre, `env = (0.2047 - lx, -0.2682 - ly)`
+(`build_task.TABLE_C`/`to_env`); `SURF_TO_ENV` was wrong. Head image: env +x = far, env +y = image LEFT, image x ~650 at env y -0.27, ~1000 px/m near the mats.
+Mats: blue env (0.29, -0.07) = image left, orange env (0.28, -0.47) = image right. Robot root env (-0.322, -0.259). Induction zone is now an env-frame constant
+`INDUCT_ENV` x -0.08..0.06, y -0.42..-0.12 (head image ~ x 0.35..0.65, y 0.55..0.80). The floor basket now sits at `to_env(0.12, 0.68)` = env (0.085, -0.948), beside the
+table's image-right edge (the old position was on the left). `disturb` uses its own `torch.Generator` seeded from `os.urandom` (the env seed is fixed, so every episode
+used to get the same arrival). Cases 13/14 = 10/11 with a dark 0.16x0.16x0.10 bin on the table (`BIN_REJECT_XY`, local (0.125, 0.30) = env (0.08, -0.57)) as the reject target.

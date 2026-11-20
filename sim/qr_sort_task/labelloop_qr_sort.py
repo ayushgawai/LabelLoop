@@ -4,6 +4,8 @@ Install: copy to <X2REAL>/manaenv/assets/objects/labelloop_qr_sort.py (scene YAM
 background.asset_module). Follows manaenv/assets/objects/move_bottle_to_bin.py. NOT RUN (no Isaac Sim here).
 USD files + textures come from make_usd.py into $MANAENV_ASSET_ROOT/labelloop/.
 """
+import os
+
 import torch
 from isaaclab_arena.assets.object_base import ObjectType
 from isaaclab_arena.assets.object_library import LibraryObject
@@ -48,6 +50,7 @@ for _n in ("z95112", "z90210", "z10001", "nolabel", "garbage"):
 _register("labelloop_lane_blue", "lane_blue", ["furniture"])
 _register("labelloop_lane_orange", "lane_orange", ["furniture"])
 _register("labelloop_reject_basket", "reject_basket", ["container"])
+_register("labelloop_reject_bin", "reject_bin", ["container", "bin"])
 
 
 def register_assets() -> None:
@@ -103,12 +106,22 @@ def in_reject(env, obj, basket, half=0.115, z_min=0.0, z_max=0.14):
     return (rel[:, :2].abs().max(dim=-1).values <= half) & (rel[:, 2] >= z_min) & (rel[:, 2] <= z_max)
 
 
-def lanes_sorted(env, *, assignments, basket="reject_basket", half=0.07, z_min=0.0, z_max=0.08, vel_max=0.05, consecutive_steps=5):
+def lanes_sorted(env, *, assignments, basket="reject_basket", basket_half=0.115, basket_z_max=0.14, half=0.07, z_min=0.0, z_max=0.08, vel_max=0.05, consecutive_steps=5):
     """Termination: assignments {object: mat_object_id | "reject_basket"}; every object must satisfy its target."""
     ok = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
     for obj, target in assignments.items():
-        ok &= in_reject(env, obj, basket) if target == basket else on_mat(env, obj, target, half, z_min, z_max, vel_max)
+        ok &= in_reject(env, obj, basket, basket_half, 0.0, basket_z_max) if target == basket else on_mat(env, obj, target, half, z_min, z_max, vel_max)
     return _consecutive(env, ok, consecutive_steps, "_labelloop_lanes_count")
+
+
+_GEN = {}
+
+
+def _gen(device):
+    """Own generator seeded from os.urandom once per process: the env's global seed is fixed, which made every episode's arrival identical."""
+    if device not in _GEN:
+        _GEN[device] = torch.Generator(device=device).manual_seed(int.from_bytes(os.urandom(8), "little") >> 1)
+    return _GEN[device]
 
 
 def disturb(env, env_ids, *, object_name, delta_xyz=None, to_xyz=None, to_xy_range=None, yaw_range=None, z=None, avoid=()):
@@ -128,8 +141,8 @@ def disturb(env, env_ids, *, object_name, delta_xyz=None, to_xyz=None, to_xy_ran
         ids, pose = ids[rel_z < -2.0], pose[rel_z < -2.0]
         if len(ids) == 0:
             return
-        n, u = len(ids), lambda lo, hi: lo + (hi - lo) * torch.rand(n, device=env.device)
-        cand = torch.stack([lo + (hi - lo) * torch.rand(n, 32, device=env.device) for lo, hi in to_xy_range], dim=-1)  # (n, 32, 2)
+        n, u = len(ids), lambda lo, hi: lo + (hi - lo) * torch.rand(n, device=env.device, generator=_gen(env.device))
+        cand = torch.stack([lo + (hi - lo) * torch.rand(n, 32, device=env.device, generator=_gen(env.device)) for lo, hi in to_xy_range], dim=-1)  # (n, 32, 2)
         if avoid:
             others = torch.stack([env.scene[o].data.root_pos_w.torch[ids, :2] - env.scene.env_origins[ids, :2] for o in avoid], dim=1)  # (n, M, 2)
             best = torch.cdist(cand, others).min(dim=-1).values.argmax(dim=-1)

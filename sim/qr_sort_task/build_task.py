@@ -16,7 +16,12 @@ SCENE = lambda n: f"labelloop_qr_sort_case{n}_scene"
 ENV = lambda n: f"artixon_arm6a_G_labelloop_qr_sort_case{n}_id_env"
 TIMEOUT_S = 90
 SIDE, DOWN = [0.7071, 0.0, 0.0, 0.7071], [1.0, 0.0, 0.0, 0.0]  # label sideways / down (box quats XYZW, roll about x)
-SURF_TO_ENV = (0.0, -0.27)  # tabletop-local xy -> env xy (read off classify_objects_color poses; VERIFY in Kit)
+# MEASURED (probe episode, env positions read from the sim): the tabletop-local frame is rotated 180 degrees about the table centre,
+# env = (TABLE_C.x - local.x, TABLE_C.y - local.y); e.g. blue mat local (-0.08,-0.20) -> env (0.29,-0.07), orange (-0.08,+0.20) -> env (0.28,-0.47).
+# Head image: env +x = FAR, env +y = image LEFT (image x ~ 650 at env y -0.27, ~1000 px/m near the mats). Robot root env (-0.322,-0.259).
+TABLE_C = (0.2047, -0.2682)
+to_env = lambda lx, ly: (round(TABLE_C[0] - lx, 3), round(TABLE_C[1] - ly, 3))
+SURF_TO_ENV = (0.0, -0.27)  # WRONG map (kept only so case 5's teleport spot stays numerically identical: env (0.2, -0.12))
 TABLE_Z = -0.235
 BIN_X = -0.105  # centre of the fruit scene's basket x range
 # cube region copied from fruits_to_basket scene (object_start_region): x 0.05..0.28, y -0.38..0.38, yaws +-0.1
@@ -31,21 +36,29 @@ CASES = {
 }
 # lane sort (cases 7-12). Tabletop is 0.685 x 1.11 m; induction zone = where a human slides a parcel in.
 MAT_XY = {"lane_blue": (-0.08, -0.20), "lane_orange": (-0.08, 0.20)}
-BASKET_XY, BASKET_Z = (0.12, 0.68), -0.425  # tabletop-local xy (inner edge at y=0.555 = table edge); base z env (rim -0.275 = 4 cm below tabletop)
-INDUCT = {"x": [0.17, 0.28], "y": [-0.12, 0.12]}  # nearer the robot: clear of the mats in the head image
+BASKET_XY, BASKET_Z = (0.12, 0.68), -0.425  # tabletop-local xy (inner edge at y=0.555 = table edge, image-right); base z env (rim -0.275 = 4 cm below tabletop)
+BIN_REJECT_XY = (0.125, 0.30)  # case 13/14 dark bin ON the table, tabletop-local = env (0.08, -0.57): image-right of the induction zone, left of the right gripper home pose
+# induction zone, ENV frame (parcels are teleported with env coordinates): lands at head-image ~ x 0.35..0.65, y 0.55..0.80, mid-table in front of the arms
+INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.42, -0.12]}
+LANE_BIN_TARGET = {"nolabel": "reject_bin", "garbage": "reject_bin"}
 LANE_TARGET = {"z95112": "lane_blue", "z90210": "lane_orange", "z10001": "reject_basket", "nolabel": "reject_basket", "garbage": "reject_basket"}
 LANE_INSTR = ("Read each parcel's QR label: push ZIP 950-951 parcels onto the blue mat, ZIP 900-902 onto the orange mat; "
               "put anything else in the basket on the right; return home.")
+LANE_INSTR_BIN = LANE_INSTR.replace("the basket on the right", "the dark bin on the right")
 LANE_CASES = {
     # induction zone starts EMPTY (harness takes its empty-zone reference): every parcel is parked, a human "slides it in" at t
     7: dict(boxes=[], late={"z95112": 6.0}), 8: dict(boxes=[], late={"z90210": 6.0}), 9: dict(boxes=[], late={"z10001": 6.0}),
     10: dict(boxes=[], late={"nolabel": 6.0}), 11: dict(boxes=[], late={"garbage": 6.0}),
+    13: dict(boxes=[], late={"nolabel": 6.0}, reject_bin=True), 14: dict(boxes=[], late={"garbage": 6.0}, reject_bin=True),
     12: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "nolabel": 120.0}, timeout=240),
 }
 CASES.update({n: dict(c, lane=True) for n, c in LANE_CASES.items()})
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
       "required_surfaces": ["tabletop"]}
+
+
+reject_node = lambda c: "reject_bin" if c.get("reject_bin") else "reject_basket"
 
 
 def obj(oid, asset, tags, **kw):
@@ -61,7 +74,8 @@ def scene(n, c):
     objs += [obj(f"decoy_{i}", f"labelloop_decoy_{i}", ["pickable", "decoy"], spawn_mass=mass, spawn_static_friction=1.0,
                  spawn_dynamic_friction=1.0) for i in decoys]
     lane = c.get("lane")
-    fixed = [("lane_blue", "labelloop_lane_blue"), ("lane_orange", "labelloop_lane_orange"), ("reject_basket", "labelloop_reject_basket")] if lane \
+    reject = "reject_bin" if c.get("reject_bin") else "reject_basket"
+    fixed = [("lane_blue", "labelloop_lane_blue"), ("lane_orange", "labelloop_lane_orange"), (reject, f"labelloop_{reject}")] if lane \
         else [("bin_blue", "labelloop_bin_blue"), ("bin_orange", "labelloop_bin_orange")]
     objs += [obj(i, a, ["container"], kinematic=True) for i, a in fixed]
     movable = [f"box_{b}" for b in boxes] + [f"decoy_{i}" for i in decoys]
@@ -73,8 +87,13 @@ def scene(n, c):
         for m, (x, y) in MAT_XY.items():
             nodes[m] = {"object": m, "placement": {"type": "surface", "surface": "tabletop",
                         "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
-        nodes["reject_basket"] = {"object": "reject_basket", "placement": {"type": "pose", "poses": [
-            {"id": "floor", "position": [BASKET_XY[0] + SURF_TO_ENV[0], BASKET_XY[1] + SURF_TO_ENV[1], BASKET_Z], "orientation": [0, 0, 0, 1]}]}}
+        if reject == "reject_bin":
+            x, y = BIN_REJECT_XY
+            nodes[reject] = {"object": reject, "placement": {"type": "surface", "surface": "tabletop",
+                             "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
+        else:
+            nodes[reject] = {"object": reject, "placement": {"type": "pose", "poses": [
+                {"id": "floor", "position": [*to_env(*BASKET_XY), BASKET_Z], "orientation": [0, 0, 0, 1]}]}}
     for col, (x, y) in far.items():
         nodes[f"bin_{col}"] = {"object": f"bin_{col}", "placement": {"type": "surface", "surface": "tabletop",
                                "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
@@ -88,8 +107,7 @@ def scene(n, c):
         "background": BG, "objects": objs,
         "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes,
                    "groups": {} if not movable else {"box_start_region": {"type": "region", "nodes": movable, "surface": "tabletop",
-                              "ranges": INDUCT if lane else {"x": [0.05, 0.28], "y": [-0.38, 0.38]},
-                              "yaws": [-0.3, 0.3] if lane else [-0.1, 0.1],
+                              "ranges": {"x": [0.05, 0.28], "y": [-0.38, 0.38]}, "yaws": [-0.1, 0.1],
                               "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.03,
                               "jitter": 0.35, "max_attempts": 20000}}},
         "variants": {"materialization": [], "assignments": []},
@@ -98,20 +116,19 @@ def scene(n, c):
 
 def dag(n, c):
     lane = c.get("lane")
-    assign = {f"box_{b}": (LANE_TARGET[b] if lane else "bin_blue" if b[0] == "a" else "bin_orange") for b in c["boxes"] + list(c.get("late", {}))}
+    assign = {f"box_{b}": ((LANE_BIN_TARGET if c.get("reject_bin") else LANE_TARGET)[b] if lane else "bin_blue" if b[0] == "a" else "bin_orange") for b in c["boxes"] + list(c.get("late", {}))}
     assign.update({f"decoy_{i}": None for i in c.get("decoys", [])})
     events = {}
     for b, t in c.get("late", {}).items():  # human adds a box: teleport it onto the table
-        x, y = 0.2 + SURF_TO_ENV[0], 0.15 + SURF_TO_ENV[1]
-        where = {"to_xyz": [round(x, 3), round(y, 3), TABLE_Z + 0.05]} if not lane else {
-            "to_xy_range": [[v + SURF_TO_ENV[0] for v in INDUCT["x"]], [v + SURF_TO_ENV[1] for v in INDUCT["y"]]],
+        where = {"to_xyz": [0.2, -0.12, TABLE_Z + 0.05]} if not lane else {
+            "to_xy_range": [INDUCT_ENV["x"], INDUCT_ENV["y"]],
             "yaw_range": [-0.3, 0.3], "z": TABLE_Z + 0.03, "avoid": [f"box_{o}" for o in list(c["boxes"]) + list(c["late"]) if o != b]}
         events[f"human_adds_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t],
                                      "is_global_time": True, "object_name": f"box_{b}", **where}
     for b, (t, delta) in c.get("move", {}).items():  # human nudges a box (repeats every tick: long interval)
         events[f"human_moves_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, 1e6],
                                       "is_global_time": True, "object_name": f"box_{b}", "delta_xyz": delta}
-    sections = {"instruction_component": {"instruction": LANE_INSTR if lane else "Read each box's QR label and put the box in the bin the code names "
+    sections = {"instruction_component": {"instruction": (LANE_INSTR_BIN if c.get("reject_bin") else LANE_INSTR) if lane else "Read each box's QR label and put the box in the bin the code names "
                 "(ZONE-A blue, ZONE-B orange); put unlabeled boxes aside; then return the arms home.", "topic": "qr_sort"}}
     if events:
         sections["event_component"] = {"terms": events}
@@ -122,14 +139,15 @@ def dag(n, c):
         "layout": {"runtime_sample": {"id": "runtime", "targets": {
             "placements": [*([{"id": "box_start_region", "target": {"type": "group", "id": "box_start_region"}, "sample": {"type": "inherit"}}]
                              if c["boxes"] else []),
-                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in (("lane_blue", "lane_orange", "reject_basket") if lane else ("bin_blue", "bin_orange")))]}}},
+                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in (("lane_blue", "lane_orange", reject_node(c)) if lane else ("bin_blue", "bin_orange")))]}}},
         "component_sections": sections},
         "nodes": [
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_sort", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
                     "termination_component": {"terms": {"success": (
-                        {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "consecutive_steps": 5} if lane else
+                        {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "consecutive_steps": 5,
+                                  **({"basket": "reject_bin", "basket_half": 0.07, "basket_z_max": 0.09} if c.get("reject_bin") else {})} if lane else
                         {"_func": f"{MOD}.boxes_sorted", "assignments": assign,
                         "bins": ["bin_blue", "bin_orange"], "xy": 0.07, "z_min": -0.02, "z_max": 0.15,
                         "vel_max": 0.5, "consecutive_steps": 5})}}}}},
@@ -195,7 +213,7 @@ def main():
     scoring: id_only
     capabilities:
     - benchmark
-    case_count: 12
+    case_count: 14
     save_path: ./outputs/x2real_eval/labelloop/benchmark
 """)
     print(f"wrote {len(CASES)} cases under {d}")

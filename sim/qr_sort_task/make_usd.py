@@ -158,6 +158,7 @@ def main():
                                                     material("m", omni(color=rgb)), kinematic=True, mass=1.0))
     (out / "reject_basket.usda").write_text(usda("basket", bin_body("m", 0.25, 0.15), material("m", omni(color=(0.22, 0.22, 0.24))),
                                                  kinematic=True, mass=2.0))
+    (out / "reject_bin.usda").write_text(usda("bin", bin_body("m", 0.16, 0.10), material("m", omni(color=(0.1, 0.1, 0.11))), kinematic=True, mass=1.0))
     mat_texture(out / "textures" / "mat_1.png", (60, 60, 64), 1)
     mat_texture(out / "textures" / "mat_2.png", (200, 205, 190), 2)
     (out / "mat.usda").write_text(usda("mat", cube("slab", (0.5, 0.9, 0.001), (0, 0, 0.0005), "top", collide=False),
