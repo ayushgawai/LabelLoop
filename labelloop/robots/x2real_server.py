@@ -61,6 +61,11 @@ class X2RealLink:
                                                        {k: encode_jpeg_b64(_for_wallx(v)) for k, v in images.items()}, state, reset))
                 chunk = wallx_to_sim(reply["actions"], self.cfg)
                 self.harness.log_reply(time.monotonic() - t0)
+                if getattr(self.harness, "runlog", None):  # sent state vs WALLX first/last frame: a frame mismatch shows as a jump
+                    a = reply["actions"]
+                    row = lambda arm, i: [round(v, 4) for v in [*a[arm]["position"][i], *a[arm]["rotation_rpy"][i], a[arm]["gripper"][i]]]
+                    self.harness.runlog.write(wallx={arm: {"sent": [round(v, 4) for v in [*state[arm]["position"], *state[arm]["rotation_rpy"], state[arm]["gripper"]]],
+                                                           "first": row(arm, 0), "last": row(arm, -1)} for arm in ("left_ee", "right_ee")})
             except (WallxError, TimeoutError, ConnectionError, WebSocketException, KeyError, ValueError) as e:
                 self.harness.log_reply(time.monotonic() - t0, error=f"{type(e).__name__}: {e}")
                 self._fresh = self._fresh or reset  # failed call: carry the pending reset to the next one
