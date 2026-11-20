@@ -1,20 +1,24 @@
-"""Write the LabelLoop USDA assets (box per code, 2 decoys, 2 bins, table mat) + textures. Stdlib + PIL + numpy.
+"""Write the LabelLoop USDA assets (lane-sort parcels, the three shoe-box bins from props.py) + textures. Stdlib + PIL.
 
   python sim/qr_sort_task/make_usd.py --labels sim/assets --out $MANAENV_ASSET_ROOT/labelloop
 
-Cube 60 mm (CUBE), one OmniPBR material /<root>/Looks/pic, one atlas texture (three stacked squares: top | labeled +Y side | kraft).
-NOT LOADED IN ISAAC SIM (no simulator here): check in Kit, esp. UV orientation and rigid-body schema.
+Parcel = one textured box mesh (origin at its centre), one OmniPBR material /<root>/Looks/pic, one atlas texture. A parcel without a
+measured prop is a 60 mm cube (CUBE) whose atlas is three stacked squares (top | labeled +Y side | kraft); a measured parcel
+(props.PARCELS) has its real size and an atlas of its six face tiles from make_qr_boxes.py.
+Bin = open box, origin at the centre of its underside, length along x; every wall and the floor is two layers (outside colour, inside colour).
 """
 import argparse
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
+
+from props import BINS, FACES, PARCELS, WALL
 
 CUBE = 0.06  # keep equal to make_qr_boxes.CUBE_MM / 1000
 HX = HY = HZ = CUBE / 2
+CUBE_UV = {"pz": (0, 2 / 3, 1, 1), "py": (0, 1 / 3, 1, 2 / 3), "ny": (0, 0, 1, 1 / 3), "px": (0, 0, 1, 1 / 3), "nx": (0, 0, 1, 1 / 3),
+           "nz": (0, 0, 1, 1 / 3)}  # face -> (u0, v0, u1, v1) in the cube atlas
 ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # keep equal to make_qr_boxes.ROUTES
-CODES = [f"{z}{n:03d}" for z in "AB" for n in (1, 2, 3)]
 
 
 def material(path, shader_inputs):
@@ -34,9 +38,8 @@ def material(path, shader_inputs):
 '''
 
 
-def usda(root, body, looks, rigid=True, kinematic=False, mass=0.08):
-    api = '    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]\n' if rigid else ""
-    props = f"    float physics:mass = {mass}\n" + ("    bool physics:kinematicEnabled = 1\n" if kinematic else "") if rigid else ""
+def usda(root, body, looks, kinematic=False, mass=0.08):
+    kin = "    bool physics:kinematicEnabled = 1\n" if kinematic else ""
     return f'''#usda 1.0
 (
     defaultPrim = "ROOT"
@@ -44,9 +47,11 @@ def usda(root, body, looks, rigid=True, kinematic=False, mass=0.08):
     upAxis = "Z"
 )
 def Xform "ROOT" (
-{api})
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+)
 {{
-{props}{body}
+    float physics:mass = {mass}
+{kin}{body}
     def Scope "Looks"
     {{
 {looks}    }}
@@ -54,16 +59,19 @@ def Xform "ROOT" (
 '''
 
 
-def box_mesh(mat):
-    # (normal-side corners CCW seen from outside) -> faces: +Z top, +Y labeled, others kraft; UV atlas v: kraft 0-1/3, side 1/3-2/3, top 2/3-1
+def box_mesh(mat, half=(HX, HY, HZ), uv=CUBE_UV):
+    # (normal-side corners CCW seen from outside, corner 0 = tile bottom-left) per face; uv = face -> (u0, v0, u1, v1) atlas rectangle.
+    # Tile axes: pz u +x / v +y; nz u -x / v +y; py u -x, ny u +x, px u +y, nx u -y, all with v up.
+    HX, HY, HZ = half
     t = [(-HX, -HY, HZ), (HX, -HY, HZ), (HX, HY, HZ), (-HX, HY, HZ)]
     py = [(HX, HY, -HZ), (-HX, HY, -HZ), (-HX, HY, HZ), (HX, HY, HZ)]
     ny = [(-HX, -HY, -HZ), (HX, -HY, -HZ), (HX, -HY, HZ), (-HX, -HY, HZ)]
     px = [(HX, -HY, -HZ), (HX, HY, -HZ), (HX, HY, HZ), (HX, -HY, HZ)]
     nx = [(-HX, HY, -HZ), (-HX, -HY, -HZ), (-HX, -HY, HZ), (-HX, HY, HZ)]
     nz = [(HX, -HY, -HZ), (-HX, -HY, -HZ), (-HX, HY, -HZ), (HX, HY, -HZ)]
-    uv = lambda v0, v1: [(0, v0), (1, v0), (1, v1), (0, v1)]
-    faces = [(t, uv(2 / 3, 1)), (py, uv(1 / 3, 2 / 3)), (ny, uv(0, 1 / 3)), (px, uv(0, 1 / 3)), (nx, uv(0, 1 / 3)), (nz, uv(0, 1 / 3))]
+    quad = lambda u0, v0, u1, v1: [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+    faces = [(t, quad(*uv["pz"])), (py, quad(*uv["py"])), (ny, quad(*uv["ny"])), (px, quad(*uv["px"])), (nx, quad(*uv["nx"])),
+             (nz, quad(*uv["nz"]))]
     pts = ", ".join(str(p) for f, _ in faces for p in f)
     uvs = ", ".join(str(u) for _, f in faces for u in f)
     return f'''    def Mesh "Geom" (
@@ -81,10 +89,9 @@ def box_mesh(mat):
 '''
 
 
-def cube(name, size, pos, mat, collide=True):
-    api = '"PhysicsCollisionAPI", ' if collide else ""
+def cube(name, size, pos, mat):
     return f'''    def Cube "{name}" (
-        prepend apiSchemas = [{api}"MaterialBindingAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI", "MaterialBindingAPI"]
     )
     {{
         double size = 1
@@ -96,8 +103,10 @@ def cube(name, size, pos, mat, collide=True):
 '''
 
 
-def omni(tex=None, color=(0.8, 0.8, 0.8)):
-    d = {"float inputs:reflection_roughness_constant": 1.0, "float inputs:metallic_constant": 0.0, "float inputs:specular_level": 0.0}
+def omni(tex=None, color=(0.8, 0.8, 0.8), metallic=0.0, roughness=1.0):
+    """OmniPBR inputs; default matte paper (no specular). metallic > 0 (foil) also turns specular on."""
+    d = {"float inputs:reflection_roughness_constant": roughness, "float inputs:metallic_constant": metallic,
+         "float inputs:specular_level": 0.5 if metallic else 0.0}
     if tex:
         d["asset inputs:diffuse_texture"] = f"@{tex}@"
     else:
@@ -105,17 +114,27 @@ def omni(tex=None, color=(0.8, 0.8, 0.8)):
     return d
 
 
-def bin_body(color_name, w=0.172, h=0.08):
-    t = 0.006
-    parts = [cube("floor", (w, w, t), (0, 0, t / 2), color_name)]
-    for i, (sx, sy, px_, py_) in enumerate([(t, w, (w - t) / 2, 0), (t, w, -(w - t) / 2, 0), (w, t, 0, (w - t) / 2), (w, t, 0, -(w - t) / 2)]):
-        parts.append(cube(f"wall{i}", (sx, sy, h), (px_, py_, h / 2), color_name))
-    return "".join(parts)
+def bin_body(size, t=WALL):
+    """Open box L x W x H (x, y, z), walls/floor t thick: an outer shell in material "out" and an inner liner in "in", no overlaps."""
+    L, W, H = size
+    s = t / 2  # each layer is half the wall
+    r = lambda v: round(v, 5)  # noqa: E731
+    shell = [("floor", (L - 2 * s, W - 2 * s, s), (0, 0, s / 2)),
+             ("end0", (s, W, H), (L / 2 - s / 2, 0, H / 2)), ("end1", (s, W, H), (-(L / 2 - s / 2), 0, H / 2)),
+             ("side0", (L - 2 * s, s, H), (0, W / 2 - s / 2, H / 2)), ("side1", (L - 2 * s, s, H), (0, -(W / 2 - s / 2), H / 2))]
+    liner = [("floor", (L - 2 * t, W - 2 * t, s), (0, 0, s + s / 2)),
+             ("end0", (s, W - 2 * s, H - s), (L / 2 - 1.5 * s, 0, s + (H - s) / 2)),
+             ("end1", (s, W - 2 * s, H - s), (-(L / 2 - 1.5 * s), 0, s + (H - s) / 2)),
+             ("side0", (L - 2 * t, s, H - s), (0, W / 2 - 1.5 * s, s + (H - s) / 2)),
+             ("side1", (L - 2 * t, s, H - s), (0, -(W / 2 - 1.5 * s), s + (H - s) / 2))]
+    return "".join(cube(f"{layer}_{n}", tuple(map(r, sz)), tuple(map(r, p)), layer)
+                   for layer, parts in (("out", shell), ("in", liner)) for n, sz, p in parts)
 
 
-def mat_texture(path, base, seed):
-    noise = np.random.default_rng(seed).normal(0, 10, (1024, 1024, 1))
-    Image.fromarray(np.clip(np.array(base) + noise, 0, 255).astype(np.uint8)).save(path)
+def srgb_to_linear(rgb):
+    """0-255 sRGB -> linear 0-1, what an OmniPBR colour constant expects (a texture would be decoded from sRGB instead)."""
+    c = [v / 255 for v in rgb]
+    return tuple(round(v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4, 4) for v in c)
 
 
 def main():
@@ -135,34 +154,38 @@ def main():
         img.paste(kraft, (0, 2 * t.height))
         img.save(out / "textures" / f"{name}_atlas.png")
 
-    pic = lambda name: material("pic", omni(f"./textures/{name}_atlas.png"))
-    for c in CODES:
-        s = f"LL_ZONE-{c[0]}_{c[1:]}"
-        atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{c.lower()}")
-        (out / f"box_{c.lower()}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{c.lower()}"), mass=0.08))
-    for i in (1, 2):
-        atlas(labels / f"decoy_{i}.png", None, f"box_decoy_{i}")
-        (out / f"box_decoy_{i}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_decoy_{i}"), mass=0.08))
-    for name, rgb in (("blue", (0.05, 0.25, 0.9)), ("orange", (1.0, 0.45, 0.05))):
-        (out / f"bin_{name}.usda").write_text(usda("bin", bin_body("m"), material("m", omni(color=rgb)), kinematic=True, mass=1.0))
-    for name, code in ROUTES.items():  # lane-sort parcels: payload 420/<ZIP5>/<seq3>
-        s = code.replace("/", "_")
-        atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{name}")
-        (out / f"box_{name}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{name}"), mass=0.08))
-    atlas(labels / "nolabel.png", None, "box_nolabel")
-    (out / "box_nolabel.usda").write_text(usda("box", box_mesh("pic"), pic("box_nolabel"), mass=0.08))
-    g = 0.05  # garbage: plain red 50 mm cube, no kraft, no QR
-    (out / "box_garbage.usda").write_text(usda("box", cube("g", (g, g, g), (0, 0, g / 2), "m"), material("m", omni(color=(0.85, 0.05, 0.05))), mass=0.06))
-    for name, rgb in (("blue", (0.05, 0.25, 0.9)), ("orange", (1.0, 0.45, 0.05))):  # lane mats: 140x140x2 mm, visual only
-        (out / f"lane_{name}.usda").write_text(usda("lane", cube("slab", (0.14, 0.14, 0.002), (0, 0, 0.001), "m", collide=False),
-                                                    material("m", omni(color=rgb)), kinematic=True, mass=1.0))
-    (out / "reject_basket.usda").write_text(usda("basket", bin_body("m", 0.25, 0.15), material("m", omni(color=(0.22, 0.22, 0.24))),
-                                                 kinematic=True, mass=2.0))
-    (out / "reject_bin.usda").write_text(usda("bin", bin_body("m", 0.16, 0.10), material("m", omni(color=(0.1, 0.1, 0.11))), kinematic=True, mass=1.0))
-    mat_texture(out / "textures" / "mat_1.png", (60, 60, 64), 1)
-    mat_texture(out / "textures" / "mat_2.png", (200, 205, 190), 2)
-    (out / "mat.usda").write_text(usda("mat", cube("slab", (0.5, 0.9, 0.001), (0, 0, 0.0005), "top", collide=False),
-                                       material("top", omni("./textures/mat_1.png")), rigid=False))
+    def tile_atlas(name):
+        """Stack a measured parcel's six face tiles (make_qr_boxes.py) into one atlas; -> face -> (u0, v0, u1, v1)."""
+        tiles = {f: Image.open(labels / f"box_{name}_{f}.png").convert("RGB") for f in FACES}
+        W, H = max(t.width for t in tiles.values()), sum(t.height for t in tiles.values())
+        img, uv, y = Image.new("RGB", (W, H), tiles["nz"].getpixel((0, 0))), {}, 0
+        for f, t in tiles.items():  # image row y = atlas v 1 - y / H
+            img.paste(t, (0, y))
+            uv[f] = (0, round(1 - (y + t.height) / H, 6), round(t.width / W, 6), round(1 - y / H, 6))
+            y += t.height
+        img.save(out / "textures" / f"box_{name}_atlas.png")
+        return uv
+
+    pic = lambda name, **finish: material("pic", omni(f"./textures/{name}_atlas.png", **finish))  # noqa: E731
+    for name, b in BINS.items():  # shoe-box bins (props.py)
+        looks = material("out", omni(color=srgb_to_linear(b["outside"]))) + material("in", omni(color=srgb_to_linear(b["inside"])))
+        (out / f"{name}.usda").write_text(usda("bin", bin_body(b["size"]), looks, kinematic=True, mass=0.3))
+    for name, code in [*ROUTES.items(), ("nolabel", None), ("garbage", None)]:  # parcels: payload 420/<ZIP5>/<seq3>
+        if name in PARCELS:  # measured prop
+            p = PARCELS[name]
+            mesh = box_mesh("pic", tuple(v / 2 for v in p["size"]), tile_atlas(name))
+            looks = pic(f"box_{name}", **p.get("finish", {}))
+            (out / f"box_{name}.usda").write_text(usda("box", mesh, looks, mass=round(sum(p["mass"]) / 2, 3)))
+        elif name == "garbage":  # stand-in: plain red 50 mm cube, no kraft, no QR
+            g = 0.05
+            (out / "box_garbage.usda").write_text(usda("box", cube("g", (g, g, g), (0, 0, g / 2), "m"), material("m", omni(color=(0.85, 0.05, 0.05))), mass=0.06))
+        else:
+            if code:
+                s = code.replace("/", "_")
+                atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{name}")
+            else:
+                atlas(labels / "nolabel.png", None, "box_nolabel")
+            (out / f"box_{name}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{name}"), mass=0.08))
     print(f"wrote {len(list(out.glob('*.usda')))} usda + textures to {out}")
 
 

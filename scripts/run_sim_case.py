@@ -15,7 +15,7 @@ def env_name(case):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--case", type=int, required=True, choices=range(1, 7))
+    ap.add_argument("--case", type=int, required=True, choices=range(18, 24))  # sim/qr_sort_task/build_task.py CASES
     ap.add_argument("--runs", type=int, required=True, help="episodes")
     ap.add_argument("--viz", choices=["none", "kit"], default="none")
     ap.add_argument("--server-port", type=int, default=8001)

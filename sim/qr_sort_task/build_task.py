@@ -1,183 +1,200 @@
-"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout (one scene+DAG per case 1-12).
+"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort "row" cases 18-23.
 
   python sim/qr_sort_task/build_task.py --x2real $X2REAL_ROOT
 
 Writes <x2real>/manaenv/defination/{labelloop.yaml, labelloop/scene/caseN.yaml, labelloop/task/{stage_base,caseN_dag}.yaml,
-x2real/task/labelloop_leaderboard.csv} and appends board `labelloop_tabletop` to x2real/task/boards.yaml (once).
-Mirrors pick_by_attribute / classify_objects_color / image_puzzle YAML. NOT RUN against Isaac Sim.
+x2real/task/labelloop_leaderboard.csv}, deletes caseN files of cases no longer in CASES, and appends board `labelloop_tabletop`
+to x2real/task/boards.yaml (once; later runs only refresh its case_count). Mirrors pick_by_attribute / image_puzzle YAML.
+Cases 1-17 (earlier layouts) were removed on 2026-11-20; 18-23 keep their numbers so env names and past results still match.
 """
 import argparse
+import math
+import re
 from pathlib import Path
 
 import yaml
 
+from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, WALL
+
 MOD = "manaenv.assets.objects.labelloop_qr_sort"
 SCENE = lambda n: f"labelloop_qr_sort_case{n}_scene"
 ENV = lambda n: f"artixon_arm6a_G_labelloop_qr_sort_case{n}_id_env"
-TIMEOUT_S = 90
-SIDE, DOWN = [0.7071, 0.0, 0.0, 0.7071], [1.0, 0.0, 0.0, 0.0]  # label sideways / down (box quats XYZW, roll about x)
 # MEASURED (probe episode, env positions read from the sim): the tabletop-local frame is rotated 180 degrees about the table centre,
-# env = (TABLE_C.x - local.x, TABLE_C.y - local.y); e.g. blue mat local (-0.08,-0.20) -> env (0.29,-0.07), orange (-0.08,+0.20) -> env (0.28,-0.47).
-# Head image: env +x = FAR, env +y = image LEFT (image x ~ 650 at env y -0.27, ~1000 px/m near the mats). Robot root env (-0.322,-0.259).
+# env = (TABLE_C.x - local.x, TABLE_C.y - local.y). Tabletop is 0.685 x 1.11 m.
+# Head image: env +x = FAR, env +y = image LEFT (image x ~ 650 at env y -0.27, ~1000 px/m near the bins). Robot root env (-0.322, -0.259).
 TABLE_C = (0.2047, -0.2682)
-to_env = lambda lx, ly: (round(TABLE_C[0] - lx, 3), round(TABLE_C[1] - ly, 3))
-SURF_TO_ENV = (0.0, -0.27)  # WRONG map (kept only so case 5's teleport spot stays numerically identical: env (0.2, -0.12))
+TABLE_HALF = (0.3425, 0.555)  # tabletop half extents, local x (depth) / y (across)
 TABLE_Z = -0.235
-BIN_X = -0.105  # centre of the fruit scene's basket x range
-# cube region copied from fruits_to_basket scene (object_start_region): x 0.05..0.28, y -0.38..0.38, yaws +-0.1
-# boxes: asset suffix; tilt: label orientation; late: boxes parked at start, put on the table by a human at t
+to_local = lambda ex, ey: (TABLE_C[0] - ex, TABLE_C[1] - ey)  # noqa: E731 (env <-> tabletop-local is its own inverse)
+# "row" layout, tabletop-local, the shoe boxes of props.py with their length pointing away from the robot, pushed back to FAR_MARGIN
+# from the far edge so a measured parcel standing lengthwise fits on the table in front of them; their near half still covers case 1's
+# bin spot (x -0.105), where WALLX succeeded zero-shot. Blue at y +0.15 (image-right of centre), red at y -0.15 (image-left); the black
+# reject bin in the same row, REJECT_GAP image-right of blue.
+FAR_MARGIN, EDGE_MARGIN, ZONE_GAP = 0.015, 0.01, 0.03  # bins to the far edge; parcel to the table edges; parcel to the bins
+BIN_X = round(-(TABLE_HALF[0] - FAR_MARGIN) + max(b["size"][0] for b in BINS.values()) / 2, 4)
+LANE_Y, REJECT_GAP = 0.15, 0.044
+BIN_XY = {"bin_blue": (BIN_X, LANE_Y), "bin_red": (BIN_X, -LANE_Y)}
+REJECT_XY = (BIN_X, round(LANE_Y + (BINS["bin_blue"]["size"][1] + BINS["reject_bin"]["size"][1]) / 2 + REJECT_GAP, 4))
+# induction zone (range of the parcel CENTRE), ENV frame (parcels are teleported with env coordinates): right in front of the right
+# gripper (lateral +15..+23 cm); the right arm made every successful grasp, centre drops got no reach. zone() shrinks it per parcel.
+INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.50, -0.42]}
+CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
+TARGET = {"z95112": "bin_blue", "z90210": "bin_red"}  # parcel asset suffix -> lane bin; anything else -> reject_bin
+INSTR = ("Read each parcel's QR label: put ZIP 950-951 parcels into the blue bin, ZIP 900-902 into the red bin; "
+         "put anything else in the black bin on the right; return home.")
+# late: parcel asset suffix -> time (s) a human slides it into the induction zone; every parcel is parked off-table until then,
+# so the zone is EMPTY at reset (the harness takes its empty-zone reference). The harness gives each parcel up to 3 pick-and-place
+# tries (~40 s of sim each): 150 s per single parcel, stream parcels 150 s apart.
 CASES = {
-    1: dict(boxes=["a001"]),
-    2: dict(boxes=["a001", "b001"]),
-    3: dict(boxes=["a001", "b001", "a002"]),
-    4: dict(boxes=["a001", "b001", "a002"], tilt={"a001": SIDE, "b001": DOWN, "a002": SIDE}, bins_moved=True),
-    5: dict(boxes=["a001", "b001"], late={"a002": 12.0}, move={"a001": (8.0, [0.0, 0.08, 0.0])}),
-    6: dict(boxes=["a001", "b001"], decoys=[1, 2]),  # ponytail: no table mat (its footprint blocked box placement)
+    18: dict(late={"z95112": 6.0}, timeout=150), 19: dict(late={"z90210": 6.0}, timeout=150),
+    20: dict(late={"z10001": 6.0}, timeout=150),
+    21: dict(late={"nolabel": 6.0}, timeout=150), 22: dict(late={"garbage": 6.0}, timeout=150),
+    23: dict(late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780),
 }
-# lane sort (cases 7-12). Tabletop is 0.685 x 1.11 m; induction zone = where a human slides a parcel in.
-MAT_XY = {"lane_blue": (-0.08, -0.20), "lane_orange": (-0.08, 0.20)}
-BASKET_XY, BASKET_Z = (0.12, 0.68), -0.425  # tabletop-local xy (inner edge at y=0.555 = table edge, image-right); base z env (rim -0.275 = 4 cm below tabletop)
-BIN_REJECT_XY = (0.125, 0.30)  # case 13/14 dark bin ON the table, tabletop-local = env (0.08, -0.57): image-right of the induction zone, left of the right gripper home pose
-# induction zone, ENV frame (parcels are teleported with env coordinates): lands at head-image ~ x 0.35..0.65, y 0.55..0.80, mid-table in front of the arms
-INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.42, -0.12]}
-# case 15-17: the lanes are the existing open bins (0.172 m) instead of flat mats; x -0.10 (not -0.08) keeps the orange bin >= 4 cm from the dark reject bin
-LANE_BIN_XY = {"bin_blue": (-0.10, -0.20), "bin_orange": (-0.10, 0.20)}
-# case 18-23 "row" layout (copies case 1's far-side bins, the only geometry WALLX succeeds in): blue/orange at case 1's (BIN_X, +-0.15), dark reject bin
-# in the same row at +y 0.36 (image-right of blue; 4.4 cm gap, inner edge 0.44 < table half-width 0.555); induction zone centre-right in front of the right arm
-ROW_BIN_XY = {"bin_blue": (BIN_X, 0.15), "bin_orange": (BIN_X, -0.15)}
-ROW_REJECT_XY = (BIN_X, 0.36)
-# drop spot right in front of the right gripper (lateral +15..+23 cm): batch 1 grasped only the parcel that landed there, centre drops got no reach
-INDUCT_ENV_ROW = {"x": [-0.08, 0.06], "y": [-0.50, -0.42]}
-lane_ab = lambda c: ("bin_blue", "bin_orange") if c.get("lane_bins") else ("lane_blue", "lane_orange")
-def lane_target(c, b):
-    a, bb = lane_ab(c)
-    rej = "reject_bin" if c.get("reject_bin") else "reject_basket"
-    return {"z95112": a, "z90210": bb}.get(b, rej)
-LANE_INSTR = ("Read each parcel's QR label: push ZIP 950-951 parcels onto the blue mat, ZIP 900-902 onto the orange mat; "
-              "put anything else in the basket on the right; return home.")
-LANE_INSTR_BINS = ("Read each parcel's QR label: put ZIP 950-951 parcels into the blue bin, ZIP 900-902 into the orange bin; "
-                   "put anything else in the dark bin on the right; return home.")
-LANE_INSTR_BIN = LANE_INSTR.replace("the basket on the right", "the dark bin on the right")
-LANE_CASES = {
-    # induction zone starts EMPTY (harness takes its empty-zone reference): every parcel is parked, a human "slides it in" at t
-    7: dict(boxes=[], late={"z95112": 6.0}), 8: dict(boxes=[], late={"z90210": 6.0}), 9: dict(boxes=[], late={"z10001": 6.0}),
-    10: dict(boxes=[], late={"nolabel": 6.0}), 11: dict(boxes=[], late={"garbage": 6.0}),
-    13: dict(boxes=[], late={"nolabel": 6.0}, reject_bin=True), 14: dict(boxes=[], late={"garbage": 6.0}, reject_bin=True),
-    12: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "nolabel": 120.0}, timeout=240),
-}
-LANE_CASES.update({
-    15: dict(boxes=[], late={"z95112": 6.0}, reject_bin=True, lane_bins=True), 16: dict(boxes=[], late={"z90210": 6.0}, reject_bin=True, lane_bins=True),
-    17: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, reject_bin=True, lane_bins=True, timeout=320),
-})
-ROW = dict(reject_bin=True, lane_bins=True, row=True)
-# harness gives each parcel up to 3 pick-and-place tries (~40 s of sim each): 150 s per single parcel, stream parcels 150 s apart
-LANE_CASES.update({
-    18: dict(boxes=[], late={"z95112": 6.0}, timeout=150, **ROW), 19: dict(boxes=[], late={"z90210": 6.0}, timeout=150, **ROW),
-    20: dict(boxes=[], late={"z10001": 6.0}, timeout=150, **ROW),
-    21: dict(boxes=[], late={"nolabel": 6.0}, timeout=150, **ROW), 22: dict(boxes=[], late={"garbage": 6.0}, timeout=150, **ROW),
-    23: dict(boxes=[], late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780, **ROW),
-})
-CASES.update({n: dict(c, lane=True) for n, c in LANE_CASES.items()})
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
       "required_surfaces": ["tabletop"]}
+BOARD = """  labelloop_tabletop:
+    robot: artixon_arm6a
+    grippers:
+    - G
+    num_episodes: 40
+    num_parallel_envs: 4
+    leaderboard_csv: x2real/task/labelloop_leaderboard.csv
+    suite: labelloop.yaml
+    scoring: id_only
+    capabilities:
+    - benchmark
+    case_count: %d
+    save_path: ./outputs/x2real_eval/labelloop/benchmark
+"""
 
 
-reject_node = lambda c: "reject_bin" if c.get("reject_bin") else "reject_basket"
+def footprints():
+    """{bin id: (x0, x1, y0, y1)} tabletop-local outer footprint of each bin."""
+    return {b: (x - BINS[b]["size"][0] / 2, x + BINS[b]["size"][0] / 2, y - BINS[b]["size"][1] / 2, y + BINS[b]["size"][1] / 2)
+            for b, (x, y) in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
+
+
+def spec(b):
+    """Parcel b as it arrives: size (x away from the robot, y across, z up), mass range, yaw limit."""
+    return PARCELS.get(b, CUBE_SPEC)
+
+
+def half_extent(b):
+    """Half footprint (along x, along y) of parcel b turned by up to its yaw limit."""
+    sx, sy, _ = spec(b)["size"]
+    c, s = math.cos(spec(b)["yaw"]), math.sin(spec(b)["yaw"])
+    return (sx * c + sy * s) / 2, (sy * c + sx * s) / 2
+
+
+def zone(b):
+    """[[x0, x1], [y0, y1]] env range of parcel b's centre: INDUCT_ENV, shrunk so the whole parcel (at any allowed yaw) stays
+    EDGE_MARGIN inside the table and ZONE_GAP in front of the bins. The 60 mm cubes get INDUCT_ENV unchanged."""
+    hx, hy = half_extent(b)
+    near_bins = max(f[1] for f in footprints().values())  # tabletop-local x of the bins' near edge
+    lx = (near_bins + ZONE_GAP + hx, TABLE_HALF[0] - EDGE_MARGIN - hx)
+    ly = (-TABLE_HALF[1] + EDGE_MARGIN + hy, TABLE_HALF[1] - EDGE_MARGIN - hy)
+    ex, ey = sorted(TABLE_C[0] - v for v in lx), sorted(TABLE_C[1] - v for v in ly)  # -> env (the map flips the axes)
+    x = [max(INDUCT_ENV["x"][0], ex[0]), min(INDUCT_ENV["x"][1], ex[1])]
+    y = [max(INDUCT_ENV["y"][0], ey[0]), min(INDUCT_ENV["y"][1], ey[1])]
+    assert x[1] - x[0] >= 0.01 and y[1] - y[0] >= 0.01, f"no room to drop {b} in front of the bins: x {x}, y {y}"
+    if x == INDUCT_ENV["x"] and y == INDUCT_ENV["y"]:
+        return [INDUCT_ENV["x"], INDUCT_ENV["y"]]
+    inward = lambda lo, hi: [math.ceil(lo * 1e4) / 1e4, math.floor(hi * 1e4) / 1e4]  # noqa: E731 (0.1 mm steps, never outward)
+    return [inward(*x), inward(*y)]
+
+
+def check_layout(margin=0.01):
+    """Every bin on the table and no two touching; every parcel of every case has room to arrive (zone() asserts)."""
+    fp = footprints()
+    for b, (x0, x1, y0, y1) in fp.items():
+        assert -TABLE_HALF[0] + margin <= x0 and x1 <= TABLE_HALF[0] - margin, f"{b} off the table in depth"
+        assert -TABLE_HALF[1] + margin <= y0 and y1 <= TABLE_HALF[1] - margin, f"{b} off the table across"
+    for (a, (ax0, ax1, ay0, ay1)), (b, (bx0, bx1, by0, by1)) in ((p, q) for i, p in enumerate(fp.items()) for q in list(fp.items())[i + 1:]):
+        assert ax1 <= bx0 or bx1 <= ax0 or ay1 <= by0 or by1 <= ay0, f"{a} overlaps {b}"
+    for b in {b for c in CASES.values() for b in c["late"]}:
+        zone(b)
+
+
+def parcel_report():
+    """One line per parcel: size, target bin, drop zone, and WARN when its narrowest side seen from above leaves the gripper under
+    ~1 cm to spare, its footprint doesn't fit the target bin's cavity as it arrives, or it is taller than the bin walls."""
+    lines = []
+    for b in sorted({b for c in CASES.values() for b in c["late"]}):
+        sx, sy, sz = spec(b)["size"]
+        tgt = TARGET.get(b, "reject_bin")
+        L, W, H = BINS[tgt]["size"]
+        warn = []
+        if min(sx, sy) > GRIPPER_OPEN:
+            warn.append(f"NOT GRASPABLE: narrowest side {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
+        elif min(sx, sy) > GRIPPER_OPEN - 0.01:
+            warn.append(f"tight grasp: {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
+        if sx > L - 2 * WALL or sy > W - 2 * WALL:
+            warn.append(f"footprint {sx * 1000:.0f} x {sy * 1000:.0f} mm does not fit {tgt} ({(L - 2 * WALL) * 1000:.0f} x {(W - 2 * WALL) * 1000:.0f})")
+        if sz > H:
+            warn.append(f"{(sz - H) * 1000:.0f} mm taller than the {tgt} walls")
+        lines.append(f"  {b}: {sx * 1000:.0f} x {sy * 1000:.0f} x {sz * 1000:.0f} mm -> {tgt}, centre zone env x {zone(b)[0]} y {zone(b)[1]}"
+                     + (f"  WARN: {'; '.join(warn)}" if warn else ""))
+    return "\n".join(lines)
+
+
+def success_region(b):
+    """[half x, half y, z max] of the cavity, relative to the bin origin (centre of its underside): parcel centre inside = landed."""
+    L, W, H = BINS[b]["size"]
+    return [round(L / 2 - WALL, 4), round(W / 2 - WALL, 4), round(H, 4)]
 
 
 def obj(oid, asset, tags, **kw):
     return {"id": oid, "asset": {"type": "asset_id", "id": asset}, "semantic_tags": tags, **kw}
 
 
+def on_table(oid, x, y):
+    return {"object": oid, "placement": {"type": "surface", "surface": "tabletop",
+            "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
+
+
 def scene(n, c):
-    boxes, late, decoys = c["boxes"], c.get("late", {}), c.get("decoys", [])
-    mass = [0.07, 0.09]
-    objs = [obj(f"box_{b}", f"labelloop_box_{b}", ["pickable", "qr_box"], spawn_mass=mass, spawn_static_friction=1.0,
-                spawn_dynamic_friction=1.0, **({"orientation": c["tilt"][b]} if b in c.get("tilt", {}) else {}))
-            for b in boxes + list(late)]
-    objs += [obj(f"decoy_{i}", f"labelloop_decoy_{i}", ["pickable", "decoy"], spawn_mass=mass, spawn_static_friction=1.0,
-                 spawn_dynamic_friction=1.0) for i in decoys]
-    lane = c.get("lane")
-    reject = "reject_bin" if c.get("reject_bin") else "reject_basket"
-    la, lb = lane_ab(c)
-    fixed = [(la, f"labelloop_{la}"), (lb, f"labelloop_{lb}"), (reject, f"labelloop_{reject}")] if lane \
-        else [("bin_blue", "labelloop_bin_blue"), ("bin_orange", "labelloop_bin_orange")]
-    objs += [obj(i, a, ["container"], kinematic=True) for i, a in fixed]
-    movable = [f"box_{b}" for b in boxes] + [f"decoy_{i}" for i in decoys]
-    # bins sit where the fruit scene's basket does (x -0.14..-0.07, y +-0.08), split left/right of centre
-    far = {"blue": [BIN_X, 0.26], "orange": [BIN_X, -0.26]} if c.get("bins_moved") else {"blue": [BIN_X, 0.15], "orange": [BIN_X, -0.15]}
-    nodes = {o: {"object": o} for o in movable}
-    if lane:
-        far = {}
-        for m, (x, y) in (ROW_BIN_XY if c.get("row") else LANE_BIN_XY if c.get("lane_bins") else MAT_XY).items():
-            nodes[m] = {"object": m, "placement": {"type": "surface", "surface": "tabletop",
-                        "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
-        if reject == "reject_bin":
-            x, y = ROW_REJECT_XY if c.get("row") else BIN_REJECT_XY
-            nodes[reject] = {"object": reject, "placement": {"type": "surface", "surface": "tabletop",
-                             "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
-        else:
-            nodes[reject] = {"object": reject, "placement": {"type": "pose", "poses": [
-                {"id": "floor", "position": [*to_env(*BASKET_XY), BASKET_Z], "orientation": [0, 0, 0, 1]}]}}
-    for col, (x, y) in far.items():
-        nodes[f"bin_{col}"] = {"object": f"bin_{col}", "placement": {"type": "surface", "surface": "tabletop",
-                               "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
+    late, mass = c["late"], list(CUBE_SPEC["mass"])  # one shared list for the cubes: dumped once with a YAML anchor
+    objs = [obj(f"box_{b}", f"labelloop_box_{b}", ["pickable", "qr_box"], spawn_mass=list(PARCELS[b]["mass"]) if b in PARCELS else mass,
+                spawn_static_friction=1.0, spawn_dynamic_friction=1.0) for b in late]
+    objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in (*BIN_XY, "reject_bin")]
+    nodes = {i: on_table(i, *xy) for i, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
     for i, b in enumerate(late):  # parked far below the table until the human event fires
         nodes[f"box_{b}"] = {"object": f"box_{b}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5, 3.0 + i, -5.0], "orientation": [0, 0, 0, 1]}]}}
     return {
         "definition": {"scene_type": SCENE(n), "metadata": {"name": f"labelloop_qr_sort_case{n}", "source": "labelloop",
-                       "semantic_goal": "Sort QR-labelled boxes into the bin named by the code (A=blue, B=orange)"}},
+                       "semantic_goal": "Sort QR-labelled parcels into the bin named by the code (A=blue, B=red, else black)"}},
         "render_settings": {"gen_method": 0, "tags": "green_booth"},
         "background": BG, "objects": objs,
-        "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes,
-                   "groups": {} if not movable else {"box_start_region": {"type": "region", "nodes": movable, "surface": "tabletop",
-                              "ranges": {"x": [0.05, 0.28], "y": [-0.38, 0.38]}, "yaws": [-0.1, 0.1],
-                              "sample_method": "stratified", "spacing_mode": "footprint_gap", "min_spacing": 0.03,
-                              "jitter": 0.35, "max_attempts": 20000}}},
+        "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes, "groups": {}},
         "variants": {"materialization": [], "assignments": []},
     }
 
 
 def dag(n, c):
-    lane = c.get("lane")
-    assign = {f"box_{b}": (lane_target(c, b) if lane else "bin_blue" if b[0] == "a" else "bin_orange") for b in c["boxes"] + list(c.get("late", {}))}
-    assign.update({f"decoy_{i}": None for i in c.get("decoys", [])})
-    events = {}
-    for b, t in c.get("late", {}).items():  # human adds a box: teleport it onto the table
-        where = {"to_xyz": [0.2, -0.12, TABLE_Z + 0.05]} if not lane else {
-            "to_xy_range": [(INDUCT_ENV_ROW if c.get("row") else INDUCT_ENV)["x"], (INDUCT_ENV_ROW if c.get("row") else INDUCT_ENV)["y"]],
-            "yaw_range": [-0.3, 0.3], "z": TABLE_Z + 0.03, "avoid": [f"box_{o}" for o in list(c["boxes"]) + list(c["late"]) if o != b]}
-        events[f"human_adds_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t],
-                                     "is_global_time": True, "object_name": f"box_{b}", **where}
-    for b, (t, delta) in c.get("move", {}).items():  # human nudges a box (repeats every tick: long interval)
-        events[f"human_moves_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, 1e6],
-                                      "is_global_time": True, "object_name": f"box_{b}", "delta_xyz": delta}
-    sections = {"instruction_component": {"instruction": (LANE_INSTR_BINS if c.get("lane_bins") else LANE_INSTR_BIN if c.get("reject_bin") else LANE_INSTR) if lane else "Read each box's QR label and put the box in the bin the code names "
-                "(ZONE-A blue, ZONE-B orange); put unlabeled boxes aside; then return the arms home.", "topic": "qr_sort"}}
-    if events:
-        sections["event_component"] = {"terms": events}
-    longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15} if c.get("timeout") else {}  # stage_base is 180 s
+    late = c["late"]
+    assign = {f"box_{b}": TARGET.get(b, "reject_bin") for b in late}
+    events = {f"human_adds_{b}": {  # human slides the parcel in: teleport it, resting on the table, to a random spot of its zone
+        "_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t], "is_global_time": True, "object_name": f"box_{b}",
+        "to_xy_range": zone(b), "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]], "z": TABLE_Z + spec(b)["size"][2] / 2,
+        "avoid": [f"box_{o}" for o in late if o != b]} for b, t in late.items()}
+    sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, "event_component": {"terms": events}}
+    longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s
     tags = [{"mode": 0, "tags": SCENE(n)}]
+    success = {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "bins": {b: success_region(b) for b in BINS},
+               "vel_max": 0.5, "consecutive_steps": 5}
     return {"graph_task_generator": {"definition": {
         "task_type": f"labelloop_qr_sort_case{n}",
         "layout": {"runtime_sample": {"id": "runtime", "targets": {
-            "placements": [*([{"id": "box_start_region", "target": {"type": "group", "id": "box_start_region"}, "sample": {"type": "inherit"}}]
-                             if c["boxes"] else []),
-                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in ((*lane_ab(c), reject_node(c)) if lane else ("bin_blue", "bin_orange")))]}}},
+            "placements": [{"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in (*BIN_XY, "reject_bin")]}}},
         "component_sections": sections},
         "nodes": [
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_sort", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
-                    "termination_component": {"terms": {"success": (
-                        {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "consecutive_steps": 5,
-                                  **({"basket": "reject_bin", "basket_half": 0.07, "basket_z_max": 0.09} if c.get("reject_bin") else {}),
-                                  **({"half": 0.07, "z_max": 0.09, "vel_max": 0.5} if c.get("lane_bins") else {})} if lane else
-                        {"_func": f"{MOD}.boxes_sorted", "assignments": assign,
-                        "bins": ["bin_blue", "bin_orange"], "xy": 0.07, "z_min": -0.02, "z_max": 0.15,
-                        "vel_max": 0.5, "consecutive_steps": 5})}}}}},
+                    "termination_component": {"terms": {"success": success}}}}},
             {"id": "return", "include": "labelloop/task/stage_base.yaml", "score": 2,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_return", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
@@ -204,12 +221,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--x2real", required=True)
     a = ap.parse_args()
+    check_layout()
+    print(f"bins x {BIN_X}: " + ", ".join(f"{b} y {xy[1]}" for b, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()))
+    print(parcel_report())
     d = Path(a.x2real) / "manaenv" / "defination"
     dump(d / "labelloop/task/stage_base.yaml", STAGE_BASE)
     policy = {"PolicyPlanner": {"policy_cfg": {"include": "policy/x2real_ps@v1.0.0.yaml"}}}
     for n, c in CASES.items():
         dump(d / f"labelloop/scene/case{n}.yaml", scene(n, c))
         dump(d / f"labelloop/task/case{n}_dag.yaml", dag(n, c))
+    for f in [*(d / "labelloop/scene").glob("case*.yaml"), *(d / "labelloop/task").glob("case*_dag.yaml")]:
+        if int(re.match(r"case(\d+)", f.name).group(1)) not in CASES:  # left over from removed cases
+            f.unlink()
     # x2real_eval reads the suite raw (no include expansion), so copy x2real.yaml and replace its four lists.
     suite = yaml.safe_load((d / "x2real.yaml").read_text())
     suite.update({"scene_orders": [{"include": f"labelloop/scene/case{n}.yaml"} for n in CASES],
@@ -219,30 +242,20 @@ def main():
                  "task_generator_name": f"labelloop_qr_sort_case{n}", "num_envs": 1,
                  "metadata": {"x2real": {"embodiment": "artixon_arm6a", "capabilities": ["benchmark"],
                                          "robot_generator_identity": "EX001-6R-G", "board": "labelloop_tabletop"}}}} for n in CASES],
-             "rollout": [{"env_ref": ENV(n), "num_episodes": 40, "episode_length_s": CASES[n].get("timeout", TIMEOUT_S), "max_steps": CASES[n].get("timeout", TIMEOUT_S) * 30,
-                          "num_parallel_envs": 4, "show_evaluation_overlay": True, "planner": policy} for n in CASES]})
+             "rollout": [{"env_ref": ENV(n), "num_episodes": 40, "episode_length_s": c["timeout"], "max_steps": c["timeout"] * 30,
+                          "num_parallel_envs": 4, "show_evaluation_overlay": True, "planner": policy} for n, c in CASES.items()]})
     dump(d / "labelloop.yaml", suite)
     rows = ["subcategory,task,x2real_package,n_id,id_envs,id_timeout_s"]
-    rows += [f"labelloop,qr_sort_case{n},labelloop/qr_sort_case{n},1,{ENV(n)},{c.get('timeout', TIMEOUT_S)}" for n, c in CASES.items()]
+    rows += [f"labelloop,qr_sort_case{n},labelloop/qr_sort_case{n},1,{ENV(n)},{c['timeout']}" for n, c in CASES.items()]
     csv = d / "x2real/task/labelloop_leaderboard.csv"
     csv.write_text("\n".join(rows) + "\n")
     boards = d / "x2real/task/boards.yaml"
-    if "labelloop_tabletop" not in boards.read_text():
+    raw = boards.read_bytes()
+    if b"labelloop_tabletop" not in raw:
         with boards.open("a") as f:
-            f.write("""  labelloop_tabletop:
-    robot: artixon_arm6a
-    grippers:
-    - G
-    num_episodes: 40
-    num_parallel_envs: 4
-    leaderboard_csv: x2real/task/labelloop_leaderboard.csv
-    suite: labelloop.yaml
-    scoring: id_only
-    capabilities:
-    - benchmark
-    case_count: 23
-    save_path: ./outputs/x2real_eval/labelloop/benchmark
-""")
+            f.write(BOARD % len(CASES))
+    else:  # board added by an earlier run: keep its line endings, refresh only case_count
+        boards.write_bytes(re.sub(rb"(labelloop_tabletop:\r?\n(?:    .*\r?\n)*?    case_count: )\d+", rb"\g<1>%d" % len(CASES), raw))
     print(f"wrote {len(CASES)} cases under {d}")
 
 

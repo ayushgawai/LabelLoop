@@ -1,10 +1,10 @@
 # LabelLoop
 
 Lane sorter: a human slides parcels one at a time into an induction zone; the harness reads the QR (`420/<ZIP5>/<seq>`,
-GS1 AI 420 = ship-to ZIP), routes by ZIP3 through `sort_plan` and has X Square's dual-arm robot push the parcel onto its lane mat
-(A blue, B orange; fallback pick-and-place). Unknown ZIP, bad code, no label or non-parcel objects go to the reject basket.
-WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short training-style sentence per model call
-("push the block onto the blue mat") or holds still (None) while it waits.
+GS1 AI 420 = ship-to ZIP), routes by ZIP3 through `sort_plan` and has X Square's dual-arm robot pick the parcel and place it in
+its lane bin (open shoe boxes: A blue, B red; see `sim/qr_sort_task/props.py`). Unknown ZIP, bad code, no label or non-parcel
+objects go to the black reject box. WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short training-style
+sentence per model call ("put the block into the blue bin") or holds still (None) while it waits.
 Plan: `instructions/LabelLoop Simulation-First Plan.pdf` (gitignored: the organizer PDFs contain the API key).
 
 ```
@@ -48,7 +48,7 @@ PYTHONPATH=$PWD policy-space serve $PWD/policies/labelloop/deploy.yaml --port 80
 python manaenv/scripts/x2real_eval.py --board artixon_arm6a_tabletop --env artixon_arm6a_G_pick_fruits_into_basket_id_env \
   --num-episodes 1 --num-parallel-envs 1 --policy-config policy/x2real_ps@v1.0.0.yaml \
   --server-address 127.0.0.1 --server-port 8001 --enable_cameras
-X2REAL_ROOT=~/x2real python scripts/run_sim_case.py --case 1 --runs 10
+X2REAL_ROOT=~/x2real python scripts/run_sim_case.py --case 18 --runs 10   # cases 18-23, see sim/README.md
 ```
 Logs: `runs/sim.jsonl`, one line per model call. **First thing on the sim box:** round-trip test (hold reply → arm must
 stay still), then check the arm moves the way the instruction says. Both confirm the `home_pose` frame in `configs/ex001_6r.yaml`.
