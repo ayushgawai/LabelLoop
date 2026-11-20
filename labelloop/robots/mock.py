@@ -16,26 +16,27 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_pushes=0):
-    return {"kind": "parcel", "code": code, "fail_pushes": fail_pushes}
+def parcel(code, fail_places=0):
+    return {"kind": "parcel", "code": code, "fail_places": fail_places}
 
 
 def nolabel():
-    return {"kind": "nolabel", "code": None, "fail_pushes": 0}
+    return {"kind": "nolabel", "code": None, "fail_places": 0}
 
 
 def garbage():
-    return {"kind": "garbage", "code": None, "fail_pushes": 0}
+    return {"kind": "garbage", "code": None, "fail_places": 0}
 
 
 class FakeScene:
     """Fake WALLX world. `queue` objects arrive in the induction zone one at a time (a hand is visible for the first
-    call), after the zone has been empty `gap` calls. apply(instruction) obeys PUSH/PLACE (mat colour) and REJECT
-    (basket) on the 2nd consecutive call; a PUSH of an object with fail_pushes > 0 does nothing."""
+    call), after the zone has been empty `gap` calls. apply(instruction) obeys PUSH ("onto the blue mat") / PLACE
+    ("into the blue bin") and REJECT ("into the black bin") on the 2nd consecutive call; the first fail_places PLACE
+    attempts of an object do nothing."""
 
     def __init__(self, queue, gap=6):
         self.queue, self.gap, self.waited = list(queue), gap, 0
-        self.zone, self.hand, self.at, self.log = None, False, {}, []  # at: id(obj) -> mat colour | "basket"
+        self.zone, self.hand, self.at, self.log = None, False, {}, []  # at: id(obj) -> mat colour | "reject"
         self.kind, self.n, self.grip = None, 0, 1.0
 
     def on(self, where):
@@ -65,14 +66,14 @@ class FakeScene:
     def apply(self, instruction):
         self.hand = False
         t = (instruction or "").lower()
-        kind = "PUSH" if "push" in t else "REJECT" if "basket" in t else "PLACE" if " mat" in t else None
+        kind = "REJECT" if "black bin" in t else "PUSH" if "push" in t else "PLACE" if " bin" in t else None
         self.n = self.n + 1 if kind and kind == self.kind else 1
         self.kind = kind
         o = self.zone
         if o and kind and self.n >= 2:
-            o["pushes"] = o.get("pushes", 0) + (kind == "PUSH" and self.n == 2)  # one attempt per PUSH run
-            if kind != "PUSH" or o["pushes"] > o["fail_pushes"]:
-                self.at[id(o)] = "basket" if kind == "REJECT" else "blue" if "blue" in t else "orange"
+            o["places"] = o.get("places", 0) + (kind == "PLACE" and self.n == 2)  # one attempt per PLACE run
+            if kind != "PLACE" or o["places"] > o["fail_places"]:
+                self.at[id(o)] = "reject" if kind == "REJECT" else "blue" if "blue" in t else "orange"
                 self.zone = None
         if self.zone is None and self.queue and not kind:
             self.waited += 1

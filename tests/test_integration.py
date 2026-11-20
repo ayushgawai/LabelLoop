@@ -25,12 +25,12 @@ def fake_clock():
 
 
 def stream():
-    objs = [parcel(A), parcel(B, fail_pushes=2), parcel(UNKNOWN), nolabel(), garbage()]
+    objs = [parcel(A), parcel(B, fail_places=2), parcel(UNKNOWN), nolabel(), garbage()]
     return objs, FakeScene(objs)
 
 
 def check_episode(objs, scene, harness):
-    assert [scene.at[id(o)] for o in objs] == ["blue", "orange", "basket", "basket", "basket"]
+    assert [scene.at[id(o)] for o in objs] == ["blue", "orange", "reject", "reject", "reject"]
     assert harness.sm.parcels == 5 and not harness.done  # stream mode never latches DONE
 
 
@@ -81,7 +81,7 @@ def test_event_server_full_episode():
                 break
         check_episode(objs, scene, harness)
         sent = {r["instruction"] for r in stub.requests}
-        assert "sort the parcels by QR label" not in sent and any("push" in s for s in sent)
+        assert "sort the parcels by QR label" not in sent and any("bin" in s for s in sent)
     finally:
         ws.__exit__(None, None, None)
         box["loop"].call_soon_threadsafe(box["stop"].set)
