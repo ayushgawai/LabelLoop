@@ -42,6 +42,11 @@ BIN_REJECT_XY = (0.125, 0.30)  # case 13/14 dark bin ON the table, tabletop-loca
 INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.42, -0.12]}
 # case 15-17: the lanes are the existing open bins (0.172 m) instead of flat mats; x -0.10 (not -0.08) keeps the orange bin >= 4 cm from the dark reject bin
 LANE_BIN_XY = {"bin_blue": (-0.10, -0.20), "bin_orange": (-0.10, 0.20)}
+# case 18-23 "row" layout (copies case 1's far-side bins, the only geometry WALLX succeeds in): blue/orange at case 1's (BIN_X, +-0.15), dark reject bin
+# in the same row at +y 0.36 (image-right of blue; 4.4 cm gap, inner edge 0.44 < table half-width 0.555); induction zone centre-right in front of the right arm
+ROW_BIN_XY = {"bin_blue": (BIN_X, 0.15), "bin_orange": (BIN_X, -0.15)}
+ROW_REJECT_XY = (BIN_X, 0.36)
+INDUCT_ENV_ROW = {"x": [-0.08, 0.06], "y": [-0.47, -0.29]}
 lane_ab = lambda c: ("bin_blue", "bin_orange") if c.get("lane_bins") else ("lane_blue", "lane_orange")
 def lane_target(c, b):
     a, bb = lane_ab(c)
@@ -62,6 +67,12 @@ LANE_CASES = {
 LANE_CASES.update({
     15: dict(boxes=[], late={"z95112": 6.0}, reject_bin=True, lane_bins=True), 16: dict(boxes=[], late={"z90210": 6.0}, reject_bin=True, lane_bins=True),
     17: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, reject_bin=True, lane_bins=True, timeout=320),
+})
+ROW = dict(reject_bin=True, lane_bins=True, row=True)
+LANE_CASES.update({
+    18: dict(boxes=[], late={"z95112": 6.0}, **ROW), 19: dict(boxes=[], late={"z90210": 6.0}, **ROW), 20: dict(boxes=[], late={"z10001": 6.0}, **ROW),
+    21: dict(boxes=[], late={"nolabel": 6.0}, **ROW), 22: dict(boxes=[], late={"garbage": 6.0}, **ROW),
+    23: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, timeout=320, **ROW),
 })
 CASES.update({n: dict(c, lane=True) for n, c in LANE_CASES.items()})
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
@@ -96,11 +107,11 @@ def scene(n, c):
     nodes = {o: {"object": o} for o in movable}
     if lane:
         far = {}
-        for m, (x, y) in (LANE_BIN_XY if c.get("lane_bins") else MAT_XY).items():
+        for m, (x, y) in (ROW_BIN_XY if c.get("row") else LANE_BIN_XY if c.get("lane_bins") else MAT_XY).items():
             nodes[m] = {"object": m, "placement": {"type": "surface", "surface": "tabletop",
                         "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
         if reject == "reject_bin":
-            x, y = BIN_REJECT_XY
+            x, y = ROW_REJECT_XY if c.get("row") else BIN_REJECT_XY
             nodes[reject] = {"object": reject, "placement": {"type": "surface", "surface": "tabletop",
                              "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
         else:
@@ -133,7 +144,7 @@ def dag(n, c):
     events = {}
     for b, t in c.get("late", {}).items():  # human adds a box: teleport it onto the table
         where = {"to_xyz": [0.2, -0.12, TABLE_Z + 0.05]} if not lane else {
-            "to_xy_range": [INDUCT_ENV["x"], INDUCT_ENV["y"]],
+            "to_xy_range": [(INDUCT_ENV_ROW if c.get("row") else INDUCT_ENV)["x"], (INDUCT_ENV_ROW if c.get("row") else INDUCT_ENV)["y"]],
             "yaw_range": [-0.3, 0.3], "z": TABLE_Z + 0.03, "avoid": [f"box_{o}" for o in list(c["boxes"]) + list(c["late"]) if o != b]}
         events[f"human_adds_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t],
                                      "is_global_time": True, "object_name": f"box_{b}", **where}
@@ -226,7 +237,7 @@ def main():
     scoring: id_only
     capabilities:
     - benchmark
-    case_count: 17
+    case_count: 23
     save_path: ./outputs/x2real_eval/labelloop/benchmark
 """)
     print(f"wrote {len(CASES)} cases under {d}")

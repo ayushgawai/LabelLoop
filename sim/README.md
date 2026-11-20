@@ -122,3 +122,10 @@ used to get the same arrival). Cases 13/14 = 10/11 with a dark 0.16x0.16x0.10 bi
 Cases 15-17 (lanes as bins): same arrival and dark reject bin as 13/14, but the lanes are the open `bin_blue` / `bin_orange` at tabletop-local (-0.10, -0.20) / (-0.10, +0.20)
 (`LANE_BIN_XY`; x -0.10 keeps the orange bin >= 4 cm from the reject bin). 15 = z95112, 16 = z90210, 17 = stream z95112 6 s, z90210 60 s, z10001 120 s, nolabel 180 s,
 garbage 240 s (timeout 320 s; the last three go to the dark bin). Success `lanes_sorted` with half 0.07 / z_max 0.09 / vel_max 0.5 for the lane bins.
+
+### Cases 18-23 ("row" layout, `row=True`)
+WALLX only succeeds zero-shot with case 1's geometry (two open bins side by side on the far side, right arm), so cases 18-23 copy it: `bin_blue` at tabletop-local
+(`BIN_X`, +0.15) and `bin_orange` at (`BIN_X`, -0.15) exactly as case 1, plus the dark `reject_bin` in the same row at (`BIN_X`, +0.36) (image-right of blue, 4.4 cm gap, on the
+table). Parcels are teleported into a centre-right induction zone in front of the right arm, `INDUCT_ENV_ROW` env x -0.08..0.06, y -0.47..-0.29. Cases: 18 z95112 | 19 z90210 |
+20 z10001 (reject) | 21 nolabel | 22 garbage (all at 6 s) | 23 stream z95112 6 s, z90210 60 s, z10001 120 s, nolabel 180 s, garbage 240 s (timeout 320 s). Instruction and success
+(`lanes_sorted`, reject_bin semantics) are the same as cases 15-17. Cases 1-17 generate byte-identical YAML.
