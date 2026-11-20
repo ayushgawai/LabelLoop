@@ -74,7 +74,7 @@ each other, or where a parcel has no room to arrive; it prints each parcel's dro
 Success = each parcel's centre resting inside its target bin's cavity (z95112 blue, z90210 red, everything else the black reject box), then arms
 home (`lanes_sorted`, labelloop_qr_sort.py; per-bin cavity from `build_task.success_region`).
 
-## Bins (`qr_sort_task/props.py`, 2026-11-20)
+## Bins (`qr_sort_task/props.py`, 2026-11-20; photos and measurements of every prop: [docs/props](../docs/props/README.md))
 The three real open shoe boxes (lids off), measured in inches, length pointing away from the robot; modelled as a 2.5 mm outer shell + 2.5 mm liner
 (outside / inside colour sampled from photos), kinematic:
 

@@ -2,7 +2,8 @@
 
 Lane sorter: a human slides parcels one at a time into an induction zone; the harness reads the QR (`420/<ZIP5>/<seq>`,
 GS1 AI 420 = ship-to ZIP), routes by ZIP3 through `sort_plan` and has X Square's dual-arm robot pick the parcel and place it in
-its lane bin (open shoe boxes: A blue, B red; see `sim/qr_sort_task/props.py`). Unknown ZIP, bad code, no label or non-parcel
+its lane bin (open shoe boxes: A blue, B red; photos + measurements of all props in [docs/props](docs/props/README.md),
+sim numbers in `sim/qr_sort_task/props.py`). Unknown ZIP, bad code, no label or non-parcel
 objects go to the black reject box. WALLX (cloud VLA, zero-shot) makes all arm motion; LabelLoop picks one short training-style
 sentence per model call ("put the block into the blue bin") or holds still (None) while it waits.
 Plan: `instructions/LabelLoop Simulation-First Plan.pdf` (gitignored: the organizer PDFs contain the API key).
