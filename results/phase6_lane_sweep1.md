@@ -23,3 +23,22 @@ Next steps:
 - Fix the arrival position and randomize it per episode.
 - Re-test push and move wordings.
 - Compare the floor basket with an on-table reject bin (visible, and inside the rules' "standard workbench" envelope).
+
+## Sweep 2: parcels arriving in front of the arms, random per episode (fixed scene, 2 episodes each)
+
+| case | instruction | score |
+|---|---|---|
+| 7 (ZIP A) | push the block onto the blue mat | 0, 0 |
+| 7 | move the block onto the blue mat | 0, 0 |
+| 7 | put the block on the blue mat | 0, 0 |
+| 8 (ZIP B) | push the block onto the orange mat | 0, 0 |
+| 8 | put the block on the orange mat | 0, 0 |
+| 13 (no label) | put the block into the black bin (on-table reject bin) | 0, 0 |
+| 14 (garbage) | put the red block into the black bin | 0, 0 |
+| 9 (unknown ZIP) | drop the block off the right side of the table (floor basket) | 0, 0 |
+
+0/16. In the videos the arms hover near the parcel and do not grasp or push it.
+Conclusions:
+- WALLX, zero-shot, has no push/swipe skill in this scene.
+- Flat mats are not good targets for it.
+- Next: a control run that repeats Phase 4 (case 1, "put the block into the blue bin", 2/2 back then), and lanes built as bins (cases 15-17).
