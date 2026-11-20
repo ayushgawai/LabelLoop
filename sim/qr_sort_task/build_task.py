@@ -69,10 +69,12 @@ LANE_CASES.update({
     17: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, reject_bin=True, lane_bins=True, timeout=320),
 })
 ROW = dict(reject_bin=True, lane_bins=True, row=True)
+# harness gives each parcel up to 3 pick-and-place tries (~40 s of sim each): 150 s per single parcel, stream parcels 150 s apart
 LANE_CASES.update({
-    18: dict(boxes=[], late={"z95112": 6.0}, **ROW), 19: dict(boxes=[], late={"z90210": 6.0}, **ROW), 20: dict(boxes=[], late={"z10001": 6.0}, **ROW),
-    21: dict(boxes=[], late={"nolabel": 6.0}, **ROW), 22: dict(boxes=[], late={"garbage": 6.0}, **ROW),
-    23: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, timeout=320, **ROW),
+    18: dict(boxes=[], late={"z95112": 6.0}, timeout=150, **ROW), 19: dict(boxes=[], late={"z90210": 6.0}, timeout=150, **ROW),
+    20: dict(boxes=[], late={"z10001": 6.0}, timeout=150, **ROW),
+    21: dict(boxes=[], late={"nolabel": 6.0}, timeout=150, **ROW), 22: dict(boxes=[], late={"garbage": 6.0}, timeout=150, **ROW),
+    23: dict(boxes=[], late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780, **ROW),
 })
 CASES.update({n: dict(c, lane=True) for n, c in LANE_CASES.items()})
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
