@@ -119,3 +119,6 @@ Mats: blue env (0.29, -0.07) = image left, orange env (0.28, -0.47) = image righ
 `INDUCT_ENV` x -0.08..0.06, y -0.42..-0.12 (head image ~ x 0.35..0.65, y 0.55..0.80). The floor basket now sits at `to_env(0.12, 0.68)` = env (0.085, -0.948), beside the
 table's image-right edge (the old position was on the left). `disturb` uses its own `torch.Generator` seeded from `os.urandom` (the env seed is fixed, so every episode
 used to get the same arrival). Cases 13/14 = 10/11 with a dark 0.16x0.16x0.10 bin on the table (`BIN_REJECT_XY`, local (0.125, 0.30) = env (0.08, -0.57)) as the reject target.
+Cases 15-17 (lanes as bins): same arrival and dark reject bin as 13/14, but the lanes are the open `bin_blue` / `bin_orange` at tabletop-local (-0.10, -0.20) / (-0.10, +0.20)
+(`LANE_BIN_XY`; x -0.10 keeps the orange bin >= 4 cm from the reject bin). 15 = z95112, 16 = z90210, 17 = stream z95112 6 s, z90210 60 s, z10001 120 s, nolabel 180 s,
+garbage 240 s (timeout 320 s; the last three go to the dark bin). Success `lanes_sorted` with half 0.07 / z_max 0.09 / vel_max 0.5 for the lane bins.

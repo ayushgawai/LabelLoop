@@ -40,10 +40,17 @@ BASKET_XY, BASKET_Z = (0.12, 0.68), -0.425  # tabletop-local xy (inner edge at y
 BIN_REJECT_XY = (0.125, 0.30)  # case 13/14 dark bin ON the table, tabletop-local = env (0.08, -0.57): image-right of the induction zone, left of the right gripper home pose
 # induction zone, ENV frame (parcels are teleported with env coordinates): lands at head-image ~ x 0.35..0.65, y 0.55..0.80, mid-table in front of the arms
 INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.42, -0.12]}
-LANE_BIN_TARGET = {"nolabel": "reject_bin", "garbage": "reject_bin"}
-LANE_TARGET = {"z95112": "lane_blue", "z90210": "lane_orange", "z10001": "reject_basket", "nolabel": "reject_basket", "garbage": "reject_basket"}
+# case 15-17: the lanes are the existing open bins (0.172 m) instead of flat mats; x -0.10 (not -0.08) keeps the orange bin >= 4 cm from the dark reject bin
+LANE_BIN_XY = {"bin_blue": (-0.10, -0.20), "bin_orange": (-0.10, 0.20)}
+lane_ab = lambda c: ("bin_blue", "bin_orange") if c.get("lane_bins") else ("lane_blue", "lane_orange")
+def lane_target(c, b):
+    a, bb = lane_ab(c)
+    rej = "reject_bin" if c.get("reject_bin") else "reject_basket"
+    return {"z95112": a, "z90210": bb}.get(b, rej)
 LANE_INSTR = ("Read each parcel's QR label: push ZIP 950-951 parcels onto the blue mat, ZIP 900-902 onto the orange mat; "
               "put anything else in the basket on the right; return home.")
+LANE_INSTR_BINS = ("Read each parcel's QR label: put ZIP 950-951 parcels into the blue bin, ZIP 900-902 into the orange bin; "
+                   "put anything else in the dark bin on the right; return home.")
 LANE_INSTR_BIN = LANE_INSTR.replace("the basket on the right", "the dark bin on the right")
 LANE_CASES = {
     # induction zone starts EMPTY (harness takes its empty-zone reference): every parcel is parked, a human "slides it in" at t
@@ -52,6 +59,10 @@ LANE_CASES = {
     13: dict(boxes=[], late={"nolabel": 6.0}, reject_bin=True), 14: dict(boxes=[], late={"garbage": 6.0}, reject_bin=True),
     12: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "nolabel": 120.0}, timeout=240),
 }
+LANE_CASES.update({
+    15: dict(boxes=[], late={"z95112": 6.0}, reject_bin=True, lane_bins=True), 16: dict(boxes=[], late={"z90210": 6.0}, reject_bin=True, lane_bins=True),
+    17: dict(boxes=[], late={"z95112": 6.0, "z90210": 60.0, "z10001": 120.0, "nolabel": 180.0, "garbage": 240.0}, reject_bin=True, lane_bins=True, timeout=320),
+})
 CASES.update({n: dict(c, lane=True) for n, c in LANE_CASES.items()})
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
@@ -75,7 +86,8 @@ def scene(n, c):
                  spawn_dynamic_friction=1.0) for i in decoys]
     lane = c.get("lane")
     reject = "reject_bin" if c.get("reject_bin") else "reject_basket"
-    fixed = [("lane_blue", "labelloop_lane_blue"), ("lane_orange", "labelloop_lane_orange"), (reject, f"labelloop_{reject}")] if lane \
+    la, lb = lane_ab(c)
+    fixed = [(la, f"labelloop_{la}"), (lb, f"labelloop_{lb}"), (reject, f"labelloop_{reject}")] if lane \
         else [("bin_blue", "labelloop_bin_blue"), ("bin_orange", "labelloop_bin_orange")]
     objs += [obj(i, a, ["container"], kinematic=True) for i, a in fixed]
     movable = [f"box_{b}" for b in boxes] + [f"decoy_{i}" for i in decoys]
@@ -84,7 +96,7 @@ def scene(n, c):
     nodes = {o: {"object": o} for o in movable}
     if lane:
         far = {}
-        for m, (x, y) in MAT_XY.items():
+        for m, (x, y) in (LANE_BIN_XY if c.get("lane_bins") else MAT_XY).items():
             nodes[m] = {"object": m, "placement": {"type": "surface", "surface": "tabletop",
                         "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
         if reject == "reject_bin":
@@ -116,7 +128,7 @@ def scene(n, c):
 
 def dag(n, c):
     lane = c.get("lane")
-    assign = {f"box_{b}": ((LANE_BIN_TARGET if c.get("reject_bin") else LANE_TARGET)[b] if lane else "bin_blue" if b[0] == "a" else "bin_orange") for b in c["boxes"] + list(c.get("late", {}))}
+    assign = {f"box_{b}": (lane_target(c, b) if lane else "bin_blue" if b[0] == "a" else "bin_orange") for b in c["boxes"] + list(c.get("late", {}))}
     assign.update({f"decoy_{i}": None for i in c.get("decoys", [])})
     events = {}
     for b, t in c.get("late", {}).items():  # human adds a box: teleport it onto the table
@@ -128,7 +140,7 @@ def dag(n, c):
     for b, (t, delta) in c.get("move", {}).items():  # human nudges a box (repeats every tick: long interval)
         events[f"human_moves_{b}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, 1e6],
                                       "is_global_time": True, "object_name": f"box_{b}", "delta_xyz": delta}
-    sections = {"instruction_component": {"instruction": (LANE_INSTR_BIN if c.get("reject_bin") else LANE_INSTR) if lane else "Read each box's QR label and put the box in the bin the code names "
+    sections = {"instruction_component": {"instruction": (LANE_INSTR_BINS if c.get("lane_bins") else LANE_INSTR_BIN if c.get("reject_bin") else LANE_INSTR) if lane else "Read each box's QR label and put the box in the bin the code names "
                 "(ZONE-A blue, ZONE-B orange); put unlabeled boxes aside; then return the arms home.", "topic": "qr_sort"}}
     if events:
         sections["event_component"] = {"terms": events}
@@ -139,7 +151,7 @@ def dag(n, c):
         "layout": {"runtime_sample": {"id": "runtime", "targets": {
             "placements": [*([{"id": "box_start_region", "target": {"type": "group", "id": "box_start_region"}, "sample": {"type": "inherit"}}]
                              if c["boxes"] else []),
-                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in (("lane_blue", "lane_orange", reject_node(c)) if lane else ("bin_blue", "bin_orange")))]}}},
+                           *({"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in ((*lane_ab(c), reject_node(c)) if lane else ("bin_blue", "bin_orange")))]}}},
         "component_sections": sections},
         "nodes": [
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
@@ -147,7 +159,8 @@ def dag(n, c):
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
                     "termination_component": {"terms": {"success": (
                         {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "consecutive_steps": 5,
-                                  **({"basket": "reject_bin", "basket_half": 0.07, "basket_z_max": 0.09} if c.get("reject_bin") else {})} if lane else
+                                  **({"basket": "reject_bin", "basket_half": 0.07, "basket_z_max": 0.09} if c.get("reject_bin") else {}),
+                                  **({"half": 0.07, "z_max": 0.09, "vel_max": 0.5} if c.get("lane_bins") else {})} if lane else
                         {"_func": f"{MOD}.boxes_sorted", "assignments": assign,
                         "bins": ["bin_blue", "bin_orange"], "xy": 0.07, "z_min": -0.02, "z_max": 0.15,
                         "vel_max": 0.5, "consecutive_steps": 5})}}}}},
@@ -213,7 +226,7 @@ def main():
     scoring: id_only
     capabilities:
     - benchmark
-    case_count: 14
+    case_count: 17
     save_path: ./outputs/x2real_eval/labelloop/benchmark
 """)
     print(f"wrote {len(CASES)} cases under {d}")
