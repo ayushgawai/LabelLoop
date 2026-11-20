@@ -27,7 +27,7 @@ scene:
   kraft: [[8, 60, 60], [28, 155, 200]]
   mat_min_area: 0.004
   mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a mat bbox to count as landed there
-  induction_roi: [0.22, 0.40, 0.78, 0.88]   # x0, y0, x1, y1 as fractions of the image (sim head cam: below the mats, between the home grippers)
+  induction_roi: [0.22, 0.42, 0.68, 0.88]   # x0, y0, x1, y1 fractions (sim head cam: below the mats, left of the on-table reject bin)
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
   kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)
