@@ -11,6 +11,8 @@ import numpy as np
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
+from labelloop.pose import interp_rpy
+
 HORIZON = 32
 
 
@@ -100,6 +102,23 @@ def hold_response(embodiment, state):
     acts = {arm: {"position": [list(state[arm]["position"])] * HORIZON,
                   "rotation_rpy": [list(state[arm]["rotation_rpy"])] * HORIZON,
                   "gripper": [float(state[arm]["gripper"])] * HORIZON} for arm in ("left_ee", "right_ee")}
+    return {"embodiment": embodiment, "actions": acts}
+
+
+def home_response(embodiment, state, home, horizon=HORIZON):
+    """WALLX-shaped reply easing (smoothstep) from `state` to `home` over `horizon` frames."""
+    acts = {}
+    for arm in ("left_ee", "right_ee"):
+        s, h = state[arm], home[arm]
+        p0, p1 = np.asarray(s["position"], float), np.asarray(h["position"], float)
+        pos, rpy, grip = [], [], []
+        for i in range(1, horizon + 1):
+            u = i / horizon
+            e = u * u * (3 - 2 * u)
+            pos.append((p0 + e * (p1 - p0)).tolist())
+            rpy.append(interp_rpy(s["rotation_rpy"], h["rotation_rpy"], e).tolist())
+            grip.append(float(s["gripper"] + e * (h["gripper"] - s["gripper"])))
+        acts[arm] = {"position": pos, "rotation_rpy": rpy, "gripper": grip}
     return {"embodiment": embodiment, "actions": acts}
 
 

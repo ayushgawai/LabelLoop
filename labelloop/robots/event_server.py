@@ -8,7 +8,7 @@ import numpy as np
 from websockets.asyncio.server import serve
 
 from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, endpoint_headers_from_env,
-                                    hold_response, pack, unpack)
+                                    hold_response, home_response, pack, unpack)
 
 MAX_FRAME_BYTES = 32 * 1024 * 1024
 EMBODIMENTS = ("quanta_x1_pro", "quanta_x1_pro/gripper-g", "quanta_x1_pro/gripper-h")
@@ -70,7 +70,9 @@ class Relay:
                 if harness:
                     images = {k: decode_jpeg_b64(v) for k, v in req["observation"]["images"].items()}
                     instruction = await asyncio.to_thread(harness.step, images, state)
-                if instruction is None:  # harness says hold still: don't spend a WALLX call
+                if harness and harness.cfg.get("scripted_home") and harness.state_name == "HOME":
+                    await downstream.send(pack(home_response(req["embodiment"], state, harness.home)))
+                elif instruction is None:  # harness says hold still: don't spend a WALLX call
                     await downstream.send(pack(hold_response(req["embodiment"], state)))
                 else:
                     if harness and (fresh or harness.subgoal_changed):

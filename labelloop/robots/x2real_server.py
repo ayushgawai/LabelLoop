@@ -6,7 +6,7 @@ import numpy as np
 from websockets.exceptions import WebSocketException
 
 from labelloop.pose import sim_to_wallx, wallx_to_sim
-from labelloop.wallx_client import WallxError, build_payload, encode_jpeg_b64, hold_response
+from labelloop.wallx_client import WallxError, build_payload, encode_jpeg_b64, hold_response, home_response
 
 CAMERAS = {"camera_front": "front", "camera_left": "left_wrist", "camera_right": "right_wrist"}
 WALLX_HW = (480, 640)  # what WALLX was trained on and what X2Real's stock client sends
@@ -50,7 +50,10 @@ class X2RealLink:
         f1, f2 = _arm(obs["state"], "follow1_pos"), _arm(obs["state"], "follow2_pos")
         state = sim_to_wallx(f1, f2, self.cfg)
         instruction = self.harness.step(images, state)
-        if instruction is None:
+        if getattr(self.harness, "cfg", {}).get("scripted_home") and self.harness.state_name == "HOME":
+            reply = home_response(self.embodiment, state, self.harness.home)
+            chunk = wallx_to_sim(reply["actions"], self.cfg)
+        elif instruction is None:
             reply = hold_response(self.embodiment, state)
             chunk = wallx_to_sim(reply["actions"], self.cfg)
         else:

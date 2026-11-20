@@ -19,6 +19,24 @@ def matrix_to_rpy(R):
     return np.array([np.arctan2(R[2, 1], R[2, 2]), np.arcsin(-R[2, 0]), np.arctan2(R[1, 0], R[0, 0])])
 
 
+def interp_rpy(rpy0, rpy1, t):
+    """rpy of R0 @ exp(t * log(R0.T @ R1)): geodesic rotation interpolation."""
+    R0 = rpy_to_matrix(rpy0)
+    D = R0.T @ rpy_to_matrix(rpy1)
+    ang = np.arccos(np.clip((np.trace(D) - 1) / 2, -1, 1))
+    if ang < 1e-8:
+        return matrix_to_rpy(R0)
+    if np.pi - ang < 1e-6:  # near pi the antisymmetric part vanishes: axis from the symmetric part
+        B = (D + np.eye(3)) / 2
+        i = int(np.argmax(np.diag(B)))
+        axis = B[:, i] / np.sqrt(B[i, i])
+    else:
+        axis = np.array([D[2, 1] - D[1, 2], D[0, 2] - D[2, 0], D[1, 0] - D[0, 1]]) / (2 * np.sin(ang))
+    K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
+    a = t * ang
+    return matrix_to_rpy(R0 @ (np.eye(3) + np.sin(a) * K + (1 - np.cos(a)) * K @ K))
+
+
 def _home(robot_cfg, arm):
     h = robot_cfg["home_pose"][arm]
     return np.asarray(h["position"], float), rpy_to_matrix(h["rotation_rpy"])

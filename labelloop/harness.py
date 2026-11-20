@@ -1,3 +1,4 @@
+import copy
 import time
 
 from labelloop.brain.state_machine import StateMachine
@@ -15,11 +16,14 @@ class Harness:
 
     def reset(self):
         self.sm.reset()
+        self.home = None  # episode-start pose, captured on the first step()
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])
         self.ref, self.empty = None, 0  # empty-zone reference frame
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
 
     def step(self, images, state):
+        if self.home is None:
+            self.home = copy.deepcopy(state)
         self.calls += 1
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]

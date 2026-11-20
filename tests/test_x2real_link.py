@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from labelloop.pose import sim_to_wallx
 from labelloop.robots.x2real_server import X2RealLink
 from wallx_stub import Stub, rgb
 from labelloop.wallx_client import WallxClient
@@ -13,6 +14,7 @@ CFG = {"embodiment": "quanta_x1_pro/gripper-g", "gripper": {"wallx_max": 1.526, 
 class FakeHarness:
     def __init__(self, instruction="pick"):
         self.instruction, self.calls, self.replies, self.resets = instruction, [], [], 0
+        self.cfg, self.state_name, self.home = {}, "IDLE", None
 
     def reset(self):
         self.resets += 1
@@ -98,3 +100,13 @@ def test_large_images_are_resized_for_wallx_only():
     assert _for_wallx(big).shape == (480, 640, 3)
     small = np.zeros((480, 640, 3), np.uint8)
     assert _for_wallx(small) is small
+
+
+def test_scripted_home_no_wallx_call(stub):
+    h = FakeHarness("go home")
+    h.cfg, h.state_name = {"scripted_home": True}, "HOME"
+    h.home = sim_to_wallx(np.zeros(7), np.zeros(7), CFG)
+    link = X2RealLink(h, WallxClient(stub.url), CFG)
+    link.reset({})
+    out = link.step(obs())
+    assert stub.requests == [] and np.allclose(out[-1], 0, atol=1e-4)

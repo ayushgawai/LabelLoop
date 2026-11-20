@@ -15,6 +15,7 @@ STATE = {"left_ee": {"position": [.1, .2, .3], "rotation_rpy": [0, 0, 0], "gripp
 class FakeHarness:
     def __init__(self, instruction):
         self.instruction, self.steps, self.replies = instruction, [], []
+        self.cfg, self.state_name, self.home = {}, "IDLE", None
 
     def reset(self):
         pass
@@ -129,3 +130,14 @@ def test_reset_history_harness_vs_passthrough(env):
     ws2.recv(timeout=10)
     ask(ws2, req())
     assert "reset_history" not in stub.requests[n]
+
+
+def test_scripted_home_no_wallx_call(env):
+    stub, make = env
+    h = FakeHarness("go home")
+    h.cfg, h.state_name = {"scripted_home": True}, "HOME"
+    h.home = {a: {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0} for a in ("left_ee", "right_ee")}
+    ws = make(h)
+    ws.recv(timeout=10)
+    reply = ask(ws, req())
+    assert stub.requests == [] and reply["actions"]["left_ee"]["position"][-1] == [0, 0, 0]
