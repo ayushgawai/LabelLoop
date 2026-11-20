@@ -1,11 +1,12 @@
 # Lane sorter v3: a human slides parcels one at a time into the induction zone; we read the QR (GS1 AI 420 = ship-to ZIP),
-# route by ZIP3 like a sortation computer, and push the parcel onto its lane mat. CALIBRATE in sim / on the robot.
+# route by ZIP3 like a sortation computer, and pick-and-place the parcel into its lane bin (or the black reject bin).
+# Pushing was dropped: WALLX zero-shot never pushed in 0/20 sim episodes (results/phase6_lane_sweep1.md). CALIBRATE in sim / on the robot.
 
 code_pattern: '^420/(\d{5})/\d{3}$'   # group 1 = ZIP5
-sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> reject basket
+sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> black reject bin
   A: ["950", "951", "940", "941"]
   B: ["900", "901", "902"]
-lanes: {A: blue, B: orange}   # lane -> mat colour
+lanes: {A: blue, B: orange}   # lane -> bin colour
 max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
 # All counts are MODEL CALLS (~1.6 s of motion each; WALLX takes 8-10 s/call), not wall time.
@@ -16,8 +17,8 @@ scan_max_calls: 6         # kraft object, no confirmed decode after this many SC
 home_calls: 3             # HOME instruction calls, then VERIFY holds
 verify_calls: 2
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
-max_calls: {PUSH: 12, PLACE: 20, REJECT: 15}
-tries: {PUSH: 2, PLACE: 1, REJECT: 2}   # attempts per parcel; PUSH exhausted -> PLACE fallback
+max_calls: {PUSH: 12, PLACE: 20, REJECT: 20}
+tries: {PUSH: 0, PLACE: 3, REJECT: 3}   # attempts per parcel (0 = action disabled); WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
 # Calibrated on 1280x720 and 640x480 sim head frames (tests/data): kraft S 60-155, mats S > 120.
@@ -40,8 +41,8 @@ instructions:
   PUSH:
     - "push the {obj} onto the {mat} mat"
   PLACE:
-    - "put the {obj} on the {mat} mat"
+    - "put the {obj} into the {mat} bin"
   REJECT:
-    - "put the {obj} into the basket on the right"
+    - "put the {obj} into the black bin"
   HOME:
     - "put both arms back to the home position"
