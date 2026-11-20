@@ -1,0 +1,292 @@
+<title>LabelLoop Replication Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Archivo:wght@600;700&display=swap">
+<style>
+/* Layout: one technical column, wide figures break out to 960px; a work-order sheet for the event-day bench. */
+:root {
+  --bg: #f6f7f5; --panel: #ffffff; --fg: #1d2421; --muted: #5d6863; --rule: #d5dbd7;
+  --accent: #1f6f5c; --kraft: #c8995b; --blue: #2364c9; --orange: #e0a02a; --black: #2b2f33; --warn: #a3471b;
+  --table: #e9ece9; --zone: rgba(31,111,92,.13);
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141917; --panel: #1b211f; --fg: #e3e8e5; --muted: #9aa6a0; --rule: #33403b;
+  --accent: #5cc3a6; --kraft: #d6a96c; --blue: #5b93ec; --orange: #f0b443; --black: #0b0d0e; --warn: #e8875a;
+  --table: #232b28; --zone: rgba(92,195,166,.16); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141917; --panel: #1b211f; --fg: #e3e8e5; --muted: #9aa6a0; --rule: #33403b;
+  --accent: #5cc3a6; --kraft: #d6a96c; --blue: #5b93ec; --orange: #f0b443; --black: #0b0d0e; --warn: #e8875a;
+  --table: #232b28; --zone: rgba(92,195,166,.16); color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--body); }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 40px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 48px; }
+.wide { width: min(960px, calc(100vw - 32px)); justify-self: center; }
+header { display: grid; gap: 12px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(30px, 5vw, 44px)/1.1 var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 600 24px/1.2 var(--display); margin: 0 0 12px; text-wrap: balance; }
+h3 { font: 600 16px/1.3 var(--body); margin: 20px 0 6px; }
+p { margin: 0 0 12px; max-width: 65ch; }
+.lede { font-size: 18px; color: var(--muted); }
+section { display: grid; gap: 4px; min-width: 0; }
+code, .mono { font-family: var(--mono); font-size: .9em; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 12px/1 var(--mono); padding: 6px 10px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+figure { margin: 8px 0 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; min-width: 0; }
+figcaption { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.scroll { overflow-x: auto; }
+svg text { font-family: var(--mono); fill: var(--fg); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 12px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 65ch; }
+ol.steps li::marker { font-family: var(--mono); color: var(--accent); }
+.note { border-left: 3px solid var(--warn); padding: 8px 14px; background: var(--panel); font-size: 15px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.cols > div { min-width: 0; }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">LabelLoop · BRIGHT 2026 · real-robot setup</div>
+  <h1>LabelLoop Replication Guide</h1>
+  <p class="lede">How to rebuild the simulated parcel-sorting cell on the real X Square desktop arms: where everything goes, what to print, how the harness decides, and what to calibrate on the day.</p>
+  <div class="status">
+    <span class="chip">Sim layout: cases 18–23 ("row")</span>
+    <span class="chip">Harness: pick-and-place, 3 tries</span>
+    <span class="chip warn">Home pose: confirm on robot</span>
+  </div>
+</header>
+
+<section>
+  <h2>What the demo does</h2>
+  <p>A person slides a parcel by hand into a marked zone in front of the robot, standing in for a conveyor. LabelLoop waits until the parcel stops moving and the hand is gone, then reads its QR label. The label carries a ship-to ZIP code, and LabelLoop routes on it the way a parcel hub does. ZIPs in lane A go to the blue bin and ZIPs in lane B to the orange bin. An unknown ZIP, a missing label, or something that isn't a parcel goes to the black reject bin for inspection. LabelLoop tells the WALLX model what to do one sentence at a time, checks the result with the camera, retries up to three times, and then waits for the next parcel.</p>
+  <p>The robot picks and places; it does not swipe. In simulation, WALLX never pushed a parcel (0 of 20 episodes), never acted on flat target mats, and never reached a basket outside the camera view (0 of 8). Open bins on the table are the only targets it has hit.</p>
+</section>
+
+<section class="wide">
+  <h2>Table layout</h2>
+  <figure class="scroll">
+    <svg viewBox="-660 -430 1320 1060" width="100%" style="min-width:560px" role="img" aria-label="Top-down layout drawn to scale: three bins in a row on the far side, induction zone centre-right near the robot">
+      <defs>
+        <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="10" stroke="var(--accent)" stroke-width="2" opacity=".5"/>
+        </pattern>
+      </defs>
+      <rect x="-555" y="-342.5" width="1110" height="685" rx="18" fill="var(--table)" stroke="var(--rule)" stroke-width="3"/>
+      <text x="0" y="-365" text-anchor="middle" font-size="22" fill="var(--muted)" style="fill:var(--muted)">far edge</text>
+      <!-- bins -->
+      <rect x="-236" y="-191" width="172" height="172" fill="var(--orange)" stroke="var(--fg)" stroke-width="2"/>
+      <text x="-150" y="-98" text-anchor="middle" font-size="24" style="fill:#1d2421">B</text>
+      <rect x="64" y="-191" width="172" height="172" fill="var(--blue)" stroke="var(--fg)" stroke-width="2"/>
+      <text x="150" y="-98" text-anchor="middle" font-size="24" style="fill:#ffffff">A</text>
+      <rect x="280" y="-185" width="160" height="160" fill="var(--black)" stroke="var(--fg)" stroke-width="2"/>
+      <text x="360" y="-98" text-anchor="middle" font-size="20" style="fill:#ffffff">REJ</text>
+      <!-- induction zone -->
+      <rect x="22" y="145" width="180" height="140" fill="url(#hatch)" stroke="var(--accent)" stroke-width="3" stroke-dasharray="10 6"/>
+      <rect x="82" y="185" width="60" height="60" fill="var(--kraft)" stroke="var(--fg)" stroke-width="2"/>
+      <text x="112" y="315" text-anchor="middle" font-size="20" style="fill:var(--accent)">induction zone</text>
+      <!-- slide-in arrow -->
+      <path d="M 520 215 L 225 215" stroke="var(--accent)" stroke-width="4" fill="none" marker-end="url(#arr)"/>
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/></marker></defs>
+      <text x="380" y="200" text-anchor="middle" font-size="19">hand slides parcel in</text>
+      <!-- robot -->
+      <rect x="-330" y="490" width="660" height="80" rx="10" fill="none" stroke="var(--fg)" stroke-width="3"/>
+      <circle cx="-266" cy="527" r="22" fill="var(--panel)" stroke="var(--fg)" stroke-width="3"/>
+      <circle cx="266" cy="527" r="22" fill="var(--panel)" stroke="var(--fg)" stroke-width="3"/>
+      <circle cx="0" cy="527" r="7" fill="var(--warn)"/>
+      <text x="0" y="602" text-anchor="middle" font-size="20">robot origin (midpoint of arm bases)</text>
+      <text x="-266" y="475" text-anchor="middle" font-size="18">left arm</text>
+      <text x="266" y="475" text-anchor="middle" font-size="18">right arm</text>
+      <!-- dimension: origin to bin row -->
+      <line x1="-600" y1="527" x2="-600" y2="-105" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="-615" y1="527" x2="-585" y2="527" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="-615" y1="-105" x2="-585" y2="-105" stroke="var(--muted)" stroke-width="2"/>
+      <text x="-590" y="215" font-size="20" transform="rotate(-90 -590 215)" text-anchor="middle">632 mm to bin centres</text>
+      <!-- lateral dims -->
+      <line x1="0" y1="-260" x2="0" y2="560" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 6"/>
+      <text x="-150" y="-215" text-anchor="middle" font-size="18">−150</text>
+      <text x="150" y="-215" text-anchor="middle" font-size="18">+150</text>
+      <text x="360" y="-205" text-anchor="middle" font-size="18">+360</text>
+      <text x="-555" y="-395" font-size="18" style="fill:var(--muted)">tabletop 1110 × 685 mm (sim) · drawn to scale · lateral mm from centre line, + = robot's right</text>
+    </svg>
+    <figcaption>Top-down view as the robot sees it. The head camera looks forward and about 55° down, so the left arm appears on the image's left in sim. All three bins sit in one row on the far side, at the positions where WALLX succeeded zero-shot. Parcels arrive centre-right, in reach of the right arm, which made every successful pick in sim.</figcaption>
+  </figure>
+
+  <h3>Placement, measured from the robot origin</h3>
+  <p>Use the midpoint between the two arm bases as the origin. Forward is toward the far edge, and lateral + is the robot's right. These distances carry over to any table; the table edges themselves don't matter.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>Item</th><th>Centre, forward</th><th>Centre, lateral</th><th>Footprint</th><th>Notes</th></tr>
+    <tr><td><span class="sw" style="background:var(--orange)"></span>Lane B bin (orange)</td><td>632 mm</td><td>−150 mm</td><td>172 × 172 mm, 80 mm walls</td><td>open top, saturated orange</td></tr>
+    <tr><td><span class="sw" style="background:var(--blue)"></span>Lane A bin (blue)</td><td>632 mm</td><td>+150 mm</td><td>172 × 172 mm, 80 mm walls</td><td>open top, saturated blue</td></tr>
+    <tr><td><span class="sw" style="background:var(--black)"></span>Reject bin (black)</td><td>632 mm</td><td>+360 mm</td><td>160 × 160 mm, 100 mm walls</td><td>44 mm gap to the blue bin; on the workbench, as the rules require</td></tr>
+    <tr><td><span class="sw" style="background:var(--zone);border:1px dashed var(--accent)"></span>Induction zone</td><td>242–382 mm</td><td>+22 to +202 mm</td><td>180 × 140 mm</td><td>mark with tape; keep it clear of the right gripper at home</td></tr>
+    <tr><td>Arm bases</td><td>0</td><td>±266 mm</td><td>—</td><td>from the robot model; check on the real kit</td></tr>
+    <tr><td>Head camera</td><td>84 mm</td><td>0</td><td>517 mm above the base</td><td>looks forward, about 55° down</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Props to print and build</h2>
+  <div class="cols">
+    <div>
+      <h3>Parcels</h3>
+      <p>60 mm cubes in kraft brown, so the harness can tell a parcel from garbage. The G gripper opens about 97 mm. Put a 40 mm QR code with a 5 mm white quiet zone on the top face and one side face. Run <code>sim/make_qr_boxes.py</code> to print the A4 label sheet; it decodes every label to check it before saving.</p>
+    </div>
+    <div>
+      <h3>Garbage and no-label</h3>
+      <p>Garbage is any non-kraft object; sim used a red 50 mm cube. For the no-label case, use a plain kraft cube with no code on it.</p>
+    </div>
+  </div>
+  <div class="scroll">
+  <table>
+    <tr><th>Test parcel</th><th>QR payload</th><th>ZIP3</th><th>Expected bin</th></tr>
+    <tr><td>z95112</td><td class="mono">420/95112/001</td><td>951</td><td><span class="sw" style="background:var(--blue)"></span>A (blue)</td></tr>
+    <tr><td>z90210</td><td class="mono">420/90210/001</td><td>902</td><td><span class="sw" style="background:var(--orange)"></span>B (orange)</td></tr>
+    <tr><td>z10001</td><td class="mono">420/10001/001</td><td>100</td><td><span class="sw" style="background:var(--black)"></span>reject: no route</td></tr>
+    <tr><td>nolabel</td><td>none</td><td>—</td><td><span class="sw" style="background:var(--black)"></span>reject: no label after 6 scans</td></tr>
+    <tr><td>garbage</td><td>none (not kraft)</td><td>—</td><td><span class="sw" style="background:var(--black)"></span>reject: not a parcel</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Sort plan</h2>
+  <p>The payload follows GS1 Application Identifier 420, the ship-to postal code, as <code>420/&lt;ZIP5&gt;/&lt;seq3&gt;</code>. Like a hub's sortation computer, the harness routes on the 3-digit ZIP prefix. Anything without a route goes to the exception lane. The plan lives in <code>configs/task_qr_sort.yaml</code>.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>Lane</th><th>Bin</th><th>ZIP3 prefixes</th><th>Region</th></tr>
+    <tr><td>A</td><td><span class="sw" style="background:var(--blue)"></span>blue</td><td class="mono">950 951 940 941</td><td>South Bay / Peninsula, CA</td></tr>
+    <tr><td>B</td><td><span class="sw" style="background:var(--orange)"></span>orange</td><td class="mono">900 901 902</td><td>Los Angeles, CA</td></tr>
+    <tr><td>Reject</td><td><span class="sw" style="background:var(--black)"></span>black</td><td>everything else, unreadable, no label, not kraft</td><td>manual inspection</td></tr>
+  </table>
+  </div>
+</section>
+
+<section class="wide">
+  <h2>System</h2>
+  <figure class="scroll">
+    <svg viewBox="0 0 940 300" width="100%" style="min-width:640px" role="img" aria-label="Data flow from cameras through the LabelLoop harness to the WALLX cloud model and back to the arms">
+      <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker></defs>
+      <g font-size="14">
+        <rect x="10" y="40" width="170" height="200" rx="6" fill="var(--panel)" stroke="var(--rule)" stroke-width="2"/>
+        <text x="95" y="68" text-anchor="middle" font-weight="600">Robot</text>
+        <text x="30" y="100">head camera</text><text x="30" y="124">left wrist camera</text><text x="30" y="148">right wrist camera</text>
+        <text x="30" y="184">arm EE poses</text><text x="30" y="208">gripper widths</text>
+        <rect x="260" y="20" width="400" height="240" rx="6" fill="var(--panel)" stroke="var(--accent)" stroke-width="2"/>
+        <text x="460" y="48" text-anchor="middle" font-weight="600" style="fill:var(--accent)">LabelLoop harness (laptop)</text>
+        <rect x="280" y="66" width="175" height="80" rx="4" fill="none" stroke="var(--rule)"/>
+        <text x="292" y="90">perception</text><text x="292" y="112" font-size="12" style="fill:var(--muted)">zone presence, kraft,</text><text x="292" y="130" font-size="12" style="fill:var(--muted)">bin colour gain</text>
+        <rect x="465" y="66" width="175" height="80" rx="4" fill="none" stroke="var(--rule)"/>
+        <text x="477" y="90">QR reader</text><text x="477" y="112" font-size="12" style="fill:var(--muted)">2 matching frames,</text><text x="477" y="130" font-size="12" style="fill:var(--muted)">head + wrist cams</text>
+        <rect x="280" y="160" width="360" height="82" rx="4" fill="none" stroke="var(--rule)"/>
+        <text x="292" y="184">state machine + sort plan</text><text x="292" y="206" font-size="12" style="fill:var(--muted)">one sentence per call, verify, retry ≤3,</text><text x="292" y="224" font-size="12" style="fill:var(--muted)">run log (runs/*.jsonl)</text>
+        <rect x="740" y="80" width="190" height="120" rx="6" fill="var(--panel)" stroke="var(--rule)" stroke-width="2"/>
+        <text x="835" y="110" text-anchor="middle" font-weight="600">WALLX cloud</text>
+        <text x="835" y="136" text-anchor="middle" font-size="12" style="fill:var(--muted)">zero-shot VLA</text>
+        <text x="835" y="156" text-anchor="middle" font-size="12" style="fill:var(--muted)">32-frame action chunk</text>
+        <text x="835" y="176" text-anchor="middle" font-size="12" style="fill:var(--muted)">abs EE pose, rpy, gripper</text>
+        <path d="M180 120 L258 120" stroke="var(--muted)" stroke-width="2" marker-end="url(#a2)"/>
+        <path d="M660 120 L738 120" stroke="var(--muted)" stroke-width="2" marker-end="url(#a2)"/>
+        <text x="699" y="110" text-anchor="middle" font-size="12">images,</text><text x="699" y="140" text-anchor="middle" font-size="12">state, text</text>
+        <path d="M835 200 L835 285 L95 285 L95 242" stroke="var(--muted)" stroke-width="2" fill="none" marker-end="url(#a2)"/>
+        <text x="465" y="279" text-anchor="middle" font-size="12">actions → robot (harness holds still when it has nothing to say)</text>
+      </g>
+    </svg>
+    <figcaption>The harness sits between the robot client and WALLX. On event day, <code>labelloop.robots.event_server</code> is the relay the X Square WebUI connects to. In sim, <code>x2real_server</code> plays the same role for X2Real.</figcaption>
+  </figure>
+</section>
+
+<section class="wide">
+  <h2>State machine</h2>
+  <figure class="scroll">
+    <svg viewBox="0 0 940 250" width="100%" style="min-width:640px" role="img" aria-label="States: IDLE, SCAN, PLACE or REJECT, HOME, VERIFY, back to IDLE, with retry loop">
+      <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="var(--fg)"/></marker></defs>
+      <g font-size="14" text-anchor="middle">
+        <rect x="10" y="90" width="110" height="56" rx="28" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/><text x="65" y="123">IDLE</text>
+        <rect x="170" y="90" width="110" height="56" rx="28" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/><text x="225" y="123">SCAN</text>
+        <rect x="350" y="30" width="140" height="56" rx="28" fill="var(--panel)" stroke="var(--blue)" stroke-width="2.5"/><text x="420" y="63">PLACE</text>
+        <rect x="350" y="150" width="140" height="56" rx="28" fill="var(--panel)" stroke="var(--black)" stroke-width="2.5"/><text x="420" y="183">REJECT</text>
+        <rect x="560" y="90" width="110" height="56" rx="28" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/><text x="615" y="123">HOME</text>
+        <rect x="730" y="90" width="120" height="56" rx="28" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/><text x="790" y="123">VERIFY</text>
+        <path d="M120 118 L168 118" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M280 108 L348 64" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M280 128 L348 172" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M490 60 L558 108" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M490 176 L558 130" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M670 118 L728 118" stroke="var(--fg)" stroke-width="2" marker-end="url(#a3)"/>
+        <path d="M790 90 C 790 10, 520 0, 492 40" stroke="var(--warn)" stroke-width="2" fill="none" marker-end="url(#a3)"/>
+        <path d="M790 146 C 790 240, 100 240, 65 148" stroke="var(--accent)" stroke-width="2" fill="none" marker-end="url(#a3)"/>
+        <g font-size="11" style="fill:var(--muted)">
+          <text x="144" y="108">settled</text>
+          <text x="300" y="72">routed</text>
+          <text x="306" y="176">no route</text>
+          <text x="700" y="20" style="fill:var(--warn)">failed, tries left → retry</text>
+          <text x="440" y="236" style="fill:var(--accent)">bin gained parcel, or last try failed (logged) → next parcel</text>
+        </g>
+      </g>
+    </svg>
+    <figcaption>IDLE, SCAN and VERIFY hold the arms still. PLACE and REJECT each get up to 20 model calls per try, ending early when the camera sees the parcel land, and 3 tries per parcel. Push is still in the code but switched off (<code>tries: PUSH: 0</code>).</figcaption>
+  </figure>
+  <h3>Exact sentences sent to WALLX</h3>
+  <div class="scroll">
+  <table>
+    <tr><th>State</th><th>Instruction</th><th>When</th></tr>
+    <tr><td>PLACE</td><td class="mono">put the block into the blue bin</td><td>lane A (orange for lane B)</td></tr>
+    <tr><td>REJECT</td><td class="mono">put the block into the black bin</td><td>unknown ZIP, bad code, no label</td></tr>
+    <tr><td>REJECT</td><td class="mono">put the object into the black bin</td><td>garbage (not kraft)</td></tr>
+    <tr><td>HOME</td><td class="mono">put both arms back to the home position</td><td>after every attempt</td></tr>
+  </table>
+  </div>
+  <p>Keep the wording short and free of location phrases. "put the block into the blue bin" is the only phrasing that scored zero-shot. "push", "move … onto the mat", and "drop it off the right side" all scored 0.</p>
+</section>
+
+<section>
+  <h2>Event-day checklist</h2>
+  <ol class="steps">
+    <li><strong>Lay out the cell.</strong> Measure the robot origin, then tape the bin positions and the induction zone using the placement table. Keep every bin on the workbench; the rules confine demos to the organizer's workspace.</li>
+    <li><strong>Read the real home pose.</strong> With the arms at home, record one EndPose from the WebUI and put it in <code>configs/ex001_6r.yaml → home_pose</code>. Sim assumes (0.1185, 0, 0.181) m in each arm's frame. The API guide's example state is around (0.29, ±0.03, 0.38), so expect this number to change. Check it with the round trip: send the current pose back as the target, and the arm must not move.</li>
+    <li><strong>Check the gripper range.</strong> The real G gripper is 0–1.526 (API guide) and sim is 0–1.89. The harness maps linearly between them.</li>
+    <li><strong>Check camera sides.</strong> The API guide says the right arm appears on the left of the image, while in sim the left arm is on the left. Take a head-camera frame and note which arm is where. The bins stay where they are relative to the robot. Re-measure the ROI from the real image.</li>
+    <li><strong>Calibrate perception on venue light.</strong> Grab frames of the empty cell and of a parcel in the zone. Set <code>scene.induction_roi</code> as image fractions (sim: 0.46, 0.48, 0.78, 0.92). Then check the blue, orange and kraft HSV ranges in <code>configs/task_qr_sort.yaml</code> and confirm each bin's colour box is detected.</li>
+    <li><strong>Print and test the labels.</strong> Each label must decode from the wrist camera at 10–20 cm in at least 9 of 10 frames, the same gate as in sim.</li>
+    <li><strong>Run the five single-parcel cases</strong> (A, B, unknown ZIP, no label, garbage), then a five-parcel stream, spacing parcels so each finishes before the next arrives.</li>
+    <li><strong>Start the relay:</strong> <code>.venv/bin/python -m labelloop.robots.event_server --host &lt;laptop LAN IP&gt; --port 8001</code>. Then in the WebUI set the model address to <code>ws://&lt;laptop LAN IP&gt;:8001</code>, EndPose, sync. Stop the robot from the WebUI, never by killing the relay.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Sim and real, side by side</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>Item</th><th>Sim (X2Real, EX001-6R)</th><th>Real robot</th></tr>
+    <tr><td>Embodiment string</td><td class="mono">quanta_x1_pro/gripper-g</td><td>same</td></tr>
+    <tr><td>Pose sent to WALLX</td><td>sim wire (start-relative, root frame) + home pose → absolute</td><td>absolute EndPose from the robot; no home offset needed</td></tr>
+    <tr><td>Head image</td><td>1280×720, resized to 640×480 for WALLX like stock X2Real</td><td>as the client sends it</td></tr>
+    <tr><td>Control rate</td><td>32-frame chunk, ≈1.6 s of motion per call</td><td>sync mode per the participant guide</td></tr>
+    <tr><td>Parcel arrival</td><td>teleported to a random spot in the zone at t = 6 s</td><td>slid in by hand; the harness waits for 2 still calls</td></tr>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Evidence from simulation</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>Test</th><th>Result</th></tr>
+    <tr><td>Push / swipe onto lane mats</td><td>0 / 20</td></tr>
+    <tr><td>Floor basket outside the camera view</td><td>0 / 8</td></tr>
+    <tr><td>Bins at the table sides, reject bin in front of the right arm</td><td>0 / 10</td></tr>
+    <tr><td>"put the block into the blue bin", block anywhere (control)</td><td>2 / 10: right arm 2 of 6, left arm 0 of 4</td></tr>
+    <tr><td>Row layout with harness retries (cases 18–23)</td><td>running; see <code>results/</code></td></tr>
+  </table>
+  </div>
+  <p class="note">WALLX is a cloud model we can't fine-tune, so "training" here means tuning the harness: layout, wording, timing and retries, measured over sim episodes. Every sim success so far came from the right arm, which is why parcels enter on the right.</p>
+</section>
+</div>
