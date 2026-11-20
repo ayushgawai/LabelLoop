@@ -6,7 +6,7 @@ import qrcode
 from PIL import Image
 
 A, B, UNKNOWN, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
-MATS = {"blue": (80, 300, 300, 560), "orange": (1000, 300, 1240, 560)}  # x0, y0, x1, y1; zone is x 384..960, y 288..576
+MATS = {"blue": (80, 300, 300, 560), "orange": (1100, 300, 1270, 560)}  # x0, y0, x1, y1; zone (induction_roi) is x 589..1075, y 346..662
 COLORS = {"blue": (30, 100, 230), "orange": (225, 165, 40)}
 KRAFT, RED, ZONE = (165, 125, 85), (200, 30, 30), (670, 430)
 

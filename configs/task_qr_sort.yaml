@@ -14,7 +14,8 @@ qr_confirm_frames: 2      # same value must decode in N consecutive calls
 stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
 settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
 scan_max_calls: 6         # kraft object, no confirmed decode after this many SCAN calls -> no-label reject
-home_calls: 3             # HOME instruction calls, then VERIFY holds
+home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
+scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
 max_calls: {PUSH: 12, PLACE: 20, REJECT: 20}
@@ -28,7 +29,7 @@ scene:
   kraft: [[8, 60, 60], [28, 155, 200]]
   mat_min_area: 0.004
   mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a mat bbox to count as landed there
-  induction_roi: [0.46, 0.48, 0.78, 0.92]   # x0, y0, x1, y1 fractions (sim cases 18-23: centre-right in front of the right arm, below the bin row, left of the right gripper)
+  induction_roi: [0.46, 0.48, 0.84, 0.92]   # x0, y0, x1, y1 fractions (sim cases 18-23: drop spot in front of the right gripper, below the bin row, left of its home pose)
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
   kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)

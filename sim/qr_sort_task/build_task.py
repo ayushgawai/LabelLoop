@@ -46,7 +46,8 @@ LANE_BIN_XY = {"bin_blue": (-0.10, -0.20), "bin_orange": (-0.10, 0.20)}
 # in the same row at +y 0.36 (image-right of blue; 4.4 cm gap, inner edge 0.44 < table half-width 0.555); induction zone centre-right in front of the right arm
 ROW_BIN_XY = {"bin_blue": (BIN_X, 0.15), "bin_orange": (BIN_X, -0.15)}
 ROW_REJECT_XY = (BIN_X, 0.36)
-INDUCT_ENV_ROW = {"x": [-0.08, 0.06], "y": [-0.47, -0.29]}
+# drop spot right in front of the right gripper (lateral +15..+23 cm): batch 1 grasped only the parcel that landed there, centre drops got no reach
+INDUCT_ENV_ROW = {"x": [-0.08, 0.06], "y": [-0.50, -0.42]}
 lane_ab = lambda c: ("bin_blue", "bin_orange") if c.get("lane_bins") else ("lane_blue", "lane_orange")
 def lane_target(c, b):
     a, bb = lane_ab(c)
