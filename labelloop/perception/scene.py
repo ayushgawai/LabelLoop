@@ -34,21 +34,21 @@ def kraft_in_mats(img, mat_boxes, cfg):
     return {c: 0.0 if b is None else float((m[b[1]:b[3], b[0]:b[2]] > 0).sum()) / (h * w) for c, b in mat_boxes.items()}
 
 
-def roi_box(img, cfg):
+def roi_box(img, cfg, key="induction_roi"):
     h, w = img.shape[:2]
-    x0, y0, x1, y1 = cfg["induction_roi"]
+    x0, y0, x1, y1 = cfg[key]
     return int(x0 * w), int(y0 * h), int(x1 * w), int(y1 * h)
 
 
-def zone_ref(img, cfg):
-    """Blurred gray crop of the induction zone: the empty-zone reference, or the current frame to compare to it."""
-    x0, y0, x1, y1 = roi_box(img, cfg)
+def zone_ref(img, cfg, key="induction_roi"):
+    """Blurred gray crop of the induction zone (or another ROI key): the reference, or the current frame to compare to it."""
+    x0, y0, x1, y1 = roi_box(img, cfg, key)
     return cv2.GaussianBlur(cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_RGB2GRAY), (img.shape[1] // 100 | 1,) * 2, 0)
 
 
-def presence(img, ref, cfg):
-    """Fraction of the induction zone that differs from the empty-zone reference."""
-    cur = zone_ref(img, cfg)
+def presence(img, ref, cfg, key="induction_roi"):
+    """Fraction of the ROI (default the induction zone) that differs from its reference."""
+    cur = zone_ref(img, cfg, key)
     return float((cv2.absdiff(cur, cv2.resize(ref, cur.shape[::-1])) > cfg["presence_thr"]).mean())
 
 

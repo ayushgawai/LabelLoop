@@ -12,7 +12,7 @@ ACTIONS = ("PUSH", "PLACE", "REJECT")
 class StateMachine:
     """step(ev) -> instruction | None (None = hold still).
     ev = {"presence": zone changed fraction, "kroi": kraft fraction of the zone, "codes": confirmed code texts,
-          "kmats": {mat colour: kraft area fraction inside its bbox}}."""
+          "kmats": {mat colour: kraft area fraction inside its bbox}, "reject": reject-bin changed fraction}."""
 
     def __init__(self, cfg):
         self.cfg, self.pattern = cfg, re.compile(cfg["code_pattern"])
@@ -47,6 +47,8 @@ class StateMachine:
         empty = ev["presence"] < sc["presence_min"]
         if self.lane:
             return empty and gain[self.cfg["lanes"][self.lane]] >= sc["mat_gain"]
+        if "reject_bin_roi" in sc:  # the object must have landed in the black bin, not just left the zone
+            return empty and ev.get("reject", 0.0) >= sc["reject_gain"]
         return empty and max(gain.values()) < sc["mat_gain"]
 
     def _route(self, lane, reason, code=None, obj="block"):

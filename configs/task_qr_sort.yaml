@@ -30,6 +30,8 @@ scene:
   mat_min_area: 0.004
   mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a mat bbox to count as landed there
   induction_roi: [0.46, 0.48, 0.84, 0.92]   # x0, y0, x1, y1 fractions (sim cases 18-23: drop spot in front of the right gripper, below the bin row, left of its home pose)
+  reject_bin_roi: [0.725, 0.15, 0.88, 0.40]   # x0, y0, x1, y1 fractions of the head image; sim cases 18-23 black bin, calibrate on the real table
+  reject_gain: 0.015      # sim: a cube in the bin changes ~4% (noise-free render); fraction of the reject-bin box changed vs the snapshot taken when the object arrived = something landed in it
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
   kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)

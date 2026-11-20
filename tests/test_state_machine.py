@@ -8,8 +8,8 @@ A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A
 GAIN = 0.01  # > mat_gain
 
 
-def ev(presence=0.0, kroi=0.0, codes=(), kmats=None):
-    return {"presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "orange": 0.0}}
+def ev(presence=0.0, kroi=0.0, codes=(), kmats=None, reject=0.0):
+    return {"reject": reject, "presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "orange": 0.0}}
 
 
 def parcel(sm, code, kroi=0.08):
@@ -24,13 +24,13 @@ def lane_a(sm):
     assert sm.state == "PLACE"
 
 
-def finish(sm, **landed):
+def finish(sm, reject=0.0, **landed):
     """Object gone from the zone, kraft gained on the given mats: through HOME and VERIFY."""
     for _ in range(2):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}))
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}, reject=reject))
     states = []
     while sm.state in ("HOME", "VERIFY"):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}))
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}, reject=reject))
         states.append(sm.state)
     return states
 
@@ -89,7 +89,7 @@ def test_no_label_after_scan_budget_and_garbage_immediately():
 def test_reject_success_then_failure_after_last_try_goes_idle_and_rebases():
     sm = StateMachine(CFG)
     parcel(sm, NOZIP)
-    assert finish(sm)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
+    assert finish(sm, reject=0.1)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
     sm = StateMachine(CFG)
     parcel(sm, NOZIP)
     for _ in range(CFG["tries"]["REJECT"]):  # object never leaves the zone
@@ -118,4 +118,4 @@ def test_hand_in_zone_not_stable_no_action_and_one_frame_occlusion_harmless():
 def test_max_parcels_makes_done_and_holds():
     sm = StateMachine({**CFG, "max_parcels": 1})
     parcel(sm, NOZIP)
-    assert finish(sm)[-1] == "DONE" and sm.step(ev()) is None
+    assert finish(sm, reject=0.1)[-1] == "DONE" and sm.step(ev()) is None

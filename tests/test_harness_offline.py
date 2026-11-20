@@ -44,3 +44,18 @@ def test_bad_code_goes_to_reject_and_max_parcels_done():
     assert h.done and scene.at[id(scene.log[0])] == "reject"
     h.reset()
     assert h.state_name == "IDLE" and not h.done and h.calls == 0
+
+
+def test_object_that_leaves_zone_without_reaching_reject_bin_is_not_ok():
+    class Dropper(FakeScene):  # REJECT clears the zone but the object lands elsewhere
+        def apply(self, instruction):
+            o = self.zone
+            super().apply(instruction)
+            if o and self.at[id(o)] == "reject":
+                self.at[id(o)] = "lost"
+
+    scene = Dropper([parcel(BAD)])
+    h, sent = run(scene, {**CFG, "max_parcels": 1})
+    assert [r["outcome"] for r in h.sm.results] == ["failed"]
+    entries = [b for (a, _), (b, _) in zip([(None, 0)] + sent, sent) if b == "REJECT" and a != "REJECT"]
+    assert len(entries) == CFG["tries"]["REJECT"]  # retried, then gave up

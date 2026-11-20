@@ -9,6 +9,7 @@ A, B, UNKNOWN, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE
 MATS = {"blue": (80, 300, 300, 560), "orange": (1100, 300, 1270, 560)}  # x0, y0, x1, y1; zone (induction_roi) is x 589..1075, y 346..662
 COLORS = {"blue": (30, 100, 230), "orange": (225, 165, 40)}
 KRAFT, RED, ZONE = (165, 125, 85), (200, 30, 30), (670, 430)
+BIN = (928, 108, 1126, 288)  # black reject bin = reject_bin_roi (0.725, 0.15, 0.88, 0.40) of 1280x720
 
 
 @functools.lru_cache(maxsize=None)
@@ -50,6 +51,11 @@ class FakeScene:
             for i, o in enumerate(self.on(color)):
                 cx = (x0 + x1) // 2 + 30 * (i % 3) - 30
                 front[y1 - 100:y1 - 40, cx - 30:cx + 30] = KRAFT if o["kind"] != "garbage" else RED
+        bx0, by0, bx1, by1 = BIN
+        front[by0:by1, bx0:bx1] = (20, 20, 20)
+        for i, o in enumerate(self.on("reject")):
+            x, y = bx0 + 8 + 64 * (i % 3), by0 + 8 + 64 * (i // 3 % 2)
+            front[y:y + 60, x:x + 60] = KRAFT if o["kind"] != "garbage" else RED
         if self.hand:
             front[360:520, 520:760] = (235, 190, 170)
         o = self.zone
