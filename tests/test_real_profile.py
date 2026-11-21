@@ -359,3 +359,23 @@ def test_wording_override_and_where_words():  # trial agent: templates come from
     sm = StateMachine(cfg)
     sm.lane, sm.where, sm.state = "A", "front left", "PLACE"
     assert sm.instruction() == "put the small box at the front left of the table into the %s bin" % cfg["lanes"]["A"]
+
+
+@pytest.mark.skipif(not __import__("shutil").which("tesseract"), reason="tesseract not installed")
+def test_real_head_zip_ocr_fallback():  # real Miro label: QR undecodable from the head camera, printed ZIP read by OCR
+    from labelloop.perception import label_ocr
+    from labelloop.perception.qr import locate
+    img = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / "real_head_miro.jpg")), cv2.COLOR_BGR2RGB)
+    assert locate(img) == []
+    assert "90012" in [z for z, _ in label_ocr.zips(img, apply_profile({**CFG, "profile": "real"})["scene"]["induction_roi"])]
+
+
+@pytest.mark.parametrize("name,ocr", [("real_head_qr.jpg", False), ("real_head_miro.jpg", True)])
+def test_parcel_present_at_start_routes_in_scan(name, ocr):  # the parcel is in the start reference: SCAN must still accept its label
+    if ocr and not __import__("shutil").which("tesseract"):
+        pytest.skip("tesseract not installed")
+    img = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / name)), cv2.COLOR_BGR2RGB)
+    z = {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}
+    h = Harness({**CFG, "profile": "real", "event_fast": True, "real_safe": True})
+    states = [(h.step({"front": img, "left_wrist": img, "right_wrist": img}, {"left_ee": dict(z), "right_ee": dict(z)}), h.sm.state)[1] for _ in range(5)]
+    assert "PLACE" in states and "CENTER" not in states

@@ -9,6 +9,7 @@ from labelloop import look
 from labelloop.brain.state_machine import StateMachine
 from labelloop.perception import scene
 from labelloop.perception.qr import Confirmer, decode, locate
+from labelloop.perception import label_ocr
 from labelloop.wallx_client import home_response, move_response
 
 
@@ -78,6 +79,7 @@ class Harness:
         self.ref_cfg = False  # the reference is the configured empty-table image (not the live first frame)
         self._empty = False  # the loaded empty-table JPEG resized to the frame (False = not read yet, None = unreadable)
         self.obj_box, self.near = None, None  # event_fast: object on the table with no readable label; the arm nearest it
+        self.code_px = None  # front-camera position of the last accepted head code (kept while the label is occluded)
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
         self.last_log = None  # the fields passed to runlog.write at the end of step() (the relay records them)
 
@@ -110,11 +112,19 @@ class Harness:
         pre = self.sm.calls  # index of the scripted call whose result this image shows
         on = self.on_parcel(before, front, cfg, box, pre)  # head code centre -> does it lie on the tracked parcel?
         codes = [(t, p) for t, p in locate(qf) if on(p)]
+        if codes:
+            self.code_px = codes[0][1]
         cb = scene.changed_box(front, self.ref, cfg) if self.ref is not None and before in ("SCAN", "SPIN") else None
         if not codes and cb:  # small QR missed on this frame: retry on the changed-pixel crop (the parcel, anywhere on the table) at 2x
             cb = (max(cb[0] - 20, 0), max(cb[1] - 20, 0), cb[2] + 20, cb[3] + 20)
             crop = cv2.resize(qf[cb[1]:cb[3], cb[0]:cb[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
+            if codes:
+                self.code_px = codes[0][1]
+        if not codes and self.cfg.get("event_fast") and self.cfg.get("zip_ocr", True) and before in ("SCAN", "CENTER"):  # QR too small: OCR the printed ZIP (confirmed over frames)
+            codes = [("420/%s/000" % z, p) for z, p in label_ocr.zips(qf, cfg["induction_roi"]) if on(p)]
+            if codes:
+                self.code_px = codes[0][1]
         wcams = {k: v for k, v in images.items() if k in self.wrist_cams(before, pre)}
         wrist = {(v, t) for t, v in decode(wcams)}
         if wrist and self.cfg.get("event_fast"):  # only a parcel-format code not already sorted and not the one the head sees sitting in a bin
@@ -270,6 +280,8 @@ class Harness:
             return lambda p: base(p) and np.hypot(p[0] - c[0], p[1] - c[1]) <= rpx
         if before in ("INSPECT", "HANDOVER", "IDLE") or self.ref is None:
             return lambda p: base(p) and (before != "IDLE" or scene.inside(p, box))
+        if self.cfg.get("event_fast") and before in ("SCAN", "CENTER"):  # a parcel present at the start is IN the reference (no changed pixels): the free-table ROI
+            return lambda p: base(p) and scene.inside(p, box)
         m = cv2.dilate(scene.changed_mask(front, self.ref, cfg), np.ones((21, 21), np.uint8))  # SCAN / SPIN / LOOK: the parcel lies on the table
         return lambda p: base(p) and 0 <= int(p[1]) < m.shape[0] and 0 <= int(p[0]) < m.shape[1] and m[int(p[1]), int(p[0])] > 0
 
@@ -301,6 +313,20 @@ class Harness:
 
     def homes(self):
         return {a: (np.asarray(self.home[a]["position"], float), np.asarray(self.home[a]["rotation_rpy"], float)) for a in look.SIGN}
+
+    def prompt_boxes(self, shape):
+        h, w = shape[:2]
+        parcel = self.obj_box if self.obj_box is not None else (
+            (max(int(round(self.code_px[0] - 70)), 0), max(int(round(self.code_px[1] - 50)), 0),
+             min(int(round(self.code_px[0] + 70)), w - 1), min(int(round(self.code_px[1] + 50)), h - 1))
+            if self.code_px is not None else None
+        )
+        lanes = self.cfg.get("lanes", {})
+        lane = self.sm.lane
+        target = scene._frac_box(np.empty(shape, dtype=np.uint8), self.cfg["scene"]["bin_rois"].get(lanes.get(lane, "black"))) if lanes.get(lane, "black") in self.cfg["scene"]["bin_rois"] else None
+        bins = {k: scene._frac_box(np.empty(shape, dtype=np.uint8), v) for k, v in self.cfg["scene"]["bin_rois"].items()}
+        roi = scene.roi_box(np.empty(shape, dtype=np.uint8), self.cfg["scene"])
+        return parcel, target, bins, roi
 
     def plan_slide(self, front, cfg):
         """Delivery arm = the lane's arm. Fit the parcel; the delivery arm can grasp it -> nothing to do; too wide for the gripper -> reroute

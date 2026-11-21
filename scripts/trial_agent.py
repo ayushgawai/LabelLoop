@@ -36,7 +36,8 @@ Scene (head camera looks down from behind the robot, image top = far side of the
   instruction "flip the box over" made WALLX grab the red bin and drag it onto the table. Word every instruction so the target
   is unambiguous: the parcel is the small flat retail box lying on the green table (e.g. a Bhindi Masala food box), never a bin.
 - Parcels carry a QR label 420/<ZIP5>/<seq>; ZIP3 940/941/950/951 -> blue, 900-902 -> red, else / no label -> black.
-  Current test parcel: a flat food carton, label 420/95126/001 -> BLUE bin (for your eyes only; keep wording generic).
+  Test parcels: a flat food carton (420/95126/001 -> BLUE) and a flat black gift box (Miro, 420/90012/... -> RED); the harness
+  reads the label itself. At the start of this run the black box lies label-up in the middle of the table (-> red bin).
 
 What we learned so far (do not repeat these):
 - Trial 2 (old wording "flip the box over"): WALLX grabbed the RED bin and dragged it onto the table.
@@ -46,7 +47,16 @@ What we learned so far (do not repeat these):
   the parcel's position ({where}), describe the parcel as the small flat package lying on the green table, and mention the bin
   only as the destination. Try e.g. "use the {arm} arm to pick up the small flat package lying at the {where} of the green table,
   then drop it into the {mat} bin". Splitting into two sub-goals is not available; one instruction per action.
+- Fixed since then (Claude, 13:30): a parcel already on the table at the start was never read in SCAN (its label was filtered out),
+  so the harness wasted a CENTER slide first; and small dense QR codes (the black box) are now read via the printed ZIP (OCR,
+  confirmed over 2 frames). Expect IDLE -> SCAN -> PLACE within ~3 calls now; if you see CENTER, the label was not read.
 - WORDING MUST BE GENERIC: the judged cases use unknown parcels, so never use a product name (no "Bhindi Masala").
+
+Visual prompt (run_trial "overlay"): WALLX never reads grid numbers in text, but our relay can draw on the head image it sees:
+  none = raw image; parcel = magenta box round the parcel, green box round the destination bin, yellow arrow parcel -> bin;
+  mask = parcel + the NON-target bins painted out with table green; grid = parcel + a numbered grid over the free table.
+WALLX was trained on raw images, so overlays may help or confuse it: test them (one change at a time) and report which works.
+Grasp style is yours to test in wording: "from the top", "by the short sides", "with both arms" (only for big parcels).
 
 How a trial works: run_trial starts our relay + harness, then a robot session. The harness reads the label from the head camera,
 picks a sub-goal and sends WALLX one short instruction at a time from the wording templates (set_wording). Templates may use
@@ -76,7 +86,9 @@ TOOLS = [
      "parameters": {"type": "object", "properties": {k: {"type": "string"} for k in KEYS}, "additionalProperties": False}},
     {"type": "function", "name": "run_trial", "description": "Run one full harness trial on the robot (relay + robot session). Returns a summary and a head-camera montage.",
      "parameters": {"type": "object", "properties": {"seconds": {"type": "integer", "description": "session length, 60-300"},
-                                                     "note": {"type": "string", "description": "what you are testing"}}, "required": ["seconds", "note"], "additionalProperties": False}},
+                                                     "note": {"type": "string", "description": "what you are testing"},
+                                                     "overlay": {"type": "string", "enum": ["none", "parcel", "mask", "grid"], "description": "visual prompt on the image WALLX sees"}},
+                    "required": ["seconds", "note", "overlay"], "additionalProperties": False}},
     {"type": "function", "name": "wallx_direct", "description": "Send ONE raw instruction straight to WALLX (no harness) for a short robot session, e.g. to reset the table. Returns before/after frames.",
      "parameters": {"type": "object", "properties": {"instruction": {"type": "string"}, "seconds": {"type": "integer", "description": "20-90"}},
                     "required": ["instruction", "seconds"], "additionalProperties": False}},
@@ -158,13 +170,13 @@ class Agent:
         (self.dir / "wording.json").write_text(json.dumps(self.wording, indent=1))
         return "wording now: " + json.dumps(self.wording), None
 
-    def run_trial(self, seconds, note):
+    def run_trial(self, seconds, note, overlay="none"):
         self.n += 1
         log = self.dir / f"t{self.n}.jsonl"
-        out, files = self.session([], GOAL, max(60, min(300, seconds)), log)
+        out, files = self.session(["--overlay", overlay] if overlay != "none" else [], GOAL, max(60, min(300, seconds)), log)
         s = summarize(log)
-        s.update(trial=self.n, note=note, wording=self.wording, client=out)
-        self.journal.append({k: s[k] for k in ("trial", "note", "wording", "verdict", "seconds_to_verdict", "retries")})
+        s.update(trial=self.n, note=note, overlay=overlay, wording=self.wording, client=out)
+        self.journal.append({k: s[k] for k in ("trial", "note", "overlay", "wording", "verdict", "seconds_to_verdict", "retries")})
         return json.dumps(s), self.montage(files, f"t{self.n}.jpg")
 
     def wallx_direct(self, instruction, seconds):
@@ -186,13 +198,18 @@ class Agent:
             return json.load(r)
 
     def run(self):
-        inp, prev, report = [{"role": "user", "content": [{"type": "input_text", "text":
-               f"Start. You have {self.a.sessions} robot sessions and {self.a.minutes} minutes. The table was just reset by the human: "
-               "bins in place, the Bhindi box somewhere on the table. Take a snapshot first."}]}], None, None
+        memo = ROOT / "runs/agent/last_response_id"  # same thread across runs (Responses API keeps the conversation server-side)
+        prev = memo.read_text().strip() if memo.exists() and not self.a.fresh else None
+        past = "" if prev else "\n\n".join(f.read_text()[:6000] for f in sorted((ROOT / "results/agent").glob("REPORT_*.md"))[-4:])
+        inp, report = [{"role": "user", "content": [{"type": "input_text", "text":
+               f"New run. You have {self.a.sessions} robot sessions and {self.a.minutes} minutes. The human just reset the table: "
+               "bins in place, the test parcel somewhere on the table. Take a snapshot first. Learn from the earlier runs"
+               + (" in this thread." if prev else ":\n\n" + past)}]}], None
         while report is None:
             left = self.a.sessions - self.sessions
             r = self.ask(inp, prev)
             prev, inp = r["id"], []
+            memo.write_text(prev)
             calls = [o for o in r.get("output", []) if o.get("type") == "function_call"]
             text = "".join(c.get("text", "") for o in r.get("output", []) if o.get("type") == "message" for c in o.get("content", []))
             if text:
@@ -246,5 +263,6 @@ if __name__ == "__main__":
     ap.add_argument("--model", default="gpt-6.2-sol")
     ap.add_argument("--sessions", type=int, default=12)
     ap.add_argument("--minutes", type=int, default=75)
+    ap.add_argument("--fresh", action="store_true", help="start a new thread (default: continue the last one; earlier reports are given to a new thread)")
     assert os.environ.get("ROBOT_ASKPASS"), "set ROBOT_ASKPASS"
     Agent(ap.parse_args()).run()

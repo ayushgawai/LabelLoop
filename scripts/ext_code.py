@@ -22,12 +22,15 @@ def call(provider, prompt):
         body["stream"] = True  # streamed: a long full-file answer otherwise hits the proxy's 504 gateway timeout
         req = urllib.request.Request(url, json.dumps(body).encode(), {"x-api-key": ENV["ANTHROPIC_OPUS_MAX_API_KEY"], "anthropic-version": "2023-06-01",
                                                                       "content-type": "application/json", "accept": "text/event-stream"})
-        out = []
+        out, raw = [], []
         with urllib.request.urlopen(req, timeout=1800) as r:
             for line in r:
                 line = line.decode("utf-8", "replace").strip()
+                raw.append(line)
                 if line.startswith("data:") and '"text_delta"' in line:
                     out.append(json.loads(line[5:])["delta"].get("text", ""))
+        if not out and raw and raw[0].startswith("{"):  # the proxy answered with a plain (non-stream) message, e.g. a quota notice
+            out = [c.get("text", "") for c in json.loads("".join(raw)).get("content", [])]
         return "".join(out)
     if provider == "openai":
         r = post("https://api.openai.com/v1/responses", {"Authorization": "Bearer " + ENV["OPENAI_API_KEY"]}, {"model": ENV.get("EXT_OPENAI_MODEL", "gpt-5.4-mini"), "instructions": SYSTEM, "input": prompt})

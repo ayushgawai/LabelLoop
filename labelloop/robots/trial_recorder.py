@@ -128,6 +128,19 @@ class TrialRecorder:
                 continue
         return written
 
+    def extra_frame(self, index, name, jpeg_bytes):
+        """Write an additional derived JPEG frame for one request."""
+        with self.lock:
+            d = self.dir
+        if d is None:
+            return None
+        try:
+            (d / "frames").mkdir(parents=True, exist_ok=True)
+            (d / "frames" / ("%d_%s.jpg" % (int(index), name))).write_bytes(bytes(jpeg_bytes))
+            return name
+        except Exception:
+            return None
+
     def end(self, summary=None):
         """Write summary.json (calls, wallx_calls, mean/p95 latency, parcels, duration, last state; merged with `summary`)."""
         with self.lock:

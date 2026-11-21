@@ -6,9 +6,11 @@ import json
 import time
 from pathlib import Path
 
+import cv2
 import numpy as np
 from websockets.asyncio.server import serve
 
+from labelloop.perception import overlay
 from labelloop.robots.trial_recorder import TrialRecorder, reduce_actions
 from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, hold_response, pack, unpack)
 
@@ -59,9 +61,34 @@ class Relay:
     """make_harness() -> Harness per downstream connection, or None for passthrough. `recorder` (TrialRecorder or None) stores
     every trial: one line + the camera frames per request, a new trial per goal, ended when the connection ends."""
 
-    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None, hold=False, recorder=None, record_meta=None):
+    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None, hold=False, recorder=None, record_meta=None, overlay_mode="none"):
         self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir, self.hold = endpoint, headers, make_harness, make_client, save_dir, hold
         self.recorder, self.record_meta = recorder, dict(record_meta or {})
+        self.overlay_mode = overlay_mode
+
+    def _overlay_front(self, harness, req, frame_index):
+        if not harness or self.overlay_mode == "none":
+            return req
+        try:
+            img = decode_jpeg_b64(req["observation"]["images"]["front"])
+            parcel, target, bins, roi = harness.prompt_boxes(img.shape)
+            out = overlay.draw(img, self.overlay_mode, parcel=parcel, target=target, bins=bins, roi=roi)
+            ok, buf = cv2.imencode(".jpg", cv2.cvtColor(out, cv2.COLOR_RGB2BGR), [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            if ok:
+                req = dict(req)
+                obs = dict(req["observation"])
+                images = dict(obs["images"])
+                images["front"] = base64.b64encode(buf.tobytes()).decode("ascii")
+                obs["images"] = images
+                req["observation"] = obs
+                if self.recorder is not None:
+                    try:
+                        self.recorder.extra_frame(frame_index, "front_overlay", buf.tobytes())
+                    except Exception:
+                        pass
+        except Exception:
+            return req
+        return req
 
     async def handle_hold(self, downstream, cap=30):
         """Camera-capture mode: every request gets a hold reply (arms stay put), no WALLX, no harness; the first `cap` requests are saved."""
@@ -139,6 +166,7 @@ class Relay:
                         req["reset_history"] = True
                     fresh = False if harness else fresh
                     req["instruction"] = instruction  # whole original request forwarded, extras preserved
+                    req = self._overlay_front(harness, req, i)
                     t1, err = time.monotonic(), None
                     try:
                         reply = await asyncio.to_thread(wallx.infer, req)
@@ -190,6 +218,7 @@ async def main():
     p.add_argument("--save-images", default="runs/event_images", help="dir for the 1st + every 10th request's camera JPEGs and state ('' = off)")
     p.add_argument("--record", default="runs/trials", help="dir for trial recordings, one folder per trial ('' = off; see labelloop.dashboard.server)")
     p.add_argument("--no-record", dest="record", action="store_const", const="", help="disable trial recording")
+    p.add_argument("--overlay", choices=("none", "parcel", "mask", "grid"), default="none")
     a = p.parse_args()
     from labelloop.config import load_env, load_yaml
     load_env()
@@ -204,7 +233,7 @@ async def main():
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731
     recorder = TrialRecorder(a.record) if a.record else None
     meta = {"profile": a.profile, "real_safe": a.real_safe, "fast": a.fast, "hold": a.hold, "passthrough": a.passthrough}
-    relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta)  # backend from configs/wallx.yaml
+    relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
