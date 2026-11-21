@@ -129,7 +129,7 @@ def home_response(embodiment, state, home, horizon=HORIZON):
     return move_response(embodiment, state, home, horizon)
 
 
-def encode_jpeg_b64(rgb, quality=95):
+def encode_jpeg_b64(rgb, quality=80):  # 80 vs 95: ~3x smaller upload to the WALLX cloud (Shenzhen, ~340 ms RTT); the event client sends its own JPEGs
     ok, buf = cv2.imencode(".jpg", np.ascontiguousarray(rgb[..., ::-1]), [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not ok:
         raise ValueError("JPEG encode failed")
