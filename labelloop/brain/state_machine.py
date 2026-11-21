@@ -9,18 +9,22 @@ from labelloop.brain.instructions import instruction
 #   home; then the code is read (route) or the search goes on. No plan (parcel too wide for the gripper, nothing reachable) -> SPIN at once.
 #   SPIN: scripted (no WALLX): one arm pushes the parcel so it yaws, goes home,
 #   then the head camera re-reads (spin.tries tries). LOOK (look.enabled): scripted wrist-camera look-around. INSPECT: WALLX flips it.
-# Nothing found after the last step (or the budget's deliver reserve is hit) -> no_label / budget reject. A big parcel skips SPIN / LOOK.
+# Nothing found after the last step -> reject with "no_label" only if every face that can carry a label was observed (flat parcel: top + bottom; box: all
+#   6; the top is seen at SCAN, SHOW adds the faces it held to the head, an INSPECT try the bottom), else "unread" (also when the budget's deliver reserve is hit
+#   first). There is no colour shortcut: every object gets the full search. A big parcel searches too (SHOW refuses it when too wide, then SPIN pushes it).
 # route: PLACE (lane arm: A left, B right) | REJECT (right arm) | LIFT2 (big, both arms); with handover: true a HANDOVER precedes
-#   PLACE / REJECT. A code routes immediately, even mid-INSPECT. garbage / bad code -> REJECT.
+#   PLACE / REJECT. A code routes immediately, even mid-INSPECT. A bad code -> REJECT.
 # PLACE/REJECT/LIFT2 -> HOME -> VERIFY -> IDLE (parcel counted) | retry the plan | IDLE after the last try (failure logged)
 # Budget: estimated REAL seconds per CASE (every call: WALLX ~wallx_call_s, scripted / hold / IDLE ~scripted_call_s); a search try or WALLX step
 #   needs its cost + deliver_reserve + home to fit, else route (budget).
 # SLIDE (slide.enabled, not big, no handover): scripted (no WALLX) hand-off before PLACE / REJECT: the harness checks whether the delivery arm can
 #   grasp the parcel where it lies; if not, the other arm pushes it toward the delivery arm's hand-off point (a stroke per SLIDE entry, up to
 #   slide.max_strokes, each re-fitted by the head camera); then the delivery arm places as usual (also when the slide failed).
+# SWIPE (reject_mode floor_right, the default; a reject has no bin): scripted (no WALLX) strokes that push the parcel along -y off the table's right
+#   edge, each entry re-fitting it (swipe.max_strokes); HOME -> VERIFY (the zone is empty) as for the other actions. reject_mode tray: REJECT puts it in the black bin.
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
-COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW")  # tries counted per parcel
+COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE")  # tries counted per parcel
 WALLX = ACTIONS + ("INSPECT", "HANDOVER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
@@ -44,6 +48,7 @@ class StateMachine:
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
         self.looked = self.showed = False  # LOOK / SHOW done
+        self.faces, self.flat = {"top"}, self.cfg.get("show", {}).get("flat_default", True)  # label faces observed (top: seen at SCAN); flat parcel = only top / bottom carry a label
 
     def _go(self, state, why):
         if state in WALLX and self.remaining() < self.cfg["budget"]["wallx_call_s"]:  # not even one more WALLX call fits
@@ -82,31 +87,48 @@ class StateMachine:
 
     def _search_next(self):  # the current label-search step is exhausted: the next enabled one if it is affordable, else reject
         c, sp, lk = self.cfg, self.cfg.get("spin", {}), self.cfg.get("look", {})
-        nxt = ("SHOW" if c.get("show", {}).get("enabled") and not self.big and not self.showed else
-               "SPIN" if sp.get("enabled") and not self.big and self.tries.get("SPIN", 0) < sp["tries"] else
-               "LOOK" if lk.get("enabled") and not self.big and not self.looked else
+        if self.state == "INSPECT":
+            self.faces |= {"bottom"}  # WALLX turned it over (not verifiable)
+        nxt = ("SHOW" if c.get("show", {}).get("enabled") and not self.showed else
+               "SPIN" if sp.get("enabled") and self.tries.get("SPIN", 0) < sp["tries"] else
+               "LOOK" if lk.get("enabled") and not self.looked else
                "INSPECT" if self.tries.get("INSPECT", 0) < c["tries"].get("INSPECT", 0) else None)
         if nxt and not self._admit(nxt):
-            self._route(None, "budget")
+            self._route(None, "budget" if self.covered() else "unread")
         elif nxt:
             self.looked |= nxt == "LOOK"
             self.showed |= nxt == "SHOW"
             self._go(nxt, "no code")
         else:
-            self._route(None, "no_label")
+            self._route(None, "no_label" if self.covered() else "unread")
+
+    def covered(self):  # every face that can carry a label was observed
+        return ({"top", "bottom"} if self.flat else {"top", "bottom", "y+", "y-", "z+", "z-"}) <= self.faces
+
+    def abort_show(self, retry):  # the grasp failed: set the parcel down (SHOWSET), then SHOW again (a fresh fit) if retry, else the next search step
+        self.showed = not retry
+        self._go("SHOWSET", "grasp failed")
 
     def _success(self, ev):  # the zone is empty and the parcel's bin changed (it landed there, not just left the zone)
         sc = self.cfg["scene"]
+        if not self.lane and self.cfg.get("reject_mode", "tray") == "floor_right":
+            return ev["presence"] < sc["presence_min"]  # swiped off the table: the zone is empty
         bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
         return ev["presence"] < sc["presence_min"] and ev["bins"][bin_] >= sc["bin_gain"]
 
     def _route(self, lane, reason, code=None, obj="block", slide=True):
         self.lane, self.code, self.reason, self.obj = lane, code, reason, obj
-        last = "LIFT2" if self.big else "PLACE" if lane else "REJECT"
-        self.plan = [last] if self.big or not self.cfg.get("handover") else ["HANDOVER", last]
-        hand = slide and self.cfg.get("slide", {}).get("enabled") and not self.big and not self.cfg.get("handover") \
+        if reason == "unread":
+            self.flags.append("unread:faces=%s" % sorted(self.faces))
+        floor = not lane and self.cfg.get("reject_mode", "tray") == "floor_right"
+        last = "LIFT2" if self.big and not floor else "PLACE" if lane else "SWIPE" if floor else "REJECT"
+        self.plan = [last] if floor or self.big or not self.cfg.get("handover") else ["HANDOVER", last]
+        hand = slide and not floor and self.cfg.get("slide", {}).get("enabled") and not self.big and not self.cfg.get("handover") \
             and reason != "budget" and self._admit("SLIDE")
         self._go("SLIDE" if hand else self.plan[0], reason)
+
+    def end_swipe(self, why="no swipe"):  # no stroke is feasible: give up this try
+        self._go("HOME", why)
 
     def end_slide(self, why="slide done"):  # no (further) stroke: the delivery arm acts
         self._go(self.plan[0], why)
@@ -135,7 +157,8 @@ class StateMachine:
         self._route(lane, "routed" if lane else "unknown_zip" if m else "bad_code", codes[0])
 
     def _done(self, outcome):
-        self.sorted.add(self.code)
+        if outcome == "ok" and self.code:
+            self.sorted.add(self.code)  # only a parcel verified in a bin blinds the same text (a failed delivery must not)
         self.results.append({"code": self.code, "lane": self.lane, "reason": self.reason, "outcome": outcome})
         self.parcels += 1
         self._fresh()
@@ -161,9 +184,6 @@ class StateMachine:
             self.big = ev.get("big", f >= sc["big_presence"])
             if any(self.pattern.match(c) for c in codes):  # a valid parcel-format decode is never overridden by the kraft test
                 self._read(codes)
-            elif ev["kroi"] < sc["kraft_min"] and self.calls >= cfg["qr_confirm_frames"] \
-                    and not any(self.pattern.match(c) for c in ev.get("raw", ())):  # garbage only once the confirmation window ran out, no raw valid decode in sight
-                self._route(None, "garbage", obj="object")
             elif codes:
                 self._read(codes)
             elif self.calls >= cfg["scan_max_calls"] or self.remaining() < cfg["budget"]["deliver_reserve_s"]:
@@ -189,6 +209,13 @@ class StateMachine:
                     self._go("SLIDE", "next stroke")
                 else:
                     self.end_slide()
+        elif s == "SWIPE":  # a stroke is done (arm home, parcel re-fitted next entry); 0 = nothing planned
+            n = ev.get("swipe_calls", 0)
+            if self.calls >= n:
+                if n and f >= sc["presence_min"] and self.tries["SWIPE"] < cfg["swipe"]["max_strokes"] and self._admit("SWIPE"):
+                    self._go("SWIPE", "next stroke")
+                else:
+                    self._go("HOME", "swiped" if f < sc["presence_min"] else "swipe failed")
         elif s == "LOOK":
             if codes or self.calls >= ev.get("look_calls", 0):
                 self.pend = codes

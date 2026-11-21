@@ -10,6 +10,15 @@ sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> bla
   B: ["900", "901", "902"]
 lanes: {A: blue, B: red}
 arms: {A: left, B: right, reject: right}   # arm that places each lane / the reject bin (words in the PLACE / REJECT instructions)
+reject_mode: floor_right  # floor_right = a rejected parcel is SWIPED off the table's right edge by a scripted push (no WALLX, state SWIPE); tray = REJECT puts it in the black bin (WALLX)
+swipe:                    # scripted reject swipe (look.swipe_plan): an arm pushes the parcel along -y through its +y face centre, fingertips low, strokes of up to `stroke` m;
+                          # each entry re-fits the parcel (the other arm takes over mid-table when the first cannot reach on), until it is off the table
+  edge_y: -0.5642         # root y of the table's right edge; the stroke ends `past` m beyond it
+  past: 0.08
+  stroke: 0.30
+  max_strokes: 4
+  est_calls: 10
+  settle_calls: 1
 handover: false           # true = the left arm finds the label, hands over, and the RIGHT arm places (arms is then ignored)
 calib_test: false         # true = at episode start each arm holds its fingertips 0.10 m over known table points (no WALLX), logs expected head pixels
 calib: {tip_h: 0.10, hold_calls: 4, move_calls: 2, pitches_deg: [90, 85, 80, 75, 70],   # steepest reachable pitch (90 = straight down); none -> point refused
@@ -38,6 +47,9 @@ spin:                     # scripted label search (SCAN -> SPIN): face-normal pu
   fit_max: 0.35
   fit_aspect: 5.0
   fit_fill: 0.6
+  fit_iou: 0.8            # 3D box fit refused unless its silhouette overlaps the head change mask at least this (IoU)
+  fit_hmin: 0.012         # ... or the fitted height is outside [fit_hmin, fit_hmax] m (a wallet 19 mm ... a standing box 152 mm)
+  fit_hmax: 0.22
   est_calls: 12           # budget estimate of one SPIN try in scripted calls (6 waypoints + home + re-read)
   gripper_closed: 0.0     # WALLX gripper units while pushing
   scan_calls: 3           # head re-read calls after the arm is home (qr_confirm_frames needs >= 2)
@@ -46,6 +58,7 @@ grasp:                    # can the delivery arm grasp the parcel where it lies?
   grip_margin: 0.01
   grasp_depth: 0.02       # fingertips this far below the top face at the grasp (m)
   grasp_pitches_deg: [90, 85, 80, 75, 70]   # steepest first (90 = straight down), as calib
+  empty_below: 0.6        # gripper value (WALLX units) after the close call: below it the jaws closed on nothing (a 76 mm parcel keeps ~1.2, a 38 mm ~0.6) -> missed grasp. CALIBRATE in sim
   reroute_wide: true      # narrow side too wide for the gripper -> LIFT2 (both arms) if tries.LIFT2 > 0, else reject
 slide:                    # scripted hand-off (SLIDE before PLACE / REJECT): if the delivery arm cannot grasp the parcel but the OTHER arm can push it,
                           # that arm pushes it toward the delivery arm's hand-off point, re-fitting with the head camera after each stroke, no WALLX call
@@ -62,10 +75,12 @@ slide:                    # scripted hand-off (SLIDE before PLACE / REJECT): if 
   # is the env frame rotated 180 deg about the table centre TABLE_C = (0.2047, -0.2682) (env = TABLE_C - local), the robot root sits at env
   # (-0.322, -0.259) with the same axes as env (+x far, +y left), so root = (0.5267 - local_x, -0.0092 - local_y). Local footprints (footprints()):
   # blue (-.3275, .0281, -.2316, -.0284), red (-.3275, .0281, .00935, .25065), reject (-.1651, .1651, .3164, .545); tabletop half (0.3425, 0.555).
-  table: [0.184, 0.869, -0.564, 0.546]
+  table: [0.184, 0.869, -0.5642, 0.5458]
+  # Sim layout v2 (bins turned 90 deg, centred along the far edge): blue corners (0.8542, 0.3564) (0.651, 0.0008), red (0.8542, -0.0192) (0.6129, -0.3748).
+  # No tray: rejects are swiped off the table's right edge (reject_mode floor_right); black = the old tray, used only with reject_mode: tray.
   bins:
-    blue: [0.499, 0.854, 0.019, 0.222]
-    red: [0.499, 0.854, -0.260, -0.019]
+    blue: [0.651, 0.8542, 0.0008, 0.3564]
+    red: [0.6129, 0.8542, -0.3748, -0.0192]
     black: [0.362, 0.692, -0.554, -0.326]
 show:                     # scripted GRASP-AND-SHOW label search (SCAN -> SHOW, the default first search; SPIN stays the fallback), no WALLX call:
                           # one arm grasps the parcel (look.grasp_plan), lifts it in front of the head camera, turns each face toward the head
@@ -73,10 +88,14 @@ show:                     # scripted GRASP-AND-SHOW label search (SCAN -> SHOW, 
                           # DELIVERY arm's grasp region (slide.handoff) and goes home; then the delivery arm's WALLX place as usual. A parcel too
                           # wide for the gripper (grasp.grip_max) or big skips SHOW -> SPIN. Faces IK cannot reach (the bottom) are skipped -> SPIN.
   enabled: true
-  est_calls: 22           # budget estimate of SHOW + SHOWSET in scripted calls (pick 4 + 4 views x 2 + set-down 4 + home 2 + retrace)
+  est_calls: 22           # budget estimate of SHOW + SHOWSET in scripted calls (pick 5 + views x 2 + set-down 4 + home 2 + retrace)
   grip_open: 1.526        # WALLX gripper units (real G range [0, 1.526]; sim_max 1.89 rad maps linearly, 1.526 = fully open)
   grip_close: 0.3         # commanded closed: ~19 mm opening, narrower than any parcel (50 mm min) so the fingers hold with force (CONFIRM in sim; 0.0 = fully closed)
   dwell_calls: 2          # images per view (qr_confirm_frames needs >= 2): the call after the move sees the arrival, the next call (hold or the next move) the second
+  test_lift: 0.02         # first lift after the close (m): the head camera must see the parcel's silhouette move up with it before anything turns
+  flat_h: 0.07            # fitted height below this = a FLAT parcel: only its top and bottom carry a label (else all 6 faces)
+  flat_default: true      # no fit yet: assume flat (every active parcel lies flat)
+  faces_flat: [bottom]    # faces SHOW tries for a flat parcel (the top was seen at SCAN); the bottom is unreachable by IK today -> reject reason "unread", never "no_label"
   lift: 0.08              # straight lift after the grasp, no rotation (m), so the parcel clears the table before it turns
   place_lift: 0.05        # set-down: the parcel hangs this far above the table over the spot before / after the descent (m)
   tip_z: [0.17, 0.14, 0.12]   # fingertip height of the show point (m, root; the parcel centre is ~2 cm lower); first that gives stop_views views wins
@@ -106,7 +125,7 @@ look:                     # scripted no-contact look-around (SCAN -> LOOK): the 
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
 max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
-tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 3, REJECT: 3, LIFT2: 3, SWIPE: 6}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
                           # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
@@ -115,16 +134,19 @@ tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # att
 scene:
   kraft: [[8, 60, 60], [28, 155, 255]]   # V up to 255: lit tops of the real Amazon parcels read V 237-242. NOTE: the blue and red
                                          # boxes are kraft inside (photo H 17-18, S 120-140)
+  whole_table: true       # detect / fit / plan over the WHOLE tabletop minus the bin / tray ROIs (parcels may lie anywhere); false = only induction_roi
+  table: [0.184, 0.869, -0.5642, 0.5458]   # root xy box [x0, x1, y0, y1] of the tabletop (same as slide.table), projected to the head image
+  bin_margin: 0.03        # bin / tray ROIs are grown by this (fraction of the image) for the exclusion mask and for ignoring codes inside them
   induction_roi: [0.14, 0.45, 0.84, 0.98]   # CALIBRATE on the real table. x0, y0, x1, y1 fractions of the head image (scene v2 sim frames)
   bin_rois:               # CALIBRATE on the real table: head-image fractions of each bin's opening (scene v2 sim frames); black = reject bin
-    blue: [0.29, 0.0, 0.49, 0.44]
-    red: [0.51, 0.0, 0.745, 0.44]
-    black: [0.74, 0.13, 0.97, 0.47]
+    blue: [0.19, 0.0, 0.50, 0.28]   # = the bin footprint extruded to the wall height 0.127 m, projected with look.table_to_pixel, + 0.01 (tests/test_v9 checks it)
+    red: [0.51, 0.0, 0.84, 0.32]
+    black: [0.74, 0.13, 0.97, 0.47]   # tray mode only
   bin_gain: 0.015         # fraction of a bin ROI changed vs the snapshot taken when the parcel arrived = something landed in it (sim cube ~4%)
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
   big_presence: 0.32      # CALIBRATE: zone presence fraction >= this at SCAN = parcel too big for one gripper -> both arms
-  kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)
+  kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (logged only: no routing decision; the parcels are printed boxes, not just kraft)
   ref_refresh_calls: 5    # IDLE sees an empty zone this many calls -> refresh the reference
 
 # Wording, one sentence per call, as WALLX was trained; no arm selector, so the arm roles are in the words. {mat} -> blue|red|black,

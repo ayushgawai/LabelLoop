@@ -196,27 +196,101 @@ def commanded_ok(arm, poses, cfg, ok_tip=None, step=0.02, ok_pose=None, q0=None,
     return q if ret_q else True
 
 
+def project(P, wh=(1280, 720)):
+    """Pixels (N, 2) of root-frame points P (N, 3) in a wh-sized head image (vectorised table_to_pixel)."""
+    c = (np.asarray(P, float) - HEAD_POS) @ HEAD_R
+    return np.stack([(CX + FX * c[:, 0] / -c[:, 2]) * wh[0] / 1280, (CY - FY * c[:, 1] / -c[:, 2]) * wh[1] / 720], 1)
+
+
+def box_corners(c, yaw, hx, hy, h, dz=0.0):
+    """The 8 root-frame corners of a box standing on the table: centre xy c, yaw, half extents hx (along yaw) / hy, height h, lifted by dz."""
+    cs, sn = np.cos(yaw), np.sin(yaw)
+    xy = np.asarray(c, float) + np.array([[sx * hx * cs - sy * hy * sn, sx * hx * sn + sy * hy * cs] for sx in (-1, 1) for sy in (-1, 1)])
+    return np.array([(*p, TABLE_Z + dz + z) for z in (0.0, h) for p in xy])
+
+
+def box_mask(c, yaw, hx, hy, h, wh=(1280, 720), dz=0.0, out=None, off=(0, 0)):
+    """Head-image silhouette (uint8 255) of a box: convex hull of its 8 projected corners, filled. out/off: draw into a crop (pixel offset off)."""
+    px = project(box_corners(c, yaw, hx, hy, h, dz), wh) - off
+    m = np.zeros(wh[::-1], np.uint8) if out is None else out
+    cv2.fillConvexPoly(m, cv2.convexHull(np.round(px * 4).astype(np.int32)), 255, cv2.LINE_8, 2)
+    return m
+
+
 def fit_parcel(mask, wh, cfg):
-    """Oriented footprint of the parcel from the head-camera change mask (full wh-sized image): minAreaRect of the largest blob's convex hull projected
-    to the table at the top-face height (TABLE_Z + parcel_h). -> {"c": centre xy, "axes": 2x2 unit rows, "half": face
-    half-extents along them, "yaw"} or None (refuse to push) if implausible: a side outside [fit_min, fit_max] m, aspect > fit_aspect,
-    or the blob fills < fit_fill of its rectangle. The blob also holds the front face, so the footprint is a little long toward the camera."""
+    """3D box fit to the head-camera change mask (full wh-sized image): centre xy on the table, yaw, half extents and height of a box
+    resting on the table whose projected silhouette (look.box_mask) has the best IoU with the largest blob. Starts: the blob's hull rectified
+    at several top heights (minAreaRect); each start is refined by a shrinking pattern search over (x, y, yaw, hx, hy, h). The silhouette has the top
+    AND the visible walls, so (unlike a one-height projection) height and footprint are told apart. -> {"c", "axes" (2x2 unit rows, axes[0]
+    the long side), "half" (footprint), "yaw", "h" (height m), "iou"} or None (refuse) if implausible: a side outside [fit_min, fit_max] m,
+    aspect > fit_aspect, height outside [fit_hmin, fit_hmax] or IoU < fit_iou (default 0.8)."""
     cs, _ = cv2.findContours(np.asarray(mask, np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cs:
         return None
     cnt = max(cs, key=cv2.contourArea)
-    hull = cv2.convexHull(cnt)
-    tbl = np.array([pixel_to_table(u, v, wh, TABLE_Z + cfg["parcel_h"])[:2] for u, v in hull[:, 0]], np.float32)  # rectify first: perspective skews pixel rects
-    rect = cv2.minAreaRect(tbl)
-    q = cv2.boxPoints(rect)
-    e0, e1 = q[1] - q[0], q[2] - q[1]
-    L = np.array([np.linalg.norm(e0), np.linalg.norm(e1)])
-    fill = cv2.contourArea(cnt) / max(cv2.contourArea(hull), 1) * cv2.contourArea(tbl) / max(L[0] * L[1], 1e-9)  # blob solidity x hull / rect
-    if L.min() < cfg["fit_min"] or L.max() > cfg["fit_max"] or L.max() > cfg["fit_aspect"] * L.min() or fill < cfg["fit_fill"]:
+    x0, y0, w, h_ = cv2.boundingRect(cnt)
+    pad, off = 25, np.array([x0 - 25, y0 - 25])
+    tgt = np.zeros((h_ + 2 * pad, w + 2 * pad), np.uint8)
+    cv2.drawContours(tgt, [cnt - off], -1, 255, -1)
+    tn, buf = cv2.countNonZero(tgt), np.zeros(tgt.shape, np.uint8)
+    hmin, hmax = cfg.get("fit_hmin", 0.015), cfg.get("fit_hmax", 0.22)
+
+    def iou(x):
+        if not (hmin <= x[5] <= hmax and x[3] > 0.01 and x[4] > 0.01):
+            return 0.0
+        buf[:] = 0
+        box_mask(x[:2], x[2], x[3], x[4], x[5], wh, out=buf, off=off)
+        a, i = cv2.countNonZero(buf), cv2.countNonZero(cv2.bitwise_and(buf, tgt))
+        return i / max(a + tn - i, 1)
+
+    def refine(x, f, free):
+        """Pattern search on (x, y, yaw, hx, hy, h): shrinking steps; moves = shift, yaw, grow, single-end (the silhouette has ridges along the view)."""
+        step = 0.01
+        while step > 0.0004:
+            moved = False
+            u = np.array([np.cos(x[2]), np.sin(x[2])])
+            ax = (u, np.array([-u[1], u[0]]))
+            mv = [(*(sg * step * a), 0, 0, 0, 0) for a in np.eye(2) for sg in (1, -1)] + [(0, 0, sg * 10 * step, 0, 0, 0) for sg in (1, -1)]
+            mv += [(0, 0, 0, sg * step, 0, 0) for sg in (1, -1)] + [(0, 0, 0, 0, sg * step, 0) for sg in (1, -1)]
+            mv += [(*(sg * step * ax[k]), 0, *(g * step * np.eye(2)[k]), 0) for k in (0, 1) for sg in (1, -1) for g in (1, -1)]
+            mv += [(0, 0, 0, 0, 0, sg * step) for sg in (1, -1)] * free
+            for d in mv:
+                y = x + d
+                fy = iou(y)
+                if fy > f + 1e-9:
+                    x, f, moved = y, fy, True
+            if not moved:
+                step *= 0.5
+        return x, f
+
+    hull, starts = cv2.convexHull(cnt), []
+    for H in np.arange(0.02, 0.2, 0.01):  # coarse height grid: with h fixed, the far and near silhouette edges fix the footprint
+        tbl = np.array([pixel_to_table(u, v, wh, TABLE_Z + H)[:2] for u, v in hull[:, 0]], np.float32)
+        (cx, cy), (a, b), ang = cv2.minAreaRect(tbl)
+        x = np.array([cx, cy, np.radians(ang), a / 2, b / 2, H])
+        x, f = refine(x, iou(x), 0)
+        starts.append(refine(x, f, 0)[::-1])  # (a second pass restarts the big steps: the ridge needs it)
+    f, x = max((refine(*refine(x, f, 1), 1)[::-1] for f, x in sorted(starts, key=lambda s: -s[0])[:6]), key=lambda s: s[0])  # the 6 best heights, all free
+    rng = np.random.default_rng(0)  # the optimum sits in a narrow curved valley (height vs footprint along the view): random polish across it
+    for sd in (0.004, 0.002, 0.001):
+        for _ in range(250):
+            y = x + rng.normal(0, 1, 6) * [sd, sd, 2.5 * sd, sd, sd, 1.5 * sd]
+            fy = iou(y)
+            if fy > f:
+                x, f = y, fy
+    if f < 0.3:
         return None
-    a0 = e0 / L[0]
-    axes = np.array([a0, np.sign(a0[0] * e1[1] - a0[1] * e1[0]) * np.array([-a0[1], a0[0]])])
-    return {"c": q.mean(0), "axes": axes, "half": L / 2, "yaw": float(np.arctan2(axes[0][1], axes[0][0]))}
+    hx, hy, yaw = x[3], x[4], x[2]
+    if hy > hx:
+        hx, hy, yaw = hy, hx, yaw + np.pi / 2
+    yaw = float((yaw + np.pi / 2) % np.pi - np.pi / 2)
+    if hx - hy < 0.004:  # (nearly) square: the yaw is only defined mod 90 deg, take the one nearest 0
+        yaw = float((yaw + np.pi / 4) % (np.pi / 2) - np.pi / 4)
+    a0 = np.array([np.cos(yaw), np.sin(yaw)])
+    L = 2 * np.array([hx, hy])
+    if L.min() < cfg["fit_min"] or L.max() > cfg["fit_max"] or L.max() > cfg["fit_aspect"] * L.min() or f < cfg.get("fit_iou", 0.8):
+        return None
+    return {"c": x[:2].copy(), "axes": np.array([a0, [-a0[1], a0[0]]]), "half": np.array([hx, hy]), "yaw": yaw, "h": float(x[5]), "iou": float(f)}
 
 
 def spin_plan(fit, cfg, sigma=None, home=None):
@@ -228,8 +302,8 @@ def spin_plan(fit, cfg, sigma=None, home=None):
     whose whole commanded trajectory from `home` ({arm: (ee, rpy)}, default q = 0) through the return home passes commanded_ok, with the
     tips outside the parcel box except the contact. -> {"arm","pitch","tips","wps","contact","normal","tip_z","sigma"} or None."""
     c, ax, hf = fit["c"], fit["axes"], fit["half"]
-    zt, za = TABLE_Z + np.clip(0.3 * cfg["parcel_h"], 0.015, 0.03), TABLE_Z + cfg["approach_h"]
-    top = TABLE_Z + cfg["parcel_h"]
+    zt, za = TABLE_Z + np.clip(0.3 * fit.get("h", cfg["parcel_h"]), 0.015, 0.03), TABLE_Z + max(cfg["approach_h"], fit.get("h", cfg["parcel_h"]) + 0.06)
+    top = TABLE_Z + fit.get("h", cfg["parcel_h"])
 
     def inside(tip, m):
         loc = ax @ (tip[:2] - c)
@@ -277,10 +351,11 @@ def grasp_plan(arm, fit, cfg, home=None):
     if too_wide(fit, cfg):
         return None
     n, c = fit["axes"][int(np.argmin(fit["half"]))], fit["c"]
-    pre, grasp = (*c, TABLE_Z + cfg["approach_h"]), (*c, TABLE_Z + cfg["parcel_h"] - cfg["grasp_depth"])
+    ph = fit.get("h", cfg["parcel_h"])
+    pre, grasp = (*c, TABLE_Z + max(cfg["approach_h"], ph + 0.06)), (*c, TABLE_Z + ph - cfg["grasp_depth"])
     y0 = np.arctan2(-n[0], n[1])  # tool y = (-sin yaw, cos yaw) at pitch 90 (horizontal for any pitch, roll 0)
     for pitch in np.radians(cfg["grasp_pitches_deg"]):
-        for yaw in sorted((y0, (y0 + np.pi + np.pi) % (2 * np.pi) - np.pi), key=lambda y: abs(y - np.arctan2(c[1] - frame(arm, cfg)[1], c[0]))):
+        for yaw in sorted((y0, float(np.angle(np.exp(1j * (y0 + np.pi))))), key=lambda y: abs(y - np.arctan2(c[1] - frame(arm, cfg)[1], c[0]))):  # the two jaw orientations: y0 and y0 + pi
             rs = [reach(arm, t, pitch, cfg, yaw=yaw) for t in (pre, grasp)]
             if all(rs) and commanded_ok(arm, [_home(arm, home), *(r[:2] for r in rs)], cfg):
                 return {"arm": arm, "pitch": float(pitch), "yaw": float(yaw), "pre": np.array(pre), "grasp": np.array(grasp)}
@@ -321,7 +396,8 @@ def slide_plan(fit, target, delivery, cfg, home=None):
     n, i = max(((s * ax[i], i) for i in (0, 1) for s in (1, -1)), key=lambda f: -f[0] @ d)  # outward normal of the face behind the parcel
     if -n @ d < cfg["dir_min_dot"] or not all(footprint_clear(c - f * dist * n, fit, cfg) for f in (0.5, 1.0)):
         return None
-    zt, za, top = TABLE_Z + np.clip(0.3 * cfg["parcel_h"], 0.015, 0.03), TABLE_Z + cfg["approach_h"], TABLE_Z + cfg["parcel_h"]
+    ph = fit.get("h", cfg["parcel_h"])
+    zt, za, top = TABLE_Z + np.clip(0.3 * ph, 0.015, 0.03), TABLE_Z + max(cfg["approach_h"], ph + 0.06), TABLE_Z + ph
 
     def inside(tip, m, c=c):
         loc = ax @ (tip[:2] - c)
@@ -344,6 +420,47 @@ def slide_plan(fit, target, delivery, cfg, home=None):
             if commanded_ok(arm, [h, *wps, h], cfg, ok_tip):
                 return {"arm": arm, "pitch": float(pitch), "tips": tips, "wps": wps, "contact": P, "normal": n, "dist": float(dist),
                         "tip_z": float(zt), "c_after": c - dist * n}
+
+
+def swipe_plan(fit, cfg, home=None):
+    """Reject swipe: fingertips (gripper closed) low behind the parcel push it along -y (the robot's right) toward and past the table's right edge
+    (swipe.edge_y), through the centre of its face most opposite to -y (>= dir_min_dot cos), in a stroke of up to swipe.stroke m (to swipe.past m
+    beyond the edge). The arm nearest first (then the other: the parcel is re-fitted and pushed on after each stroke, so the arms take turns mid-table);
+    first (arm, pitch) whose whole commanded path (home, above, down, in, push, out, up, home) passes commanded_ok with the tips outside the parcel
+    except the push. -> {"arm","pitch","tips","wps","contact","normal","dist","tip_z","c_after","off"} (off: the parcel's centre ends past the edge) or None.
+    ponytail: fingertip geometry only; the swept arm is not checked against the table edge or the floor."""
+    c, ax, hf = fit["c"], fit["axes"], fit["half"]
+    d, ph = np.array([0.0, -1.0]), fit.get("h", cfg["parcel_h"])
+    n, i = max(((s * ax[i], i) for i in (0, 1) for s in (1, -1)), key=lambda f: -f[0] @ d)
+    if -n @ d < cfg["dir_min_dot"]:
+        return None
+    goal = c[1] - (cfg["edge_y"] - cfg["past"])  # y the centre still has to travel
+    if goal <= 0:
+        return None
+    dist = min(cfg["stroke"], goal / (-n @ d))
+    zt, za, top = TABLE_Z + np.clip(0.3 * ph, 0.015, 0.03), TABLE_Z + max(cfg["approach_h"], ph + 0.06), TABLE_Z + ph
+
+    def inside(tip, m, c=c):
+        loc = ax @ (tip[:2] - c)
+        return abs(loc[0]) < hf[0] + m and abs(loc[1]) < hf[1] + m and tip[2] < top + m
+
+    def ok_tip(k, tip):  # legs: 0 home->above, 1 down, 2 final approach, 3 push, 4 retract, 5 up, 6 home
+        return True if k in (3, 4) else not inside(tip, -0.005 if k == 2 else 0.01, c - dist * n if k > 4 else c)
+
+    P = c + hf[i] * n
+    S, E = P + cfg["out"] * n, P - dist * n
+    R = E + cfg["out"] * n
+    tips = np.array([(*S, za), (*S, zt), (*P, zt), (*E, zt), (*R, zt), (*R, za)])
+    for arm in sorted(SIGN, key=lambda a: abs(c[1] - SIGN[a] * cfg["arm_y"])):
+        h = _home(arm, home)
+        for pitch in np.radians((90, 75, 60, 45)):
+            rs = [reach(arm, tp, pitch, cfg) for tp in tips]
+            if all(rs):
+                wps = [r[:2] for r in rs]
+                if commanded_ok(arm, [h, *wps, h], cfg, ok_tip):
+                    c_after = c - dist * n
+                    return {"arm": arm, "pitch": float(pitch), "tips": tips, "wps": wps, "contact": P, "normal": n, "dist": float(dist),
+                            "tip_z": float(zt), "c_after": c_after, "off": bool(c_after[1] <= cfg["edge_y"] - cfg["past"] + 1e-6)}
 
 
 # --- SHOW: grasp the parcel, lift it in front of the head camera and turn it so each face looks at the head --------------------------
@@ -369,12 +486,17 @@ def box_R(rpy, hold):
     return rpy_to_matrix(rpy) @ _rot(1, np.pi / 2 - hold[3])
 
 
-def held_low(arm, ee, rpy, hold, cfg):
-    """Lowest z (root) of the parcel hanging from the fingertips: a box of hold = (narrow, broad, height, grasp pitch) m / rad, axes (y, z, x) of
-    box_R, top grasp_depth above the fingertips, centred on the tool tip. ponytail: ignores the fingers / hand."""
+def held_corners(arm, ee, rpy, hold, cfg):
+    """The 8 root-frame corners of the parcel hanging from the fingertips: hold = (narrow, broad, height, grasp pitch) m / rad; box axes (x height, y narrow,
+    z broad) = the columns of box_R, the top grasp_depth above the fingertips, centred over the tool tip. ponytail: ignores the fingers / hand."""
     R = box_R(rpy, hold)
-    c = tip_of(arm, ee, rpy, cfg) + (hold[2] / 2 - cfg["grasp_depth"]) * R[:, 0]  # (the tip is straight above the parcel's centre in the box frame)
-    return float(c[2] - np.abs(R[2]) @ [hold[2] / 2, hold[0] / 2, hold[1] / 2])
+    c = tip_of(arm, ee, rpy, cfg) + (hold[2] / 2 - cfg["grasp_depth"]) * R[:, 0]
+    return np.array([c + R @ (np.array([sx, sy, sz]) * [hold[2] / 2, hold[0] / 2, hold[1] / 2]) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)])
+
+
+def held_low(arm, ee, rpy, hold, cfg):
+    """Lowest z (root) of the held parcel (min over held_corners)."""
+    return float(held_corners(arm, ee, rpy, hold, cfg)[:, 2].min())
 
 
 def _pose_q(ee, rpy):
@@ -389,23 +511,27 @@ def show_plan(arm, fit, cfg, home=None, grasp=None):
     points at the head within show.vis_min (cos) at show.elevations_deg, spun show.n_spin ways about it; faces are visited greedily by
     smallest rotation, each commanded leg (joint-continuous IK, limits, fingertips above the table, the hanging parcel's lowest point >=
     show.held_clear above it) must pass; an infeasible view is skipped. -> {"arm","grasp","P","hold","fit","faces","missing","calls"} or None;
-    calls = [{"ee","rpy","grip","tag"[,"face","q"]}], one per scripted WALLX call: pre, descend, close, lift, then (move, hold) per view."""
+    calls = [{"ee","rpy","grip","tag"[,"face","q"]}], one per scripted WALLX call: pre, descend, close, testlift (2 cm: the harness checks the grasp), lift, then (move, hold) per view."""
     g = grasp or grasp_plan(arm, fit, cfg, home)
     if not g:
         return None
-    hold = (2 * fit["half"].min(), 2 * fit["half"].max(), cfg["parcel_h"], g["pitch"])
+    hold = (2 * fit["half"].min(), 2 * fit["half"].max(), fit.get("h", cfg["parcel_h"]), g["pitch"])
     h, rg = _home(arm, home), np.array([0.0, g["pitch"], g["yaw"]])
-    lift = np.array(g["grasp"]) + [0, 0, cfg["lift"]]
+    lift, tlift = np.array(g["grasp"]) + [0, 0, cfg["lift"]], np.array(g["grasp"]) + [0, 0, cfg["test_lift"]]
     pose = lambda tip: (to_arm(arm, tip, cfg) - rpy_to_matrix(rg) @ TCP, rg)
-    pre, gr, up = pose(g["pre"]), pose(g["grasp"]), pose(lift)
+    pre, gr, tl, up = pose(g["pre"]), pose(g["grasp"]), pose(tlift), pose(lift)
     clear = lambda low: (lambda k, p, r: held_low(arm, p, r, hold, cfg) >= low)
-    q = commanded_ok(arm, [h, pre, gr, up], cfg, ok_pose=lambda k, p, r: k < 2 or held_low(arm, p, r, hold, cfg) >= TABLE_Z - 0.003, ret_q=True)
-    if q is None:
+    held = lambda k, p, r: held_low(arm, p, r, hold, cfg) >= TABLE_Z - 0.003
+    qs = [commanded_ok(arm, [h, pre], cfg, ret_q=True)]  # joints at each driven pose (pre, descend = close, test lift, lift)
+    for leg, ok in (([pre, gr], None), ([gr, tl], held), ([tl, up], held)):
+        qs.append(None if qs[-1] is None else commanded_ok(arm, leg, cfg, ok_pose=ok, q0=qs[-1], ret_q=True))
+    if any(x is None for x in qs):
         return None
+    q = qs[-1]
     def views_at(P):
         d = (HEAD_POS - P) / np.linalg.norm(HEAD_POS - P)
         az, cands = np.arctan2(d[1], d[0]), {}
-        for f in cfg["faces"]:
+        for f in (cfg["faces_flat"] if hold[2] < cfg["flat_h"] else cfg["faces"]):  # a flat parcel carries a label on its top / bottom only
             ax = FACES[f]
             for el in np.radians(cfg["elevations_deg"]):
                 t = np.array([np.cos(az) * np.cos(el), np.sin(az) * np.cos(el), np.sin(el)])
@@ -475,8 +601,9 @@ def show_plan(arm, fit, cfg, home=None, grasp=None):
         return None
     ql = q
     op, cl = cfg["grip_open"], cfg["grip_close"]
-    calls = [{"ee": pre[0], "rpy": pre[1], "grip": op, "tag": "pre"}, {"ee": gr[0], "rpy": gr[1], "grip": op, "tag": "descend"},
-             {"ee": gr[0], "rpy": gr[1], "grip": cl, "tag": "close"}, {"ee": up[0], "rpy": up[1], "grip": cl, "tag": "lift", "q": ql}]
+    calls = [{"ee": pre[0], "rpy": pre[1], "grip": op, "tag": "pre", "q": qs[0]}, {"ee": gr[0], "rpy": gr[1], "grip": op, "tag": "descend", "q": qs[1]},
+             {"ee": gr[0], "rpy": gr[1], "grip": cl, "tag": "close", "q": qs[1]}, {"ee": tl[0], "rpy": tl[1], "grip": cl, "tag": "testlift", "q": qs[2]},
+             {"ee": up[0], "rpy": up[1], "grip": cl, "tag": "lift", "q": ql}]
     for f, (ee, rpy), qv, W in views:
         calls += [{"ee": w[0], "rpy": w[1], "grip": cl, "tag": "via"} for w in W]
         calls += [{"ee": ee, "rpy": rpy, "grip": cl, "tag": t, "face": f, "q": qv} for t in ("move", "hold")]
@@ -498,14 +625,20 @@ def set_down(plan, deliv, done, cfg, home=None):
     if i < 2:  # the gripper never closed on it
         return out([{"ee": cs[0]["ee"], "rpy": cs[0]["rpy"], "grip": op, "tag": "up"}] * (i > 0), "none")
     cur = cs[i]
-    hold, g, H = plan["hold"], plan["grasp"], cfg["parcel_h"]
+    hold, g, H = plan["hold"], plan["grasp"], plan["hold"][2]
     pose = lambda tip, pitch, yaw: reach(arm, tip, pitch, cfg, yaw=yaw)
-    trail = [c for c in cs[3:i + 1] if c["tag"] != "hold"]  # lift, vias, moves up to the current one
+    gr = (cs[2]["ee"], cs[2]["rpy"])
+    if i <= 3:  # closed on it, still on the table (or 2 cm up: supported): back down to the grasp pose, let go, back up
+        return out(([{"ee": gr[0], "rpy": gr[1], "grip": cl, "tag": "down"}] if i == 3 else []) + [{"ee": gr[0], "rpy": gr[1], "grip": op, "tag": "release"},
+                   {"ee": cs[0]["ee"], "rpy": cs[0]["rpy"], "grip": op, "tag": "retreat"}], "orig", g["grasp"][:2], g["yaw"], plan["fit"])
+    trail = [c for c in cs[4:i + 1] if c["tag"] != "hold"]  # lift, vias, moves up to the current one
     back = [(c["ee"], c["rpy"]) for c in trail[-2::-1]]  # the way back to just above the grasp spot
-    up = (cs[3]["ee"], cs[3]["rpy"])
-    q = (cur.get("q") if i >= 3 else ik(cur["ee"], cur["rpy"], q0=np.zeros(6))[0])
+    up = (cs[4]["ee"], cs[4]["rpy"])
     here = (cur["ee"], cur["rpy"])
-    drop = lambda: out([{"ee": cur["ee"], "rpy": cur["rpy"], "grip": op, "tag": "release"}], "drop")  # no route: let go where it is
+    j = max((k for k in range(i + 1) if cs[k].get("q") is not None), default=None)  # the last pose with known joints, replayed forward (warm-started IK) to here
+    q0 = cs[j]["q"] if j is not None else ik(*_home(arm, home), q0=np.zeros(6))[0]
+    q = commanded_ok(arm, [(cs[k]["ee"], cs[k]["rpy"]) for k in range(max(j or 0, 0), i + 1)], cfg, q0=q0, ret_q=True) if j != i else q0
+    q = q0 if q is None else q
 
     def chain(A, Pp, fit2, where, spot, yaw):
         for via in ([], [up], back):  # direct, via the lift pose, back through every view
@@ -518,9 +651,6 @@ def set_down(plan, deliv, done, cfg, home=None):
                           {"ee": A[0], "rpy": A[1], "grip": op, "tag": "retreat"}]
                 return out(calls, where, spot, yaw, fit2)
 
-    if i == 2:  # closed on it, still on the table: just let go and back up
-        gr = (cs[2]["ee"], cs[2]["rpy"])
-        return out([{"ee": gr[0], "rpy": gr[1], "grip": op, "tag": "release"}, {"ee": cs[0]["ee"], "rpy": cs[0]["rpy"], "grip": op, "tag": "retreat"}], "orig", g["grasp"][:2], g["yaw"], plan["fit"])
     side = deliv[:-3]
     c0 = np.array(cfg["handoff"][side], float)
     for off in cfg["spots"]:
@@ -539,5 +669,11 @@ def set_down(plan, deliv, done, cfg, home=None):
                 r = chain(rA[:2], rp[:2], fit2, "handoff", spot, yaw)
                 if r:
                     return r
-    r = chain(up, (cs[2]["ee"], cs[2]["rpy"]), plan["fit"], "orig", np.array(g["grasp"][:2]), g["yaw"])
-    return r or drop()
+    r = chain(up, gr, plan["fit"], "orig", np.array(g["grasp"][:2]), g["yaw"])
+    if r:
+        return r
+    # no checked route: never let go in the air. Reverse the driven trail (every leg was driven forward with the parcel) to the grasp pose, then release there.
+    calls = [{"ee": e, "rpy": r_, "grip": cl, "tag": "route"} for e, r_ in [*back, up]]
+    calls += [{"ee": gr[0], "rpy": gr[1], "grip": cl, "tag": "down"}, {"ee": gr[0], "rpy": gr[1], "grip": op, "tag": "release"},
+              {"ee": cs[0]["ee"], "rpy": cs[0]["rpy"], "grip": op, "tag": "retreat"}]
+    return out(calls, "orig", np.array(g["grasp"][:2]), g["yaw"], plan["fit"])

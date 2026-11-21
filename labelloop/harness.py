@@ -11,10 +11,15 @@ from labelloop.perception.qr import Confirmer, decode, locate
 from labelloop.wallx_client import home_response, move_response
 
 
+FOOT = 1.0  # held-parcel disc radius = FOOT x half the box diagonal + 3 cm
+
+
 class Harness:
     """Perception + state machine + runlog; one step() per WALLX call. `agent` is accepted and unused (v3 has no vision agent)."""
 
     def __init__(self, task_cfg, agent=None, runlog=None, clock=time.monotonic):
+        if task_cfg.get("reject_mode", "tray") != "tray":  # no tray: its ROI is not a bin (it would mask the table and a code seen there would be ignored)
+            task_cfg = {**task_cfg, "scene": {**task_cfg["scene"], "bin_rois": {k: v for k, v in task_cfg["scene"]["bin_rois"].items() if k != "black"}}}
         self.cfg, self.agent, self.runlog, self.clock = task_cfg, agent, runlog, clock
         self.sm = StateMachine(task_cfg)
         self.reset()
@@ -27,6 +32,7 @@ class Harness:
         self.spin, self.spin_info, self.spin_sigma = None, None, None  # the planned push of the current SPIN try; the yaw direction all tries keep
         self.show, self.show_info, self.sset, self.show_done = None, None, None, 0  # SHOW plan; its log; the SHOWSET (set-down) plan; SHOW calls driven
         self.slide, self.slide_info = None, None  # the planned stroke of the current SLIDE entry (None = nothing to push)
+        self.swipe, self.swipe_info = None, None  # the same for the reject swipe (SWIPE)
         self.calib, self.cal_n, self.cal_cur = None, 0, None  # calib_test schedule, calls consumed, entry of the current call
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
@@ -43,16 +49,15 @@ class Harness:
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]
         box = scene.roi_box(front, cfg)
-        if before in ("LOOK", "INSPECT", "HANDOVER", "SHOW"):  # parcel in hand: a label counts anywhere but in a bin (a labelled parcel lying in one)
-            bins = [scene.roi_box(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]]
-            codes = [(t, p) for t, p in locate(front) if not any(scene.inside(p, b) for b in bins)]
-        else:
-            codes = [(t, p) for t, p in locate(front) if scene.inside(p, box)]
-        if not codes and before not in ("LOOK", "INSPECT", "HANDOVER", "SHOW"):  # small QR missed on this frame: retry on the ROI crop at 2x
-            crop = cv2.resize(front[box[1]:box[3], box[0]:box[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-            codes = [(t, (box[0] + x / 2, box[1] + y / 2)) for t, (x, y) in locate(crop)]
-        wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k != "front"})} \
-            if before in ("SHOW", "SPIN", "LOOK", "INSPECT", "HANDOVER") else set()  # SCAN counts head ROI codes only
+        pre = self.sm.calls  # index of the scripted call whose result this image shows
+        on = self.on_parcel(before, front, cfg, box, pre)  # head code centre -> does it lie on the tracked parcel?
+        codes = [(t, p) for t, p in locate(front) if on(p)]
+        cb = scene.changed_box(front, self.ref, cfg) if self.ref is not None and before in ("SCAN", "SPIN") else None
+        if not codes and cb:  # small QR missed on this frame: retry on the changed-pixel crop (the parcel, anywhere on the table) at 2x
+            cb = (max(cb[0] - 20, 0), max(cb[1] - 20, 0), cb[2] + 20, cb[3] + 20)
+            crop = cv2.resize(front[cb[1]:cb[3], cb[0]:cb[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
+        wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k in self.wrist_cams(before, pre)})}
         seen = {("front", t) for t, _ in codes} | wrist
         confirmed = {t for _, t in self.confirmer.update(seen)}
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
@@ -65,11 +70,11 @@ class Harness:
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
-        pre = self.sm.calls
         instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
                               "show_calls": len(self.show["calls"]) if self.show else 0,
                               "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
                               "spin_push": push, "spin_calls": push + sc if self.spin else 1,
+                              "swipe_calls": len(self.swipe["wps"]) + self.cfg["home_calls"] + self.cfg["swipe"]["settle_calls"] if self.swipe else 0,
                               "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0})  # no feasible push: the try is skipped
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
@@ -78,8 +83,16 @@ class Harness:
             if not self.show:
                 self.sm.end_show()
                 instr = self.sm.instruction()
+        if before == "SHOW" and self.sm.state == "SHOW" and self.show:  # grasp checks: the gripper closed past empty = missed; the 2 cm test lift moves the parcel
+            bad = self.grasp_check(front, state, pre)
+            if bad:
+                self.show_info = {**self.show_info, "grasp": bad}
+                self.sm.abort_show(bad == "missed" and self.sm.tries.get("SHOW", 0) < 2)  # a miss: one retry from a fresh fit
+                instr = self.sm.instruction()
         if before == "SHOW" and self.sm.state == "SHOWSET":  # the parcel is in hand (or not yet gripped): put it back where the delivery arm can take it
             self.show_done = pre + 1
+            if self.show:
+                self.sm.faces |= {c["face"] for c in self.show["calls"][:self.show_done] if c["tag"] == "hold"}  # a face counts once its hold call was driven
             self.plan_showset()
         if self.sm.state == "SPIN" and self.sm.calls == 0:  # a new SPIN try (arm home, parcel as it lies now)
             self.plan_spin(front, cfg)
@@ -87,6 +100,11 @@ class Harness:
             self.plan_slide(front, cfg)
             if self.sm.state == "SLIDE" and not self.slide:
                 self.sm.end_slide()
+            instr = self.sm.instruction()
+        if self.sm.state == "SWIPE" and self.sm.calls == 0:  # a new stroke (arm home, parcel as it lies now): nothing to push -> give up this try
+            self.plan_swipe(front, cfg)
+            if not self.swipe:
+                self.sm.end_swipe()
             instr = self.sm.instruction()
         if before == "IDLE":  # a new parcel starts with no QR history and no preferred yaw direction
             self.confirmer.counts.clear()
@@ -101,14 +119,14 @@ class Harness:
                               left_gripper=state["left_ee"]["gripper"],
                               right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
                               flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index, look=self.look_info,
-                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info, show=self.show_info)
+                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info, swipe=self.swipe_info, show=self.show_info)
         return instr
 
     def parcel_hw(self, front, cfg, lc):
         """Half-width from the changed-pixel bbox (FULL-image pixels, as look.footprint expects); lc["hw"] when the box is missing,
         covers nearly the whole zone (stale reference) or is tiny."""
-        box, (x0, y0, x1, y1) = scene.changed_box(front, self.ref, cfg), scene.roi_box(front, cfg)
-        if box is not None and not 0.02 <= (box[2] - box[0]) * (box[3] - box[1]) / ((x1 - x0) * (y1 - y0)) <= 0.9:
+        box = scene.changed_box(front, self.ref, cfg)
+        if box is not None and not 0.02 <= (box[2] - box[0]) * (box[3] - box[1]) / scene.roi_area(front, cfg) <= 0.9:
             box = None
         return look.footprint(box, front.shape[1::-1], lc)
 
@@ -131,12 +149,55 @@ class Harness:
         self.look_info = {"point": p.tolist(), "hw": hw, "views": [(a, ee.tolist(), i["ik_err"], i["clear"]) for a, ee, _, i in self.views]}
 
     def fit(self, front, cfg, sc):
-        """Oriented parcel footprint from the head-camera change mask (None: nothing there / a stale reference / implausible)."""
+        """3D box fit (look.fit_parcel) to the head-camera change mask (None: nothing there / a stale reference / implausible); sets the flat flag."""
         assert self.ref is not None
         mask = scene.changed_mask(front, self.ref, cfg)
-        x0, y0, x1, y1 = scene.roi_box(front, cfg)
-        frac = (mask > 0).sum() / ((x1 - x0) * (y1 - y0))
-        return look.fit_parcel(mask, front.shape[1::-1], sc) if 0.02 <= frac <= 0.9 else None
+        frac = (mask > 0).sum() / scene.roi_area(front, cfg)
+        k = max(1, round(front.shape[1] / 640))  # the blurred change mask is ~2 px fatter than the parcel (at 1280 px): undo it, the height fit is sensitive to it
+        mask = cv2.erode(mask, np.ones((2 * k + 1, 2 * k + 1), np.uint8))
+        fit = look.fit_parcel(mask, front.shape[1::-1], sc) if 0.02 <= frac <= 0.9 else None
+        if fit:
+            self.sm.flat = fit["h"] < self.cfg["show"]["flat_h"]  # a flat parcel carries a label on its top or bottom only
+        return fit
+
+    def on_parcel(self, before, front, cfg, box, pre):
+        """Predicate: does a head-image code centre lie on the tracked parcel? SHOW: on the held parcel's projection (a disc around the show point,
+        only once it is lifted); SPIN / LOOK: on the changed pixels of the zone (the parcel lies there, dilated); INSPECT / HANDOVER (WALLX holds it,
+        untracked): anywhere but a bin; else (SCAN ...): inside the induction ROI."""
+        base = lambda p: not scene.in_bin(p, front, cfg)  # a parcel already in a bin / tray is never read, in any state
+        if before == "SHOW":
+            if not self.show or pre < 4:
+                return lambda p: False
+            P, hold = self.show["P"] - [0, 0, 0.02], self.show["hold"]
+            r = FOOT * np.linalg.norm(hold[:3]) / 2 + 0.03
+            c, d = look.table_to_pixel(P, front.shape[1::-1]), np.linalg.norm(P - look.HEAD_POS)
+            rpx = look.FX * r / d * front.shape[1] / 1280
+            return lambda p: base(p) and np.hypot(p[0] - c[0], p[1] - c[1]) <= rpx
+        if before in ("INSPECT", "HANDOVER") or self.ref is None:
+            return lambda p: base(p) and (before in ("INSPECT", "HANDOVER") or scene.inside(p, box))
+        m = cv2.dilate(scene.changed_mask(front, self.ref, cfg), np.ones((21, 21), np.uint8))  # SCAN / SPIN / LOOK: the parcel lies on the table
+        return lambda p: base(p) and 0 <= int(p[1]) < m.shape[0] and 0 <= int(p[0]) < m.shape[1] and m[int(p[1]), int(p[0])] > 0
+
+    def wrist_cams(self, before, pre):
+        """Wrist cameras whose codes count: SHOW = the holding arm's, once it grips (from the close call); LOOK = the looking arm's; INSPECT / HANDOVER = both
+        (untracked); SCAN / SPIN: none (the arms are home, their view is not the parcel)."""
+        if before == "SHOW":
+            return {self.show["arm"][:-3] + "_wrist"} if self.show and pre >= 4 else set()
+        if before == "LOOK" and self.look_index is not None:
+            return {self.views[self.look_index][0][:-3] + "_wrist"}
+        return {"left_wrist", "right_wrist"} if before in ("INSPECT", "HANDOVER") else set()
+
+    def grasp_check(self, front, state, pre):
+        """After the close call (pre 2): the holding gripper reads below grasp.empty_below = closed on nothing -> "missed". After the 2 cm test lift (pre 3): the
+        parcel's silhouette must match the box lifted by test_lift better than the box on the table, else "no_comotion". None = fine."""
+        sc = {**self.cfg["grasp"], **self.cfg["show"]}
+        if pre == 2 and state[self.show["arm"]]["gripper"] < sc["empty_below"]:
+            return "missed"
+        if pre == 3:
+            f, m = self.show["fit"], scene.changed_mask(front, self.ref, self.cfg["scene"]) > 0
+            ious = [(look.box_mask(f["c"], f["yaw"], *f["half"], f["h"], front.shape[1::-1], dz=dz) > 0) for dz in (0.0, sc["test_lift"])]
+            score = [(s & m).sum() / max((s | m).sum(), 1) for s in ious]
+            return None if score[1] > score[0] + 0.02 else "no_comotion"
 
     def homes(self):
         return {a: (np.asarray(self.home[a]["position"], float), np.asarray(self.home[a]["rotation_rpy"], float)) for a in look.SIGN}
@@ -166,6 +227,15 @@ class Harness:
             info.update(why="stroke" if self.slide else "no stroke", arm=self.slide and self.slide["arm"],
                         tips=self.slide and self.slide["tips"], c_after=self.slide and self.slide["c_after"])
         self.slide_info = info
+
+    def plan_swipe(self, front, cfg):
+        """Fit the parcel and plan one reject stroke along -y toward the table's right edge (look.swipe_plan; None = no feasible stroke)."""
+        sc = {**self.cfg["look"], **self.cfg["spin"], "dir_min_dot": self.cfg["slide"]["dir_min_dot"], **self.cfg["swipe"]}
+        fit = self.fit(front, cfg, sc)
+        self.swipe = fit and look.swipe_plan(fit, sc, self.homes())
+        self.swipe_info = {"stroke": self.sm.tries["SWIPE"], "fit": fit and {"c": fit["c"].tolist(), "half": fit["half"].tolist(), "yaw": fit["yaw"], "h": fit["h"]},
+                           "arm": self.swipe and self.swipe["arm"], "dist": self.swipe and self.swipe["dist"], "off": self.swipe and self.swipe["off"],
+                           "why": "stroke" if self.swipe else "no fit" if fit is None else "no stroke"}
 
     def plan_show(self, front, cfg):
         """Fit the parcel; the arm(s) that can grasp it plan a SHOW (look.show_plan); the one that shows the most faces wins (ties: the nearer to
@@ -271,8 +341,8 @@ class Harness:
             if self.sm.state == "SHOWSET" and (not sp or i < n + self.cfg["home_calls"]):
                 return home_response(embodiment, state, self.home)  # (the gripper keeps its last value until home)
             return move_response(embodiment, state, {}) if self.sm.state == "SHOW" else None
-        if self.sm.state in ("SPIN", "SLIDE"):  # push waypoints (gripper closed), then home; the read calls after that hold still
-            sp, i = (self.spin if self.sm.state == "SPIN" else self.slide), self.sm.calls
+        if self.sm.state in ("SPIN", "SLIDE", "SWIPE"):  # push waypoints (gripper closed), then home; the read calls after that hold still
+            sp, i = {"SPIN": self.spin, "SLIDE": self.slide, "SWIPE": self.swipe}[self.sm.state], self.sm.calls
             n = sp and len(sp["wps"])
             if sp and i < n:
                 ee, rpy = sp["wps"][i]

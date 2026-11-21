@@ -7,7 +7,7 @@ from labelloop.perception import scene
 
 DATA = Path(__file__).parent / "data"
 # tests/data frames are from the OLD sim props, so the zone is pinned to where the cube sat then; kraft / presence come from the live config.
-CFG = {**load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")["scene"], "induction_roi": [0.46, 0.48, 0.84, 0.92]}
+CFG = {**load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")["scene"], "induction_roi": [0.46, 0.48, 0.84, 0.92], "whole_table": False}
 
 
 def frame(name, size=None):

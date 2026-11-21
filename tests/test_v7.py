@@ -1,5 +1,6 @@
 """Harness v7: reach-based arm coordination: grasp-feasibility, SLIDE hand-off, closer-arm SPIN."""
 import numpy as np
+import pytest
 
 from labelloop import look
 from labelloop.harness import Harness
@@ -33,14 +34,15 @@ def test_grasp_check_is_per_arm_and_respects_the_97mm_gripper():
     for y, want in cases.items():
         fit = fit_of((0.30, y), 0)
         assert tuple(bool(look.grasp_plan(a, fit, NARROW)) for a in ("left_ee", "right_ee")) == want
-    g = look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0), NARROW)
-    assert g["pre"][2] > g["grasp"][2] and g["grasp"][2] == look.TABLE_Z + SC["parcel_h"] - SC["grasp_depth"]
+    f0 = fit_of((0.30, 0.0), 0)
+    g = look.grasp_plan("left_ee", f0, NARROW)
+    assert g["pre"][2] > g["grasp"][2] and g["grasp"][2] == pytest.approx(look.TABLE_Z + f0["h"] - SC["grasp_depth"])  # the grasp height follows the FITTED height
     # fingers close across the narrow side: tool y (-sin yaw, cos yaw) is parallel to it
     fit = fit_of((0.30, 0.0), 0)
     n = fit["axes"][int(np.argmin(fit["half"]))]
     assert abs(np.dot([-np.sin(g["yaw"]), np.cos(g["yaw"])], n)) > 0.99
-    assert look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0, half=(0.06, 0.0435)), NARROW) is None  # 87 mm narrow side + margin > 97.5 mm
-    assert look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0, half=(0.06, 0.0425)), NARROW) is not None
+    assert look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0, half=(0.06, 0.046)), NARROW) is None  # 92 mm narrow side + margin > 97.5 mm
+    assert look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0, half=(0.06, 0.041)), NARROW) is not None
     assert look.grasp_plan("left_ee", fit_of((0.30, 0.0), 0, half=(0.07, 0.07)), NARROW) is None  # too wide both ways
 
 
@@ -55,11 +57,11 @@ def test_slide_plan_pushes_through_the_face_centre_toward_the_handoff_and_stays_
     assert p["arm"] == "left_ee" and p["dist"] == SC["stroke"]
     assert np.allclose(p["contact"], fit["c"] + fit["half"][int(np.argmax(np.abs(p["normal"] @ fit["axes"].T)))] * p["normal"], atol=1e-6)
     assert np.allclose(p["c_after"], fit["c"] - 0.08 * p["normal"]) and p["c_after"][1] < fit["c"][1]  # moved toward -y
-    # (d) a stroke whose predicted footprint comes within 3 cm of a bin (red: x from 0.499, y -0.26..-0.019) or the table edge is not made
-    assert look.slide_plan(fit_of((0.40, 0.12), 0), (0.60, 0.12), "right_ee", SC) is None  # straight at the blue bin
+    # (d) a stroke whose predicted footprint comes within 3 cm of a bin (red: x from 0.613) or the table edge is not made
+    assert look.slide_plan(fit_of((0.50, 0.12), 0), (0.70, 0.12), "right_ee", SC) is None  # straight at the blue bin
     assert look.slide_plan(fit_of((0.22, 0.0), 0), (0.10, 0.0), "left_ee", SC) is None  # toward the near table edge (x 0.184)
     assert look.footprint_clear(np.array([0.30, 0.0]), fit_of((0.30, 0.0), 0), SC)
-    assert not look.footprint_clear(np.array([0.44, 0.10]), fit_of((0.44, 0.10), 0), SC)  # x half 0.06: 0.50 > bin x0 - 0.03 and y inside blue
+    assert not look.footprint_clear(np.array([0.60, 0.10]), fit_of((0.60, 0.10), 0), SC)  # x half 0.06: 0.66 > bin x0 (0.651) - 0.03 and y inside blue
 
 
 def test_red_parcel_far_left_is_slid_by_the_left_arm_then_placed_by_the_right_arm():  # (a)

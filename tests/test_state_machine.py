@@ -3,7 +3,7 @@ from pathlib import Path
 from labelloop.brain.state_machine import StateMachine
 from labelloop.config import load_yaml
 
-BASE = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
+BASE = {**load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml"), "reject_mode": "tray"}
 CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "show": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow (handover, INSPECT, no budget); SPIN / LOOK / arm roles / budget have their own tests below
 A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
 GAIN = 0.05  # > bin_gain
@@ -117,11 +117,14 @@ def test_big_parcel_both_arms_lane_and_reject_no_handover():
     assert to_inspect(sm, big=True) == "lift the block with both arms and turn it over"
 
 
-def test_garbage_rejects_via_handover():
+def test_low_kraft_never_rejects_the_label_search_decides():
     sm = StateMachine(CFG)
-    assert parcel(sm, None, kroi=0.0) is None and sm.state == "SCAN"  # garbage waits out the QR confirmation window (2 SCAN calls)
-    assert sm.step(ev(0.06, 0.0)) == "hand the object from the left arm to the right arm" and sm.reason == "garbage"
-    assert sm.plan == ["HANDOVER", "REJECT"]
+    assert parcel(sm, None, kroi=0.0) is None and sm.state == "SCAN"
+    for _ in range(CFG["scan_max_calls"]):
+        sm.step(ev(0.06, 0.0))
+    assert sm.state == "INSPECT" and sm.reason is None  # a printed box (no kraft) is searched like any other
+    sm = StateMachine(CFG)
+    assert parcel(sm, A, kroi=0.0) == "hand the block from the left arm to the right arm" and sm.reason == "routed"  # a label on a non-kraft parcel routes
 
 
 def test_already_sorted_codes_are_ignored():

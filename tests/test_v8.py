@@ -28,10 +28,14 @@ def cached_show_plan():
     look.show_plan = _real
 
 
-def run(objs, cfg=BASE, replies=None):
+LIFT = {"testlift": 0.02, "lift": 0.08, "via": 0.08, "move": 0.08, "hold": 0.08}  # how high the mock draws the held parcel after each scripted call
+
+
+def run(objs, cfg=BASE, replies=None, miss=False, stuck=False, prefill=None):
     """Full episode in the mock. The mock obeys the scripted SHOW: the head sees the face the harness holds toward it (a call's effect shows in
     the next image), and the set-down moves the parcel."""
-    h, sc, sent = Harness({**cfg, "max_parcels": 1}), FakeScene(objs), []
+    h, sc, sent = Harness({**cfg, "max_parcels": 1}), FakeScene(objs, prefill=prefill), []
+    h.grip_log = []  # miss: the jaws close on nothing (gripper reads the command); stuck: the parcel does not follow the gripper
     h.entered = []
     for _ in range(500):
         if h.done:
@@ -43,8 +47,17 @@ def run(objs, cfg=BASE, replies=None):
         if replies is not None and h.sm.state in ("SHOW", "SHOWSET"):
             replies.append((h.sm.state, h.sm.calls, h.scripted_reply("emb", state)))
         sc.show_face = None
+        if h.sm.state != "SHOW":
+            sc.grip_state.clear()
+        if h.sm.state == "SHOWSET" and sc.zone:
+            sc.zone["lift"] = 0.0
         if h.sm.state == "SHOW" and h.show and h.sm.calls < len(h.show["calls"]):
-            sc.show_face = h.show["calls"][h.sm.calls].get("face")
+            c = h.show["calls"][h.sm.calls]
+            held = sc.zone is not None and not miss and c["tag"] in ("close", *LIFT)
+            sc.grip_state[h.show["arm"]] = 0.9 if held and c["grip"] == SC["grip_close"] else c["grip"]  # a parcel in the jaws stops them at ~0.9
+            if sc.zone and held and not stuck:
+                sc.zone["lift"] = LIFT.get(c["tag"], 0.0)
+            sc.show_face = c.get("face")
             if sc.zone and sc.zone["face"] == "*second":
                 sc.zone["face"] = h.show["faces"][1]
         if h.sm.state == "SHOWSET" and h.sm.calls == 0 and h.sset:
@@ -77,10 +90,11 @@ def test_cube_show_plan_is_feasible_through_the_urdf_chain_keeps_the_parcel_clea
         p = look.show_plan(arm, fit, SC)
         cs = p["calls"]
         assert p["arm"] == arm and len(p["faces"]) >= 2 and set(p["faces"]) <= {"z+", "y+", "z-", "y-"} and "bottom" in p["missing"]
-        assert [c["tag"] for c in cs[:4]] == ["pre", "descend", "close", "lift"] and len(cs) <= 16
-        assert [c["grip"] for c in cs[:4]] == [SC["grip_open"], SC["grip_open"], SC["grip_close"], SC["grip_close"]] and all(c["grip"] == SC["grip_close"] for c in cs[3:])
-        assert np.allclose(cs[3]["ee"] - cs[1]["ee"], 0, atol=1.0) and cs[3]["rpy"].tolist() == cs[1]["rpy"].tolist()  # lift: no rotation
-        low = drive(arm, cs, p["hold"])  # from the lift on, also every transit between views
+        assert [c["tag"] for c in cs[:5]] == ["pre", "descend", "close", "testlift", "lift"] and len(cs) <= 18
+        assert [c["grip"] for c in cs[:5]] == [SC["grip_open"], SC["grip_open"], SC["grip_close"], SC["grip_close"], SC["grip_close"]] and all(c["grip"] == SC["grip_close"] for c in cs[3:])
+        assert cs[3]["ee"] [2] - cs[2]["ee"][2] == pytest.approx(SC["test_lift"], abs=1e-6) and cs[4]["rpy"].tolist() == cs[1]["rpy"].tolist()  # a 2 cm test lift first; no rotation
+        assert all(c["q"] is not None for c in cs[:5])  # the joint state is carried from the start
+        low = drive(arm, cs, p["hold"], held_from=5)  # from the lift on, also every transit between views
         assert low >= look.TABLE_Z + SC["held_clear"] - 1e-6
         P, d = p["P"], look.HEAD_POS - p["P"]
         d /= np.linalg.norm(d)
@@ -111,7 +125,7 @@ def test_label_on_a_side_is_found_at_its_view_rotation_stops_early_and_the_deliv
     assert all(i is None for s, i in sent if s in ("SHOW", "SHOWSET"))  # scripted: no WALLX call
     assert [i for s, i in sent if s == "PLACE"][0] == "put the block into the red bin with the right arm"
     assert sc.at[id(sc.log[0])] == "red" and h.sm.results[0]["outcome"] == "ok" and h.sm.results[0]["code"] == B
-    assert h.show_info["delivery"] == "right_ee" and h.sset["where"] == "handoff"
+    assert h.show_info["delivery"] == "right_ee" and h.sset["where"] in ("handoff", "orig")  # (a fitted height a few mm taller can leave no hand-off spot: it is put back where it was)
     assert h.slide_info["why"] == "graspable" and h.slide is None  # already within the delivery arm's reach: no push
     # scripted_reply drives the gripper values and keeps the other arm home
     arm = h.show["arm"]
@@ -128,15 +142,15 @@ def test_label_never_shown_all_faces_driven_then_reject_when_nothing_else_is_ena
     h, sc, sent = run([parcel(B, face="bottom", **CUBE)], cfg)  # the bottom is unreachable: the label is never shown
     assert h.show_done == len(h.show["calls"]) and "bottom" in h.show["missing"]
     assert h.entered.count("SHOW") == 1 and "SPIN" not in h.entered
-    assert h.sm.results[0]["reason"] == "no_label" and sc.at[id(sc.log[0])] == "black"
+    assert h.sm.results[0]["reason"] == "unread" and sc.at[id(sc.log[0])] == "black"  # the bottom was never seen: not "no_label"
     assert [i for s, i in sent if s == "REJECT"][0] == "put the block into the black bin with the right arm"
-    assert h.show_info["delivery"] == "right_ee" and h.sset["where"] == "handoff"
+    assert h.show_info["delivery"] == "right_ee" and h.sset["where"] in ("handoff", "orig")  # (a fitted height a few mm taller can leave no hand-off spot: it is put back where it was)
 
 
 def test_faces_the_arm_cannot_show_fall_back_to_spin_pushes():
     h, sc, sent = run([parcel(B, face="bottom", **CUBE)], BASE)
     order = [t for t in h.entered if t in ("SHOW", "SHOWSET", "SPIN")]
-    assert order[:3] == ["SHOW", "SHOWSET", "SPIN"] and h.entered.count("SPIN") >= 1 and h.sm.results[0]["reason"] == "no_label"
+    assert order[:3] == ["SHOW", "SHOWSET", "SPIN"] and h.entered.count("SPIN") >= 1 and h.sm.results[0]["reason"] == "unread"
 
 
 @pytest.mark.parametrize("pick", ["left_ee", "right_ee"])
@@ -145,7 +159,7 @@ def test_set_down_is_inside_the_delivery_arms_grasp_region_and_feasible_through_
     fit = fit_of((0.30, 0.0), 0, (0.038, 0.038))
     p = look.show_plan(pick, fit, SC)
     n = len(p["calls"])
-    for done in (4, n):  # just lifted, after the last view
+    for done in (5, n):  # just lifted, after the last view
         s = look.set_down(p, deliv, done, SC)
         assert s["where"] == "handoff" and [c["tag"] for c in s["calls"]][-3:] == ["down", "release", "retreat"]
         spot, f2 = s["spot"], s["fit"]
@@ -157,6 +171,8 @@ def test_set_down_is_inside_the_delivery_arms_grasp_region_and_feasible_through_
         grips = [c["grip"] for c in s["calls"]]
         assert grips[-3:] == [SC["grip_close"], SC["grip_open"], SC["grip_open"]]
     assert look.set_down(p, deliv, 3, SC)["where"] == "orig" and look.set_down(p, deliv, 1, SC)["calls"] == []  # closed on it at the table / never gripped
+    s4 = look.set_down(p, deliv, 4, SC)  # 2 cm up: back down to the grasp pose, then let go
+    assert s4["where"] == "orig" and [c["tag"] for c in s4["calls"]] == ["down", "release", "retreat"] and np.allclose(s4["calls"][1]["ee"], p["calls"][2]["ee"])
 
 
 def test_held_parcel_is_a_box_hanging_from_the_fingertips():
@@ -170,3 +186,10 @@ def test_held_parcel_is_a_box_hanging_from_the_fingertips():
     rpy70 = np.array([0.0, np.radians(70), 0.3])
     ee70 = look.to_arm(arm, tip, SC) - look.rpy_to_matrix(rpy70) @ look.TCP
     assert look.held_low(arm, ee70, rpy70, hold70, SC) == pytest.approx(look.TABLE_Z, abs=1e-9)
+    for pitch in (70, 75, 80, 85, 90):  # explicit world-frame corners: flat on the table at every grasp pitch, 8 distinct corners, the tip inside the box
+        hp = (0.076, 0.102, 0.05, np.radians(pitch))
+        r = np.array([0.0, np.radians(pitch), -0.4])
+        e = look.to_arm(arm, tip, SC) - look.rpy_to_matrix(r) @ look.TCP
+        cs = look.held_corners(arm, e, r, hp, SC)
+        assert len({tuple(np.round(c, 6)) for c in cs}) == 8 and cs[:, 2].min() == pytest.approx(tip[2] - (hp[2] - SC["grasp_depth"]), abs=1e-9)
+        assert look.held_low(arm, e, r, hp, SC) == pytest.approx(cs[:, 2].min())

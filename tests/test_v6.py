@@ -23,7 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sim" / "qr_sort_ta
 import build_task as bt  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
-BASE = load_yaml(ROOT / "configs/task_qr_sort.yaml")
+BASE = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "reject_mode": "tray"}  # old tray flow; floor_right: test_v9
+FLOOR = load_yaml(ROOT / "configs/task_qr_sort.yaml")
 ROBOT = load_yaml(ROOT / "configs/ex001_6r.yaml")
 BIG = {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}
 NOSLIDE = {**BASE, "slide": {**BASE["slide"], "enabled": False}, "show": {**BASE["show"], "enabled": False}}  # the hand-off (SLIDE) has its own tests in test_v7, SHOW in test_v8
@@ -32,18 +33,13 @@ GAIN = 0.05
 LC = {**BASE["look"], **BASE["spin"]}
 
 
-def synth_mask(c, yaw_deg, half, wh=(1280, 720)):
-    """Head-camera change mask of a box (centre xy root, yaw, face half-extents m) whose top face is at table + parcel_h."""
-    y = np.radians(yaw_deg)
-    R = np.array([[np.cos(y), -np.sin(y)], [np.sin(y), np.cos(y)]])
-    pts = [np.asarray(c) + R @ [sx * half[0], sy * half[1]] for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-    px = np.array([look.table_to_pixel((*p, look.TABLE_Z + LC["parcel_h"]), wh) for p in pts], np.int32)
-    m = np.zeros(wh[::-1], np.uint8)
-    return cv2.fillPoly(m, [px], 255)
+def synth_mask(c, yaw_deg, half, wh=(1280, 720), h=None):
+    """Head-camera change mask of a box (centre xy root, yaw, footprint half-extents m, height h = parcel_h): the filled silhouette of its 8 corners."""
+    return look.box_mask(c, np.radians(yaw_deg), half[0], half[1], LC["parcel_h"] if h is None else h, wh)
 
 
-def fit_of(c, yaw_deg, half=(0.06, 0.04)):
-    return look.fit_parcel(synth_mask(c, yaw_deg, half), (1280, 720), LC)
+def fit_of(c, yaw_deg, half=(0.06, 0.04), h=None):
+    return look.fit_parcel(synth_mask(c, yaw_deg, half, h=h), (1280, 720), LC)
 
 
 def ev(presence=0.06, kroi=0.08, codes=(), bins=None, **kw):
@@ -94,7 +90,7 @@ def test_inspect_retries_are_bounded_by_tries_and_zero_tries_skips_inspect():
     scan(sm)
     while sm.state == "SCAN":
         sm.step(ev())
-    assert sm.state == "REJECT" and sm.reason == "no_label" and "INSPECT" not in sm.tries
+    assert sm.state == "REJECT" and sm.reason == "unread" and "INSPECT" not in sm.tries  # only the top was seen: never "no_label"
 
 
 def test_verify_retries_are_bounded_over_the_whole_plan_including_handover():
@@ -145,9 +141,9 @@ def test_qr_confirmation_is_per_camera_per_parcel_and_a_valid_decode_beats_the_g
     sm = StateMachine(NOSPIN)
     scan(sm, kroi=0.0)
     sm.step(ev(kroi=0.0))
-    assert sm.state == "SCAN"  # garbage waits for the confirmation window (2 calls)
+    assert sm.state == "SCAN"
     sm.step(ev(kroi=0.0))
-    assert sm.reason == "garbage"
+    assert sm.reason is None and sm.state == "SCAN"  # no colour shortcut: a low kraft fraction never rejects, the search goes on
     sm = StateMachine(NOSPIN)
     scan(sm, kroi=0.0)
     sm.step(ev(kroi=0.0, raw=[A]))  # a raw valid decode on the first SCAN frame (count 1, unconfirmed): wait for its confirmation frame
@@ -219,20 +215,20 @@ def test_spin_pushes_until_the_label_shows_then_routes_with_the_lane_arm(tmp_pat
     assert max(spent) > 5 * BASE["budget"]["scripted_call_s"] and any(l.get("spin") for l in lines)
 
 
-def test_spin_never_shows_a_label_then_no_label_reject_with_right_arm():
+def test_spin_never_shows_a_label_then_unread_reject_with_right_arm():
     h, sc, sent = run_spin([parcel(A, spin=99)])
-    assert h.entered.count("SPIN") == BASE["spin"]["tries"] and h.sm.results[0]["reason"] == "no_label"
+    assert h.entered.count("SPIN") == BASE["spin"]["tries"] and h.sm.results[0]["reason"] == "unread"  # the bottom was never seen
     assert sc.at[id(sc.log[0])] == "black" and "INSPECT" not in [s for s, _ in sent]
     assert [i for s, i in sent if s == "REJECT"][0] == "put the block into the black bin with the right arm"
     assert h.spin is not None  # the parcel at ZONE is reachable: the pushes really were planned
 
 
-def test_spin_inspect_after_spin_and_big_parcels_skip_spin():
+def test_spin_inspect_after_spin_and_big_parcels_search_too():
     h, sc, sent = run_spin([nolabel()], {**NOSLIDE, "tries": {**BASE["tries"], "INSPECT": 1}})
     ss = [s for i, (s, _) in enumerate(sent) if not i or s != sent[i - 1][0]]
     assert ss[:5] == ["IDLE", "SCAN", "SPIN", "INSPECT", "REJECT"]
-    h, sc, sent = run_spin([parcel(A, big=True, hidden=99)])  # big: no SPIN, INSPECT tries 0 -> reject
-    assert "SPIN" not in [s for s, _ in sent] and h.sm.results[0]["reason"] == "no_label"
+    h, sc, sent = run_spin([parcel(A, big=True, hidden=99)])  # big parcels search too (no skip); INSPECT tries 0 -> unread reject
+    assert "SPIN" in [s for s, _ in sent] and h.sm.results[0]["reason"] == "unread"
     h, sc, sent = run_spin([parcel(A, big=True, hidden=99)], {**NOSLIDE, "tries": {**BASE["tries"], "INSPECT": 1}})
     assert [i for s, i in sent if s == "INSPECT"][0] == "lift the block with both arms and turn it over"
 
@@ -251,7 +247,7 @@ def test_unreachable_parcel_spin_tries_are_skipped_quickly_to_reject():
     while sm.state == "SPIN":
         sm.step(ev(spin_push=0, spin_calls=1))  # what the harness sends when no push is feasible
         n += 1
-    assert n == BASE["spin"]["tries"] and sm.state == "REJECT" and sm.reason == "no_label"
+    assert n == BASE["spin"]["tries"] and sm.state == "REJECT" and sm.reason == "unread"
 
 
 # --- push paths ---------------------------------------------------------------------------------------------------------------
@@ -302,7 +298,8 @@ def test_planned_contact_lies_on_the_fitted_face_of_a_rotated_box_and_implausibl
         for c in ((0.30, 0.0), (0.30, 0.05)):
             fit = fit_of(c, yaw, (0.06, 0.04))
             assert fit and np.allclose(sorted(fit["half"]), (0.04, 0.06), atol=0.006) and np.allclose(fit["c"], c, atol=0.006)
-            assert np.isclose(abs(np.cos(fit["yaw"] - np.radians(yaw))) % 1, 1, atol=0.02) or np.isclose(abs(np.sin(fit["yaw"] - np.radians(yaw))), 1, atol=0.02)
+            d = (fit["yaw"] - np.radians(yaw)) % (np.pi / 2)
+            assert min(d, np.pi / 2 - d) < 0.04
             plan = look.spin_plan(fit, LC)
             assert plan, (yaw, c)
             P, n = plan["contact"][:2] - fit["c"], plan["normal"]
@@ -337,12 +334,12 @@ def test_budget_is_per_case_counts_idle_and_admits_a_search_try_only_if_it_leave
     scan(sm)
     sm.calls = 10**3
     sm.step(ev())
-    assert sm.state == "REJECT" and sm.reason == "budget" and "INSPECT" not in sm.tries
+    assert sm.state == "REJECT" and sm.reason == "unread" and "INSPECT" not in sm.tries  # the search ran out of budget before every face was seen
     sm = StateMachine({**BASE, "budget": {**BIG, "case_s": 90.0, "deliver_reserve_s": 60.0}, "tries": {**BASE["tries"], "INSPECT": 0}})
     scan(sm)
     sm.calls = 10**3  # a SPIN try (12 x 2.2 s) + home + reserve does not fit either
     sm.step(ev())
-    assert sm.state == "REJECT" and sm.reason == "budget" and "SPIN" not in sm.tries
+    assert sm.state == "REJECT" and sm.reason == "unread" and "SPIN" not in sm.tries
     sm = mk(1000.0, sim_case_s=100.0)  # the sim's own episode end caps it
     assert sm.remaining() == 100.0
 

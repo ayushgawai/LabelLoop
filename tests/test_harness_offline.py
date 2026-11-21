@@ -10,7 +10,7 @@ from labelloop import look
 from labelloop.harness import Harness
 from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
-BASE = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
+BASE = {**load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml"), "reject_mode": "tray"}  # the tray flow (floor swipe: test_v9)
 CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "show": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow
 NOLOOK = CFG
 LOOKCFG = {**CFG, "look": {**BASE["look"], "enabled": True}}
@@ -36,8 +36,7 @@ def test_stream_of_five_routes_each_parcel_and_never_latches_done(tmp_path):
     assert [r["outcome"] for r in h.sm.results] == ["ok"] * 5 and not h.done
     instrs = [i for _, i in sent if i]
     assert "put the block into the blue bin with the right arm" in instrs and "put the block into the red bin with the right arm" in instrs
-    assert "put the object into the black bin with the right arm" in instrs
-    assert "hand the object from the left arm to the right arm" in instrs and "pick up the block with the left arm and turn it over" in instrs
+    assert "hand the block from the left arm to the right arm" in instrs and "pick up the block with the left arm and turn it over" in instrs
     for _ in range(20):  # keeps waiting for the next parcel, silently
         assert h.step(*scene.observe()) is None and not h.done
     lines = [json.loads(l) for l in log.read_text().splitlines()]
@@ -89,11 +88,11 @@ def test_label_never_found_is_no_label_reject_via_handover():
     assert states(sent)[2:5] == ["INSPECT", "HANDOVER", "REJECT"]
 
 
-def test_big_parcel_is_lifted_by_both_arms_and_garbage_is_handed_over():
+def test_big_parcel_is_lifted_by_both_arms_and_an_unlabelled_one_is_searched_then_handed_over():
     scene = FakeScene([parcel(A, big=True), garbage()])
     h, sent = run(scene, until=lambda h: h.sm.parcels == 2)
     assert [scene.at[id(o)] for o in scene.log] == ["blue", "black"]
-    assert states(sent)[:9] == ["IDLE", "SCAN", "LIFT2", "HOME", "VERIFY", "IDLE", "SCAN", "HANDOVER", "REJECT"]
+    assert states(sent)[:6] == ["IDLE", "SCAN", "LIFT2", "HOME", "VERIFY", "IDLE"] and "INSPECT" in states(sent)[6:] and h.sm.results[1]["reason"] == "no_label"
     assert "pick up the block with both arms and put it into the blue bin" in [i for _, i in sent]
 
 
