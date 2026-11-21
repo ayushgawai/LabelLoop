@@ -332,10 +332,12 @@ def test_prefill_parcels_rest_label_up_inside_their_bins_and_are_not_assigned():
         for bn, v in bt.PREFILL.items():
             base = v.rsplit("_", 1)[0]
             assert v.endswith("_pz") and bt.variants(base)[v]["labels"] == ("pz",) and pre[f"pre_{v}"]["asset"]["id"] == f"labelloop_box_{v}"
-            pose = sc["layout"]["nodes"][f"pre_{v}"]["placement"]["poses"][0]
-            (px, py, pz), (bx, by, _) = pose["position"], sc["layout"]["nodes"][bn]["placement"]["poses"][0]["position"]
+            assert sc["layout"]["nodes"][f"pre_{v}"]["placement"]["poses"][0]["position"][2] < -2  # parked at load (solver treats bins as solid)
+            ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"][f"prefill_{bn}"]
+            (x0, x1), (y0, y1) = ev["to_xy_range"]; px, py, pz = (x0 + x1) / 2, (y0 + y1) / 2, ev["z"]
+            bx, by, _ = sc["layout"]["nodes"][bn]["placement"]["poses"][0]["position"]
             sx, sy, sz = bt.variants(base)[v]["size"]
-            assert pose["orientation"] == bt.yaw_quat(math.pi + bt.BIN_YAW[bn])  # label face up (+z), turned with the bin
+            assert ev["yaw_range"] == [math.pi + bt.BIN_YAW[bn]] * 2 and ev["interval_range_s"] == [0.5, 0.5]  # label up, turned with the bin
             assert abs(pz - (bt.SURFACE_Z + bt.WALL + sz / 2)) < 1e-3
             L, W, _ = bt.BINS[bn]["size"]
             assert abs(px - bx) < 1e-6 and abs(py - by) < 1e-6 and sx <= L - 2 * bt.WALL and sy <= W - 2 * bt.WALL  # centred, fits the cavity
@@ -358,7 +360,7 @@ def test_position_cases_40_to_47():
     assert list(s["late"]) == list(props.ACTIVE) and list(s["late"].values()) == [6.0 + 150 * i for i in range(7)] and s["anywhere"] and s["prefill"]
     for n in range(40, 48):
         ev = bt.dag(n, bt.CASES[n])["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
-        for b, e in ev.items():
+        for b, e in ((b, e) for b, e in ev.items() if b.startswith("human_adds_")):
             assert "to_xy_range" not in e and e["yaw_range"] == [-math.pi, math.pi] and e["anywhere"]["size"] == bt.anywhere_cfg(b[len("human_adds_"):])["size"]
     for b in props.ACTIVE:
         assert bt.anywhere_area(b)[0] > 0

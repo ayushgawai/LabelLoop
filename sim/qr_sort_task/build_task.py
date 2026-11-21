@@ -282,10 +282,9 @@ def scene(n, c):
     # explicit pose (origin = underside centre, on the bare tabletop): the layout solver can't pack a table-sized surface object
     nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "pose", "poses": [
         {"id": "on_table", "position": [TABLE_C[0], TABLE_C[1], TABLE_Z], "orientation": [0, 0, 0, 1]}]}}
-    for bn, v in pre.items():
-        ex, ey = to_local(*ALL_XY[bn])
-        nodes[f"pre_{v}"] = {"object": f"pre_{v}", "placement": {"type": "pose", "poses": [{"id": "in_bin", "orientation": yaw_quat(math.pi + BIN_YAW[bn]), "position": [
-            round(ex, 4), round(ey, 4), round(SURFACE_Z + WALL + variants(v.rsplit("_", 1)[0])[v]["size"][2] / 2, 4)]}]}}
+    for k, (bn, v) in enumerate(pre.items()):  # parked at load (the layout solver treats a bin as a solid box: "objects overlap"); event prefill_* puts them in
+        nodes[f"pre_{v}"] = {"object": f"pre_{v}", "placement": {"type": "pose", "poses": [
+            {"id": "parked", "position": [0.5 + 0.5 * k, 8.0, -5.0], "orientation": [0, 0, 0, 1]}]}}
     for i, v in enumerate(vs):  # parked far below the table until the human event fires (distinct spots)
         nodes[f"box_{v}"] = {"object": f"box_{v}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5 + 0.5 * (i % 8), 3.0 + 0.5 * (i // 8), -5.0], "orientation": [0, 0, 0, 1]}]}}
@@ -307,6 +306,11 @@ def dag(n, c):
         **({"anywhere": anywhere_cfg(b), "yaw_range": [-math.pi, math.pi]} if c.get("anywhere") else
            {"to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]]}), "z": SURFACE_Z + spec(b)["size"][2] / 2,
         "avoid": [f"box_{v}" for o in late if o != b for v in variants(o)]} for b, t in late.items()}
+    for bn, v in (PREFILL if c.get("prefill") else {}).items():  # prefill: at 0.5 s teleport the parked parcel label-up onto the receptacle floor
+        ex, ey = to_local(*ALL_XY[bn])
+        events[f"prefill_{bn}"] = {"_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [0.5, 0.5], "is_global_time": True,
+                                   "object_name": f"pre_{v}", "to_xy_range": [[round(ex, 4) - 1e-4, round(ex, 4) + 1e-4], [round(ey, 4) - 1e-4, round(ey, 4) + 1e-4]],
+                                   "yaw_range": [math.pi + BIN_YAW[bn]] * 2, "z": round(SURFACE_Z + WALL + variants(v.rsplit("_", 1)[0])[v]["size"][2] / 2, 4)}
     sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, **({"event_component": {"terms": events}} if events else {})}
     longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s
     tags = [{"mode": 0, "tags": SCENE(n)}]
