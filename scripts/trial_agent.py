@@ -50,6 +50,12 @@ What we learned so far (do not repeat these):
 - Fixed since then (Claude, 13:30): a parcel already on the table at the start was never read in SCAN (its label was filtered out),
   so the harness wasted a CENTER slide first; and small dense QR codes (the black box) are now read via the printed ZIP (OCR,
   confirmed over 2 frames). Expect IDLE -> SCAN -> PLACE within ~3 calls now; if you see CENTER, the label was not read.
+- Agent run 2 (13:16): trial 1 raw image + long arm/position PLACE wording: WALLX worked on the parcel but could not lift the wide
+  black box; trial 2 (overlay "parcel", same wording): WALLX lifted the BLACK bin into the red bin. The harness now latches HOLD by
+  itself when a non-target bin moves (flag "bin_moved"); that ends the trial, so reset the scene (human) before the next one.
+- NEXT TESTS, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
+  raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
+  (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.
 - WORDING MUST BE GENERIC: the judged cases use unknown parcels, so never use a product name (no "Bhindi Masala").
 
 Visual prompt (run_trial "overlay"): WALLX never reads grid numbers in text, but our relay can draw on the head image it sees:

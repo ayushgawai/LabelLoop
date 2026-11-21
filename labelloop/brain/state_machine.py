@@ -58,6 +58,7 @@ class StateMachine:
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
+        self.binhit = 0  # event_fast: consecutive calls with a non-target bin moved
         self.where = None  # event_fast: "front left" ... (harness where_words), for {where}
         self.near = None  # event_fast: the arm nearest the detected object ("left" / "right"), for CENTER's wording
         self.landed = False  # event_fast: the action's success check held
@@ -104,6 +105,14 @@ class StateMachine:
         b, c = self.cfg["budget"], self.cfg
         cost = c["max_calls"].get(s, 1) * b["wallx_call_s"] if s in WALLX else c[s.lower()]["est_calls"] * b["scripted_call_s"]
         return self.remaining() - cost - c["home_calls"] * b["scripted_call_s"] >= b["deliver_reserve_s"]
+
+    def _bin_moved(self, ev, level=0.8, calls=3):
+        """A NON-target bin region changed >= level for `calls` calls in a row: the bin itself moved (real agent trial: WALLX lifted the
+        black bin into the red one: 0.93+, persistent; an arm hovering over a bin reads 0.4-0.6)."""
+        target = self.cfg["lanes"].get(self.lane, "black")
+        hit = any(v >= level for k, v in ev.get("bins", {}).items() if k != target)
+        self.binhit = self.binhit + 1 if hit else 0
+        return self.binhit >= calls
 
     def _center(self):  # event_fast: the object is there but its label cannot be read -> WALLX slides it into the open middle for a fresh look
         c = self.cfg
@@ -299,6 +308,9 @@ class StateMachine:
                 self._go("HOME", "budget")
             elif self.calls >= cfg["max_calls"][s]:
                 self._go(self.plan[1], "handed over")
+        elif cfg.get("event_fast") and s in WALLX and self._bin_moved(ev):  # WALLX grabbed a bin: latch HOLD, no retry / HOME until a human resets
+            self.flags.append("bin_moved")
+            self._go("HOLD", "bin_moved")
         elif s in ACTIONS and cfg.get("event_fast"):  # verified DURING the calls; a retry goes straight back to the action, HOME only to end the parcel
             self.ok = self.ok + 1 if self._success(ev) else 0
             if self.ok >= cfg["ok_calls"]:

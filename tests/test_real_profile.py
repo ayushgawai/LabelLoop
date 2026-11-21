@@ -379,3 +379,16 @@ def test_parcel_present_at_start_routes_in_scan(name, ocr):  # the parcel is in 
     h = Harness({**CFG, "profile": "real", "event_fast": True, "real_safe": True})
     states = [(h.step({"front": img, "left_wrist": img, "right_wrist": img}, {"left_ee": dict(z), "right_ee": dict(z)}), h.sm.state)[1] for _ in range(5)]
     assert "PLACE" in states and "CENTER" not in states
+
+
+def test_bin_moved_latches_hold():  # agent trial 2: WALLX lifted the black bin into the red one -> stop, no retry, no HOME
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True})
+    sm = StateMachine(cfg)
+    sm.lane, sm.state, sm.plan = [k for k, v in cfg["lanes"].items() if v == "red"][0], "PLACE", ["PLACE"]
+    ev = {"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0.05, "red": 0.66, "black": 0.5}}
+    for _ in range(5):  # an arm over the black bin (0.4-0.6) is not a moved bin
+        sm.step(ev)
+    assert sm.state == "PLACE"
+    for _ in range(3):
+        out = sm.step({**ev, "bins": {"blue": 0.05, "red": 0.7, "black": 0.95}})
+    assert sm.state == "HOLD" and out is None and "bin_moved" in sm.flags
