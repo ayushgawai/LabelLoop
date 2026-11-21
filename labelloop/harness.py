@@ -21,7 +21,7 @@ class Harness:
     def reset(self):
         self.sm.reset()
         self.home = None  # episode-start pose, captured on the first step()
-        self.views = []  # LOOK viewpoints, built at SCAN -> LOOK
+        self.views, self.point, self.look_info = [], None, None  # LOOK viewpoints / point_test pose, built at SCAN -> LOOK
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
@@ -50,11 +50,10 @@ class Harness:
                 self.ref, self.empty, self.sm.rebase = scene.zone_ref(front, cfg), 0, False
         kroi = scene.kraft_in_roi(front, cfg)
         bins = {c: scene.presence(front, r, cfg, "bin_rois", c) for c, r in self.bin_refs.items()}  # {} until the first SCAN
-        n = len(self.views) * self.look_span()
+        n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n})
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
-            lc = self.cfg["look"]
-            self.views = look.views(look.pixel_to_table(*scene.centroid(front, self.ref, cfg), front.shape[1::-1]), lc)
+            self.plan_look(front, cfg)
         if before == "IDLE" and self.sm.state == "SCAN":  # object arrived, arms home: snapshot every bin
             self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
@@ -64,11 +63,27 @@ class Harness:
                               confirmed=confirmed, lane=self.sm.lane, presence=pres, bin_change=bins, kraft_roi=kroi,
                               left_gripper=state["left_ee"]["gripper"],
                               right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
-                              flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index)
+                              flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index, look=self.look_info)
         return instr
 
+    def plan_look(self, front, cfg):
+        """Parcel point + footprint from the head-camera mask, then the IK-gated views (or the point_test pose)."""
+        lc, wh = self.cfg["look"], front.shape[1::-1]
+        # the changed blob is mostly top + front face, so intersect the head ray at the aim-point height (table + target_h), not the table
+        p = look.pixel_to_table(*scene.centroid(front, self.ref, cfg), wh, look.TABLE_Z + lc["target_h"])
+        hw = look.footprint(scene.changed_box(front, self.ref, cfg), wh, lc)
+        if lc.get("point_test"):
+            ee, rpy, err = look.point_pose("left_ee", p + [0, 0, 0.10], lc)  # fingertips 0.10 m over the estimated point
+            self.point = ("left_ee", ee, rpy)
+            self.look_info = {"point": p.tolist(), "ee": ee.tolist(), "rpy": rpy.tolist(), "ik_err": float(err)}
+            return
+        p[2] = look.TABLE_Z
+        self.views = look.views(p, lc, hw)
+        self.look_info = {"point": p.tolist(), "hw": hw, "views": [(a, ee.tolist(), i["ik_err"], i["clear"]) for a, ee, _, i in self.views]}
+
     def look_span(self):
-        return self.cfg.get("look", {}).get("move_calls", 0) + self.cfg.get("look", {}).get("dwell_calls", 0)
+        lc = self.cfg.get("look", {})
+        return lc.get("via_calls", 0) + lc.get("move_calls", 0) + lc.get("dwell_calls", 0)
 
     @property
     def look_index(self):
@@ -81,9 +96,20 @@ class Harness:
         """WALLX-shaped reply for a scripted step (home, look-around), or None when WALLX should answer."""
         if self.sm.state == "LOOKHOME" or (self.cfg.get("scripted_home") and self.sm.state == "HOME"):
             return home_response(embodiment, state, self.home)
+        if self.sm.state == "LOOK" and self.point:  # point_test: left fingertips over the parcel, right arm home, no WALLX
+            arm, ee, rpy = self.point
+            return move_response(embodiment, state, {arm: {"position": ee.tolist(), "rotation_rpy": rpy.tolist()}, "right_ee": self.home["right_ee"]})
         if self.look_index is not None:
-            arm, pos, rpy = self.views[self.look_index]
-            return move_response(embodiment, state, {arm: {"position": pos.tolist(), "rotation_rpy": rpy.tolist()}})
+            lc = self.cfg["look"]
+            arm, pos, rpy, _ = self.views[self.look_index]
+            other = "right_ee" if arm == "left_ee" else "left_ee"
+            t = {other: self.home[other]}  # the idle arm goes home while this one looks
+            if self.sm.calls % self.look_span() < lc["via_calls"]:  # lift straight up first so the sweep clears the parcel
+                p = list(state[arm]["position"])
+                t[arm] = {"position": [p[0], p[1], look.TABLE_Z + 0.30 - lc["arm_z"]]}
+            else:
+                t[arm] = {"position": pos.tolist(), "rotation_rpy": rpy.tolist()}
+            return move_response(embodiment, state, t)
         if self.sm.state == "LOOK":  # every viewpoint unreachable: just hold
             return move_response(embodiment, state, {})
 

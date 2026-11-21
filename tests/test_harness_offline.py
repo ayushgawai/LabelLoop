@@ -1,8 +1,12 @@
 import json
+
+import numpy as np
+import pytest
 from pathlib import Path
 
 from labelloop.config import load_yaml
 from labelloop.eval.runlog import RunLog
+from labelloop import look
 from labelloop.harness import Harness
 from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
@@ -105,6 +109,11 @@ def test_codes_inside_bins_are_ignored_while_inspecting_but_count_elsewhere():
     assert h.sm.state == "HANDOVER" and h.sm.code == B
 
 
+FAKE = [("left_ee", np.array([0.1, 0.2, 0.2]), np.array([0, 0.5, 0.0]), {"ik_err": 0.0, "clear": 0.1}),
+        ("right_ee", np.array([0.15, 0.1, 0.2]), np.array([0, 0.5, 0.4]), {"ik_err": 0.0, "clear": 0.1}),
+        ("left_ee", np.array([0.2, 0.0, 0.2]), np.array([0, 0.5, -0.4]), {"ik_err": 0.0, "clear": 0.1})]
+
+
 def run_look(scene, **kw):  # like run(), but tells the mock which look-around view the wrist camera is at
     h, sent = Harness(CFG), []
     while not h.done and len(sent) < 400:
@@ -117,7 +126,8 @@ def run_look(scene, **kw):  # like run(), but tells the mock which look-around v
     return h, sent
 
 
-def test_look_finds_label_on_a_wrist_view_and_skips_inspect():
+def test_look_finds_label_on_a_wrist_view_and_skips_inspect(monkeypatch):
+    monkeypatch.setattr(look, "views", lambda p, cfg, hw=None: FAKE)  # flow only; real IK is covered in test_look.py
     scene = FakeScene([parcel(A, hidden=99, look=2)])
     h, sent = run_look(scene)
     ss = states(sent)
@@ -126,9 +136,50 @@ def test_look_finds_label_on_a_wrist_view_and_skips_inspect():
     assert all(i is None for s, i in sent if s in ("LOOK", "LOOKHOME")) and len(h.views) == 3
 
 
-def test_look_sees_nothing_then_inspect_then_no_label_reject():
+def test_look_sees_nothing_then_inspect_then_no_label_reject(monkeypatch):
+    monkeypatch.setattr(look, "views", lambda p, cfg, hw=None: FAKE)
     scene = FakeScene([parcel(A, hidden=99)])
     h, sent = run_look(scene)
     ss = states(sent)
     assert ss.index("LOOK") < ss.index("LOOKHOME") < ss.index("INSPECT") and h.sm.results[0]["reason"] == "no_label"
-    assert sum(s == "LOOK" for s, _ in sent) == 3 * 4 and scene.at[id(scene.log[0])] == "black"
+    assert sum(s == "LOOK" for s, _ in sent) == 3 * h.look_span() and scene.at[id(scene.log[0])] == "black"
+
+
+def test_scripted_reply_drives_the_view_arm_via_a_lift_and_sends_the_other_arm_home(monkeypatch):
+    monkeypatch.setattr(look, "views", lambda p, cfg, hw=None: FAKE)
+    lc, scene, h = CFG["look"], FakeScene([parcel(A, hidden=99)]), Harness(CFG)
+    seen = set()
+    for _ in range(100):
+        imgs, st = scene.observe()
+        h.step(imgs, st)
+        scene.apply(None)
+        if h.sm.state != "LOOK":
+            continue
+        st["left_ee"]["position"], st["right_ee"]["position"] = [0.3, 0.3, 0.1], [0.4, -0.3, 0.1]
+        r = h.scripted_reply("e", st)["actions"]
+        arm, pos, rpy, _ = FAKE[h.look_index]
+        other = "right_ee" if arm == "left_ee" else "left_ee"
+        k = h.sm.calls % h.look_span()
+        want = [st[arm]["position"][0], st[arm]["position"][1], look.TABLE_Z + 0.30 - lc["arm_z"]] if k < lc["via_calls"] else pos
+        assert np.allclose(r[arm]["position"][-1], want) and np.allclose(r[other]["position"][-1], h.home[other]["position"])
+        seen.add((h.look_index, k < lc["via_calls"]))
+    assert seen == {(i, v) for i in range(3) for v in (True, False)}
+
+
+def test_point_test_holds_the_left_fingertips_over_the_parcel_without_wallx(monkeypatch):
+    monkeypatch.setattr(look, "views", lambda *a, **k: pytest.fail("no views in point_test"))
+    cfg = {**CFG, "look": {**CFG["look"], "point_test": True}}
+    scene, h = FakeScene([parcel(A, hidden=99)]), Harness(cfg, runlog=None)
+    for _ in range(60):
+        imgs, st = scene.observe()
+        h.step(imgs, st)
+        scene.apply(None)
+        if h.sm.state == "LOOK":
+            break
+    assert h.sm.state == "LOOK" and h.point and h.look_info["point"][2] == pytest.approx(0.065)
+    arm, ee, rpy = h.point
+    tip = look.tip_of(arm, ee, rpy, cfg["look"])
+    assert arm == "left_ee" and np.allclose(tip[:2], h.look_info["point"][:2], atol=0.01) and tip[2] == pytest.approx(0.165, abs=0.01)
+    for _ in range(20):  # holds: never leaves LOOK on its own
+        h.step(*scene.observe())
+    assert h.sm.state == "LOOK" and h.scripted_reply("e", scene.observe()[1]) is not None

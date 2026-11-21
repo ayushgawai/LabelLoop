@@ -18,12 +18,19 @@ scan_max_calls: 6         # kraft object, no confirmed decode after this many SC
 home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
 scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
-look:                     # scripted no-contact look-around (SCAN -> LOOK): a wrist camera visits each side of the parcel, no WALLX call
+look:                     # scripted no-contact look-around (SCAN -> LOOK): the wrist camera takes oblique views, each gated by IK on the URDF chain, no WALLX call
   enabled: true           # false = SCAN -> INSPECT as before
-  distance: 0.20          # wrist camera horizontal distance from the parcel point (m)
-  height: 0.10            # wrist camera height above the table (m); raised if the EE would sit < 3 cm over it
-  target_h: 0.05          # aim point height above the table (m)
-  reach: 0.55             # skip a view whose EE is further than this from its arm base (m)
+  arm_y: 0.29             # arm base = root + (0, +-arm_y, arm_z). From stock G-asset hints (sim quotes a right EE at (0.1185, -0.29, 0.211)); the URDF says 0.266 / 0.
+  arm_z: 0.03             # CONFIRM both with point_test below
+  point_test: false       # true = at SCAN -> LOOK hold the LEFT fingertips 0.10 m above the estimated parcel point (no WALLX): shows in the head image whether the frame is right
+  standoff: 0.15          # camera horizontal distance from the parcel edge (m); fingertips are ~0.13 m ahead of the camera
+  hw: 0.12                # parcel half-width when the head-mask footprint is unknown (m)
+  cam_h: 0.22             # camera height above the table (m)
+  sep_deg: 60             # views at least this far apart in azimuth around the parcel (deg); candidates every 15 deg over the near half-circle
+  aim_down: 0.4           # optical axis this far below the target direction (rad): the label lands in the upper image half, the fingers cover the lower
+  target_h: 0.05          # parcel half-height / aim point height above the table (m); the head ray is intersected at this height (the blob is mostly top + front face)
+  finger_clear: 0.05      # fingertips stay this far from the parcel box and above the table (m)
+  via_calls: 1            # calls lifting to a via-point (z_table + 0.30 above the current EE xy; the other arm goes home) before each view
   move_calls: 2           # calls driving to each view, then
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early

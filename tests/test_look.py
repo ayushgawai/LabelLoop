@@ -17,23 +17,72 @@ def test_pixel_to_table_centre_and_mirror():
     assert np.allclose(look.pixel_to_table(320, 180, (640, 360)), look.pixel_to_table(640, 360))  # scaled image
 
 
-def test_every_view_aims_the_wrist_camera_at_the_target():
-    assert [a for a, *_ in look.views([0.35, 0.10, 0.015], LC)] == ["left_ee"] * 2 + ["right_ee"]  # far side: EE beyond reach 0.55
-    for p in ([0.35, 0.10, 0.015], [0.35, 0.0, 0.015]):
-        vs = look.views(p, {**LC, "reach": 0.7})
-        assert [a for a, *_ in vs] == ["left_ee"] * 3 + ["right_ee"]
-        for arm, pos, rpy in vs:
-            R = rpy_to_matrix(rpy)
-            cam = np.array(pos) + R @ look.CAM_OFF + [0, look.ARM_Y[arm], 0]
-            axis = R @ rpy_to_matrix([0, look.CAM_TILT, 0]) @ [1, 0, 0]
-            T = np.array(p) + [0, 0, LC["target_h"]]
-            d = T - cam
-            assert np.linalg.norm(d - (d @ axis) * axis) < 0.01 and d @ axis > 0
-            assert abs(np.hypot(*d[:2]) - LC["distance"]) < 1e-6 and pos[2] >= 0.015 + 0.03 - 1e-3 and np.linalg.norm(pos) <= 0.7
+def hom(R=np.eye(3), p=(0, 0, 0)):
+    T = np.eye(4)
+    T[:3, :3], T[:3, 3] = R, p
+    return T
 
 
-def test_unreachable_views_are_skipped():
-    assert len(look.views([1.5, 0, 0.015], LC)) == 0
+def rot(axis, a):
+    c, s = np.cos(a), np.sin(a)
+    return {"x": [[1, 0, 0], [0, c, -s], [0, s, c]], "y": [[c, 0, s], [0, 1, 0], [-s, 0, c]], "z": [[c, -s, 0], [s, c, 0], [0, 0, 1]]}[axis]
+
+
+# independent copy of ex001_6r_legacy.urdf (joint origin, axis, limits): homogeneous 4x4 chain, not look.fk
+URDF = [((0, 0, 0.0613), "z", -2.7925, 2.7925), ((0.025, 0, 0.0542), "y", 0, 3.6652), ((-0.26, 0, 0), "y", -2.7925, 0),
+        ((0.2315, 0, 0.075), "y", -1.5708, 1.5708), ((0.0825, 0, 0.085), "z", -1.5708, 1.5708), ((0.0395, 0, -0.0945), "x", -1.9199, 1.9199)]
+
+
+def urdf_fk(q):
+    T = np.eye(4)
+    for (o, ax, lo, hi), a in zip(URDF, q):
+        assert lo - 1e-6 <= a <= hi + 1e-6
+        T = T @ hom(p=o) @ hom(rot(ax, a))
+    return T
+
+
+PARCELS = ([0.30, 0.25, 0.015], [0.30, 0.15, 0.015], [0.35, 0.05, 0.015])
+
+
+def test_views_reproduce_their_ee_pose_through_the_urdf_chain_and_keep_the_fingers_clear():
+    n = 0
+    for ay in (0.29, 0.266):
+        cfg = {**LC, "arm_y": ay}
+        for p in PARCELS:
+            for arm, ee, rpy, info in look.views(p, cfg):
+                T = urdf_fk(info["q"])  # raises if a joint limit is violated
+                assert np.linalg.norm(T[:3, 3] - ee) < 0.01 and np.linalg.norm(T[:3, :3] - rpy_to_matrix(rpy)) < 0.05
+                root = np.array([0, (1 if arm == "left_ee" else -1) * ay, cfg["arm_z"]])
+                tip = T[:3, 3] + T[:3, :3] @ [0.217, 0, -0.01] + root
+                hw, c = cfg["hw"], np.array(p) + [0, 0, cfg["target_h"]]
+                d = np.linalg.norm(np.maximum(np.abs(tip - c) - [hw, hw, cfg["target_h"]], 0))
+                assert d >= cfg["finger_clear"] - 0.01 and tip[2] >= 0.015 + cfg["finger_clear"] - 0.01
+                cam = T[:3, 3] + T[:3, :3] @ look.CAM_OFF + root
+                assert np.hypot(*(cam[:2] - c[:2])) >= hw + cfg["standoff"] - 0.01  # camera standoff
+                n += 1
+    assert n >= 8  # honest floor: this many views survive over the 6 parcel / arm-spacing cases
+
+
+def test_label_is_aimed_aim_down_below_the_target_direction():
+    for arm, ee, rpy, _ in look.views(PARCELS[2], LC):
+        R = rpy_to_matrix(rpy)
+        cam = ee + R @ look.CAM_OFF + [0, (1 if arm == "left_ee" else -1) * LC["arm_y"], LC["arm_z"]]
+        axis = R @ rpy_to_matrix([0, look.CAM_TILT, 0]) @ [1, 0, 0]
+        d = np.array(PARCELS[2]) + [0, 0, LC["target_h"]] - cam
+        below = np.arctan2(-axis[2], np.hypot(*axis[:2])) - np.arctan2(-d[2], np.hypot(*d[:2]))
+        assert abs(below - LC["aim_down"]) < 0.01 and abs(np.arctan2(axis[1], axis[0]) - np.arctan2(d[1], d[0])) < 0.01
+
+
+def test_unreachable_parcel_gets_no_views():
+    assert look.views([1.5, 0, 0.015], LC) == []
+
+
+def test_pixel_to_table_matches_the_sim_readme_measurement():
+    # sim/README.md: head image x ~650 at root y ~0 (env y -0.27); ~1000 px/m near the mats (loose)
+    assert abs(look.pixel_to_table(650, 450)[1]) < 0.05
+    a, b = look.pixel_to_table(550, 450), look.pixel_to_table(750, 450)
+    assert 800 < 200 / abs(a[1] - b[1]) < 1500
+    assert look.pixel_to_table(650, 450, z=0.065)[0] < look.pixel_to_table(650, 450)[0]  # a higher plane meets the head ray nearer
 
 
 def test_move_response_endpoints_and_hold():

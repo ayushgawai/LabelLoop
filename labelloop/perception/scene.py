@@ -45,6 +45,13 @@ def centroid(img, ref, cfg):
     return (x0 + xs.mean(), y0 + ys.mean()) if len(xs) else ((x0 + x1) / 2, (y0 + y1) / 2)
 
 
+def changed_box(img, ref, cfg):
+    """(x0, y0, x1, y1) of the changed pixels of the induction zone in full-image coords, None if nothing changed."""
+    x0, y0, _, _ = roi_box(img, cfg)
+    ys, xs = np.nonzero(_changed(img, ref, cfg))
+    return (x0 + xs.min(), y0 + ys.min(), x0 + xs.max(), y0 + ys.max()) if len(xs) else None
+
+
 def kraft_in_roi(img, cfg):
     """Fraction of the induction zone that is kraft-coloured (parcel vs garbage)."""
     x0, y0, x1, y1 = roi_box(img, cfg)
