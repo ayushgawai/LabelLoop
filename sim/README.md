@@ -90,8 +90,8 @@ The three real open shoe boxes (lids off), measured in inches, length pointing a
 |---|---|---|---|---|
 | `box_z95112` | lane A (blue), QR `420/95112/001` | package 1: Amazon box 9 x 6 x 3.5 in | 229 x 89 x 152 mm, standing on its long edge | kraft, black tape belt, label on top + robot-facing end; mass 0.10-0.20 kg (guess); yaw +-0.1 |
 | `box_z90210` | lane B (red), QR `420/90210/001` | package 2: Amazon box 11 x 8.1 x 4 in | 206 x 279 x 102 mm, flat, long side across | kraft, seam tape along its length, label on top + robot-facing side; 0.15-0.30 kg (guess); **not graspable** |
-| `box_z10001` | unknown ZIP -> black, QR `420/10001/001` | package 3: Amazon padded mailer 10 x 8.5 x 0.5 in | 216 x 254 x 13 mm, flat, long side across | off-white, blue tear band, label on top; 0.05-0.10 kg (guess); rigid in sim; **not graspable** |
-| `box_garbage` | "perfume": no label -> reject tray | package 4: perfume box 6 x 4 x 2 in | 152 x 102 x 51 mm, lying flat, biggest face down | light-blue brushed foil (metallic 0.5, roughness 0.35), grey-bordered name label on top; 0.25-0.40 kg (guess); yaw +-0.3; the real authenticity QR sticker is not modelled |
+| `box_z10001` | LL-09, 94043 -> blue, QR `420/94043/001` | package 3: Amazon padded mailer 10 x 8.5 x 0.5 in | 216 x 254 x 13 mm, flat, long side across | off-white, blue tear band, label on top; 0.05-0.10 kg (guess); rigid in sim; **not graspable** |
+| `box_garbage` | "perfume": LL-10, 95054 -> blue, label top or bottom | package 4: perfume box 6 x 4 x 2 in | 152 x 102 x 51 mm, lying flat, biggest face down | light-blue brushed foil (metallic 0.5, roughness 0.35), grey-bordered name label on top; 0.25-0.40 kg (guess); yaw +-0.3; the real authenticity QR sticker is not modelled |
 
 Sim-only props (nominal sizes, not measured or photographed yet; `props.py`): `z94110` kraft box 3 x 3 x 3 in (lane A, 420/94110/001);
 `z90015` tall kraft box 3 x 5 x 8 in, arrives standing, 3 in across (lane B, 420/90015/001; 76 mm taller than the red bin walls); `z60601` white box
@@ -125,8 +125,8 @@ The induction zone starts empty and a human swipes each parcel in FROM THE LEFT,
 on the mat, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.308..-0.148 = lateral -0.12..+0.04 m) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
 for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
 ACTIVE cases (`props.ACTIVE`: the parcels the user has; all lie flat, label top/bottom only, random per episode), one parcel each at 6 s, timeout 150 s:
-32 bhindi (LL-08, A blue) | 33 iqbar_a (LL-11, B red; IQBAR box, ~6 mm of x play) | 34 miro (LL-14, reject) | 20 z10001 mailer (LL-03, unknown ZIP, reject) |
-35 iqbar_b (same box, NO label, reject) | 22 garbage = perfume box (no label, reject, lies flat) | 28 wallet (no label, reject).
+32 bhindi (LL-08, A blue) | 33 iqbar_a (LL-11, B red; IQBAR box, ~6 mm of x play) | 34 miro (LL-12, B red) | 20 z10001 mailer (LL-09, A blue) |
+35 iqbar_b (same box, NO label, reject) | 22 garbage = perfume box (LL-10, A blue, lies flat) | 28 wallet (no label, reject).
 31 calibration (no parcels, 90 s). 36 stream of all 7 (in that order: bhindi, iqbar_a, miro, z10001, iqbar_b, garbage, wallet) 150 s apart, 6 s ... 906 s, timeout 1080 s.
 Every drop zone fits `INDUCT_ENV` unchanged (no widening). Cases 18, 19, 21, 23-27, 29, 30 were removed (their props stay in props.py, unused).
 Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else swipe into the low black tray. This layout replaced the earlier row layout (bins at y +-0.15,

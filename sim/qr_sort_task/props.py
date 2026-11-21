@@ -37,13 +37,13 @@ PARCELS = {
                    tape=dict(axis="x", mm=72, at=0, rgb=(40, 40, 40))),
     # package 3 = the "mailer" (soft plastic bag parcel): Amazon padded mailer 10 x 8.5 x 0.5 in, lying flat, long side across. NOT graspable
     # (13 mm thick, 216-254 mm wide), rigid in sim (the real one bends). Off-white; blue tear band across it 72 mm from the middle.
-    # Flat: the label (LL-03, unknown ZIP -> reject) goes on the top or bottom face only.
+    # Flat: the label (LL-09, 94043 -> lane A blue) goes on the top or bottom face only.
     "z10001": dict(label="large", size=(8.5 * IN, 10 * IN, 0.5 * IN), mass=(0.05, 0.10), yaw=0.1, color=(231, 222, 205), faces=("pz", "nz"),
                    tape=dict(axis="y", mm=60, at=72, rgb=(49, 100, 179))),
     # package 4 = the "perfume" item (a retail box with no shipping label -> reject tray): perfume box 6 x 4 x 2 in, brushed light-blue foil,
     # lying FLAT, biggest face down (like every active parcel; 102 mm wide: not graspable by one gripper). Grey-bordered white name label on
     # the top. The real box also has a small authenticity sticker with its own QR; not modelled. Mass guessed for a boxed 100 ml bottle.
-    "garbage": dict(size=(6 * IN, 4 * IN, 2 * IN), mass=(0.25, 0.40), yaw=0.3, color=(109, 128, 145), labels=(),
+    "garbage": dict(label="large", faces=("pz", "nz"), size=(6 * IN, 4 * IN, 2 * IN), mass=(0.25, 0.40), yaw=0.3, color=(109, 128, 145),
                     finish=dict(metallic=0.5, roughness=0.35),
                     patches=[dict(face="pz", at=(-30, 12), mm=(58, 58), rgb=(175, 178, 182)),
                              dict(face="pz", at=(-30, 12), mm=(40, 28), rgb=(246, 240, 224))]),
@@ -77,7 +77,7 @@ PARCELS = {
     # a second IQBAR box: identical geometry and print, NO label -> reject. (Same body as iqbar_a minus its label.)
     "iqbar_b": dict(size=(10.5 * IN, 4 * IN, 2.5 * IN), mass=(0.30, 0.55), yaw=0.0, color=(95, 60, 40), labels=(),
                     tape=dict(axis="x", mm=40, at=0, rgb=(40, 30, 25))),
-    # Miro box 8.5 x 6.5 x 1.5 in: black, white logo patch on top (plain rectangle; the real one is rounded). Reject (spare LL-14, 02139).
+    # Miro box 8.5 x 6.5 x 1.5 in: black, white logo patch on top (plain rectangle; the real one is rounded). Lane B (LL-12, 90012).
     # The logo sits 55 mm off-centre so the centred shipping label does not hide it.
     "miro": dict(label="large", size=(8.5 * IN, 6.5 * IN, 1.5 * IN), mass=(0.20, 0.40), yaw=0.1, color=(25, 25, 28), faces=("pz", "nz"),
                  patches=[dict(face="pz", at=(0, 55), mm=(90, 45), rgb=(235, 235, 235))]),
@@ -85,7 +85,7 @@ PARCELS = {
     "plainbox": dict(size=(6 * IN, 3 * IN, 4 * IN), mass=(0.10, 0.20), yaw=0.2, color=(196, 158, 110), labels=()),
 }
 
-ACTIVE = ("bhindi", "iqbar_a", "miro", "z10001", "iqbar_b", "garbage", "wallet")  # the parcels the user has: bhindi/iqbar_a -> blue/red lane, rest reject
+ACTIVE = ("bhindi", "iqbar_a", "miro", "z10001", "iqbar_b", "garbage", "wallet")  # user: blue = bhindi, mailer, perfume; red = iqbar_a, miro; reject = iqbar_b, wallet
 
 SORT_PLAN = {"950": "bin_blue", "951": "bin_blue", "940": "bin_blue", "941": "bin_blue",
              "900": "bin_red", "901": "bin_red", "902": "bin_red"}  # ZIP3 -> lane bin (harness config sort plan); anything else -> reject_bin
@@ -97,18 +97,18 @@ SHIP_DATE, SENDER = "2026-11-20", ("LabelLoop Fulfillment", "1 Washington Sq", "
 _ROWS = [
     ("z95112", "package 1: Amazon box 9 x 6 x 3.5 in", "Maya Okafor", "212 Maple Ct", "San Jose", "CA", "95112"),
     ("z90210", "package 2: Amazon box 11 x 8.1 x 4 in", "Daniel Reyes", "9 Canon Dr", "Beverly Hills", "CA", "90210"),
-    ("z10001", "package 3: Amazon padded mailer 10 x 8.5 in (mailer, soft plastic bag parcel)", "Priya Natarajan", "350 W 31st St", "New York", "NY", "10001"),
+    ("", "spare, reject (was package 3; the mailer now carries LL-09)", "Priya Natarajan", "350 W 31st St", "New York", "NY", "10001"),
     ("z94110", "sim only (small kraft box 3 x 3 x 3 in), not yet bought", "Ethan Brooks", "88 Valencia Ave", "San Francisco", "CA", "94110"),
     ("z90015", "sim only (tall kraft box 3 x 5 x 8 in), not yet bought", "Sofia Lindqvist", "1400 S Figueroa St", "Los Angeles", "CA", "90015"),
     ("z60601", "sim only (white retail box 5 x 3.5 x 2.5 in), not yet bought", "Marcus Webb", "77 E Randolph St", "Chicago", "IL", "60601"),
     ("z95014", "sim only (large kraft box 12 x 10 x 6 in), not yet bought", "Hana Kimura", "10300 De Anza Blvd", "Cupertino", "CA", "95014"),
     ("bhindi", "Bhindi Masala ready-meal box 6.5 x 4 x 1.5 in", "Olivia Grant", "415 Union Ave", "San Jose", "CA", "95126"),
-    ("", "spare, lane A", "Noah Patel", "600 Castro St", "Mountain View", "CA", "94043"),
-    ("", "spare, lane A", "Lena Fischer", "2250 Lawrence Rd", "Santa Clara", "CA", "95054"),
+    ("z10001", "soft plastic bag parcel (padded mailer 10 x 8.5 in); sim id kept from its old label", "Noah Patel", "600 Castro St", "Mountain View", "CA", "94043"),
+    ("garbage", "perfume box 6 x 4 x 2 in (lies flat); sim id kept", "Lena Fischer", "2250 Lawrence Rd", "Santa Clara", "CA", "95054"),
     ("iqbar_a", "IQBAR protein bar pack 10.5 x 4 x 2.5 in", "Carlos Mendoza", "405 Hilgard Ave", "Los Angeles", "CA", "90024"),
-    ("", "spare, lane B", "Ruth Adler", "200 N Spring St", "Los Angeles", "CA", "90012"),
+    ("miro", "Miro box 8.5 x 6.5 x 1.5 in", "Ruth Adler", "200 N Spring St", "Los Angeles", "CA", "90012"),
     ("", "spare, lane B", "Tomas Novak", "1601 Abbot Kinney Blvd", "Venice", "CA", "90291"),
-    ("miro", "Miro box 8.5 x 6.5 x 1.5 in", "Aiko Tanaka", "33 Oxford St", "Cambridge", "MA", "02139"),
+    ("", "spare, reject (was Miro; Miro now carries LL-12)", "Aiko Tanaka", "33 Oxford St", "Cambridge", "MA", "02139"),
     ("", "spare, reject", "Grace Liu", "1100 Congress Ave", "Austin", "TX", "73301"),
     ("", "spare, reject", "Owen Doyle", "400 Pine St", "Seattle", "WA", "98101"),
 ]

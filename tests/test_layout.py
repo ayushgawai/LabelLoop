@@ -69,9 +69,9 @@ def test_layout_lane_bins_far_row_reject_bin_right_side_zone_at_the_centre():
 
 
 def test_target_follows_the_zip3_of_the_code():
-    assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "reject_bin", "z94110": "bin_blue",
+    assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "bin_blue", "z94110": "bin_blue",
                                                     "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue",
-                                                    "bhindi": "bin_blue", "iqbar_a": "bin_red", "miro": "reject_bin"}
+                                                    "bhindi": "bin_blue", "iqbar_a": "bin_red", "miro": "bin_red", "garbage": "bin_blue"}
     for b in bt.PARCELS:  # unlabelled props are not in TARGET -> reject
         assert bt.TARGET.get(b, "reject_bin") == "reject_bin" or b in bt.ROUTES
 
@@ -85,10 +85,10 @@ def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
         assert list(v) == [f"{b}_{f}" for f in bt.PARCELS[b].get("faces", props.FACES) if max(dims[f]) * 1000 >= max(lw, lh) - 1e-6 and min(dims[f]) * 1000 >= min(lw, lh) - 1e-6]
         assert all(p["labels"] == (vid.rsplit("_", 1)[1],) and p["size"] == bt.PARCELS[b]["size"] for vid, p in v.items())
     assert list(bt.variants("z10001")) == ["z10001_pz", "z10001_nz"]
-    for b in ("bhindi", "iqbar_a", "miro"):  # real flat boxes: label on the big top or bottom face only
+    for b in ("bhindi", "iqbar_a", "miro", "garbage"):  # real flat boxes: label on the big top or bottom face only
         assert list(bt.variants(b)) == [f"{b}_pz", f"{b}_nz"]
     assert {b: bt.PARCELS[b]["label"] for b in bt.ROUTES} == {"z94110": "small", "z60601": "small", "z95112": "large", "z90210": "large",
-                                                              "z10001": "large", "z90015": "large", "z95014": "large", "bhindi": "large", "iqbar_a": "large", "miro": "large"}
+                                                              "z10001": "large", "z90015": "large", "z95014": "large", "bhindi": "large", "iqbar_a": "large", "miro": "large", "garbage": "large"}
     assert len(bt.variants("z60601")) == 6 and not props.fits((0.127, 0.064), "large") and props.fits((0.064, 0.127), "small")
     assert bt.variants("wallet") == {"wallet": bt.PARCELS["wallet"]} and bt.PARCELS["wallet"]["labels"] == ()
     assert bt.variants("nolabel") == {"nolabel": None}
@@ -107,7 +107,7 @@ def test_cases_scene_and_dag_group_variants_per_base_id():
     assert ev["human_adds_z10001"]["object_name"] == ["box_z10001_pz", "box_z10001_nz"] and ev["human_adds_z10001"]["slide_v"] == bt.SLIDE_V
     assert set(ev["human_adds_z10001"]["object_name"]) <= set(ev["human_adds_bhindi"]["avoid"])
     succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
-    assert [["box_z10001_pz", "box_z10001_nz"], "reject_bin"] in succ["assignments"]
+    assert [["box_z10001_pz", "box_z10001_nz"], "bin_blue"] in succ["assignments"]
     assert [["box_wallet"], "reject_bin"] in succ["assignments"]
 
 
@@ -133,7 +133,7 @@ def test_label_registry_routes_match_sort_plan_and_code_pattern():
         assert bt.TARGET.get(r["sim_id"], r["target_bin"]) == r["target_bin"]
     assert {r["sim_id"]: r["qr_payload"] for r in props.LABELS if r["sim_id"]} == props.ROUTES
     spares = [r for r in props.LABELS if not r["sim_id"]]
-    assert [r["lane"] for r in spares] == ["A"] * 2 + ["B"] * 2 + ["reject"] * 2 and {r["size"] for r in spares} == {"large"}
+    assert [r["lane"] for r in spares] == ["reject", "B", "reject", "reject", "reject"] and {r["size"] for r in spares} == {"large"}
 
 
 def test_active_cases_are_exactly_the_users_seven_parcels_plus_calibration_and_stream():
@@ -151,11 +151,11 @@ def test_active_cases_are_exactly_the_users_seven_parcels_plus_calibration_and_s
 
 
 def test_every_active_item_has_the_right_label_faces_and_routing():
-    expect = {"bhindi": ("pz", "nz", "bin_blue", "LL-08"), "iqbar_a": ("pz", "nz", "bin_red", "LL-11"), "miro": ("pz", "nz", "reject_bin", "LL-14"),
-              "z10001": ("pz", "nz", "reject_bin", "LL-03")}
+    expect = {"bhindi": ("pz", "nz", "bin_blue", "LL-08"), "iqbar_a": ("pz", "nz", "bin_red", "LL-11"), "miro": ("pz", "nz", "bin_red", "LL-12"),
+              "z10001": ("pz", "nz", "bin_blue", "LL-09"), "garbage": ("pz", "nz", "bin_blue", "LL-10")}
     for b, (f1, f2, tgt, lid) in expect.items():
         assert list(bt.variants(b)) == [f"{b}_{f1}", f"{b}_{f2}"] and bt.TARGET[b] == tgt and props.LABEL_OF[b]["label_id"] == lid
-    for b in ("iqbar_b", "garbage", "wallet"):  # no label anywhere -> reject
+    for b in ("iqbar_b", "wallet"):  # no label anywhere -> reject
         assert bt.variants(b) == {b: bt.PARCELS[b]} and bt.PARCELS[b]["labels"] == () and b not in bt.ROUTES and bt.TARGET.get(b, "reject_bin") == "reject_bin"
     a, c = bt.PARCELS["iqbar_a"], bt.PARCELS["iqbar_b"]
     assert all(a[k] == c[k] for k in ("size", "mass", "yaw", "color", "tape")) and not hasattr(props, "lobar") and "lobar" not in bt.PARCELS

@@ -28,6 +28,9 @@ def test_generate_and_roundtrip(tmp_path):
     for name in m.PARCELS.keys() - m.ROUTES.keys():  # unlabelled props: no code on any face
         assert all(read(tmp_path / f"box_{name}_{f}.png") == [] for f in m.FACES)
     assert read(tmp_path / "nolabel.png") == []
+    assert {k: m.ROUTES[k] for k in ("bhindi", "z10001", "garbage", "iqbar_a", "miro")} == {
+        "bhindi": "420/95126/001", "z10001": "420/94043/001", "garbage": "420/95054/001", "iqbar_a": "420/90024/001", "miro": "420/90012/001"}
+    assert not {"iqbar_b", "wallet"} & m.ROUTES.keys() and list(m.variants("garbage")) == ["garbage_pz", "garbage_nz"]
     assert m.QR_MM == 40 and m.CUBE_MM == 60
     assert all(read(tmp_path / f"{m.safe(r['qr_payload'])}_label.png") == [r["qr_payload"]] for r in m.LABELS)  # spares too
 

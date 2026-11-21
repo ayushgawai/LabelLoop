@@ -17,8 +17,8 @@ ROOT = "assets/labelloop"
 _ALL = ("pz", "nz", "py", "ny", "px", "nx")
 # parcel id -> faces that can hold its label; one asset box_<id>_<face> per face (props.variants; tests/test_layout.py keeps it equal)
 LABELLED = {"z95112": _ALL, "z90210": _ALL, "z10001": ("pz", "nz"), "z94110": _ALL, "z90015": _ALL, "z60601": _ALL, "z95014": _ALL,
-            "bhindi": ("pz", "nz"), "iqbar_a": ("pz", "nz"), "miro": ("pz", "nz")}
-PARCELS = ("nolabel", "garbage", "wallet", "plainbox", "iqbar_b", *(f"{b}_{f}" for b, fs in LABELLED.items() for f in fs))
+            "bhindi": ("pz", "nz"), "iqbar_a": ("pz", "nz"), "miro": ("pz", "nz"), "garbage": ("pz", "nz")}
+PARCELS = ("nolabel", "wallet", "plainbox", "iqbar_b", *(f"{b}_{f}" for b, fs in LABELLED.items() for f in fs))
 
 
 def _usd(name):

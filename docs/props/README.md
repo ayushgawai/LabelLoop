@@ -31,8 +31,8 @@ The G gripper opens 97.5 mm between the fingers, so a package can only be picked
 |---|---|---|---|---|---|---|---|
 | 1 | Amazon box, kraft, black seam tape | 9 x 6 x 3.5 | 229 x 152 x 89 | lane A -> blue (`420/95112/001`) | `box_z95112` | standing on its long edge | fits: 89 mm across, ~4 mm spare per finger |
 | 2 | Amazon box, kraft, black seam tape | 11 x 8.1 x 4 | 279 x 206 x 102 | lane B -> red (`420/90210/001`) | `box_z90210` | flat, long side across the table | **no**: 102 mm even on edge |
-| 3 | Amazon padded mailer (the soft plastic bag parcel), white with blue band | 10 x 8.5 x 0.5 | 254 x 216 x 13 | LL-03, unknown ZIP -> reject (`420/10001/001`), label top or bottom only | `box_z10001` | flat, long side across the table | **no**: 13 mm thick, 216 mm wide |
-| 4 | Perfume box, light-blue brushed foil | 6 x 4 x 2 | 152 x 102 x 51 | no label -> reject | `box_garbage` | flat, biggest face down | **no**: 102 mm wide lying flat |
+| 3 | Amazon padded mailer (the soft plastic bag parcel), white with blue band | 10 x 8.5 x 0.5 | 254 x 216 x 13 | LL-09, lane A -> blue (`420/94043/001`), label top or bottom only | `box_z10001` | flat, long side across the table | **no**: 13 mm thick, 216 mm wide |
+| 4 | Perfume box, light-blue brushed foil | 6 x 4 x 2 | 152 x 102 x 51 | LL-10, lane A -> blue (`420/95054/001`), label top or bottom (patches off-centre) | `box_garbage` | flat, biggest face down | **no**: 102 mm wide lying flat |
 
 Sim-only props, NOT measured or photographed yet (nominal sizes in `props.py`): `z94110` kraft box 3 x 3 x 3 in (lane A), `z90015` kraft box 3 x 5 x 8 in
 (lane B, arrives standing), `z60601` white box 5 x 3.5 x 2.5 in (reject), `z95014` kraft box 12 x 10 x 6 in (lane A, not graspable), `wallet` leather wallet
@@ -51,7 +51,7 @@ variants `<id>_pz` / `<id>_nz`). All three are wider than the 97.5 mm gripper op
 | Bhindi | Bhindi Masala ready-meal box | 6.5 x 4 x 1.5 | 165 x 102 x 38 | deep purple, orange band at one end, dark food photo on top | LL-08, lane A -> blue (`420/95126/001`) | `bhindi`, case 32 |
 | IQBAR A | IQBAR protein bar variety pack | 10.5 x 4 x 2.5 | 267 x 102 x 64 | chocolate brown, dark band | LL-11, lane B -> red (`420/90024/001`) | `iqbar_a`, case 33 |
 | IQBAR B | a second IQBAR box, identical geometry and print | 10.5 x 4 x 2.5 | 267 x 102 x 64 | as IQBAR A | NO label -> reject | `iqbar_b`, case 35 |
-| Miro | Miro box | 8.5 x 6.5 x 1.5 | 216 x 165 x 38 | black, white logo patch (90 x 45 mm, modelled as a plain rectangle) on top | LL-14, reject -> tray (`420/02139/001`) | `miro`, case 34 |
+| Miro | Miro box | 8.5 x 6.5 x 1.5 | 216 x 165 x 38 | black, white logo patch (90 x 45 mm, modelled as a plain rectangle) on top | LL-12, lane B -> red (`420/90012/001`) | `miro`, case 34 |
 
 Not measured yet: weights (the sim guesses 0.10-0.20, 0.15-0.30, 0.05-0.10 and 0.25-0.40 kg) (wallet: sim-only, no label -> reject, case 28; mailer case 20, perfume case 22).
 The QR labels are printed from `sim/make_qr_boxes.py` (`docs/labels/`: `sim/make_labels.py`, full shipping labels, 40 mm QR); package 4's own authenticity sticker
