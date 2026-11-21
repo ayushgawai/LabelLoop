@@ -1,8 +1,9 @@
 # WALLX backend switch. Same infer() interface either way; harness code does not change.
 #   cloud: public_v2 msgpack-over-WebSocket (organizer API). Endpoint = env WALLX_ENDPOINT, key = env WALLX_API_KEY (.env), never stored here.
 #   local: self-hosted Wall-X server on the GPU box (scripts/run_wallx_local.ps1), no auth.
-# Env WALLX_BACKEND=cloud|local overrides `backend` for one run.
-backend: cloud
+#   lan: the organizers' WALLX hosted on the event LAN (same public_v2 API as cloud, no auth), measured 0.07 s/call.
+# Env WALLX_BACKEND=cloud|local|lan overrides `backend` for one run.
+backend: lan   # at the event; 'cloud' at home
 cloud:
   timeout_s: 60
   open_timeout_s: 30
@@ -10,3 +11,7 @@ local:
   url: ws://127.0.0.1:8002   # native Wall-X server speaks the X2Real sim convention (home-relative pose, sim gripper); converted with configs/ex001_6r.yaml
   timeout_s: 60
   open_timeout_s: 30
+lan:
+  url: ws://192.168.1.10:33677   # from the robot's task file (~/diversity/local_*.json model_address); 2610-dualhead-v2
+  timeout_s: 30
+  open_timeout_s: 10

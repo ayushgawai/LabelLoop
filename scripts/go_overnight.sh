@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 T=$(mktemp -d)/ll.tar
 git archive --format=tar HEAD -- labelloop configs policies scripts sim tests > "$T"
 scp -q "$T" "$BOX:C:/x2/llh.tar"
-ssh $BOX "cd C:\x2\labelloop; tar -xf C:\x2\llh.tar; (Get-Content configs\wallx.yaml) -replace '^backend: local','backend: cloud' | Set-Content configs\wallx.yaml; (Get-Content configs\task_qr_sort.yaml) -replace '^calib_test: true','calib_test: false' | Set-Content configs\task_qr_sort.yaml"
+ssh $BOX "cd C:\x2\labelloop; tar -xf C:\x2\llh.tar; (Get-Content configs\wallx.yaml) -replace '^backend: (local|lan).*','backend: cloud' | Set-Content configs\wallx.yaml; (Get-Content configs\task_qr_sort.yaml) -replace '^calib_test: true','calib_test: false' | Set-Content configs\task_qr_sort.yaml"
 ssh $BOX "powershell -NoProfile -ExecutionPolicy Bypass -File C:\x2\scripts\build_props.ps1" | grep -E "usda|cases|DONE"
 # 4 rounds x (7 single-parcel position cases x 2 episodes) + 1 stream per round; each line is restartable, results per round
 L=""

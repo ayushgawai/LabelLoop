@@ -161,6 +161,8 @@ def from_config(path=CONFIG, backend=None):
     kw = {"timeout": c.get("timeout_s", 60), "open_timeout": c.get("open_timeout_s", 30)}
     if backend == "local":
         return LocalWallxClient(c.get("url", "ws://127.0.0.1:8002"), **kw)
+    if backend == "lan":  # organizer-hosted WALLX on the event LAN: same public_v2 API as the cloud, no auth
+        return WallxClient(c["url"], {}, **kw)
     if backend != "cloud":
         raise ValueError(f"unknown wallx backend {backend!r}")
     return WallxClient(*endpoint_headers_from_env(), **kw)

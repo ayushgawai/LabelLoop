@@ -1,0 +1,50 @@
+{
+  "task_id": "desktop_g_spoon_into_bowl",
+  "collection_id": "local_desktop_g_spoon_into_bowl",
+  "mode": "benchmark",
+  "model": {
+    "config_name": "desktop_g_wallx_public_api",
+    "deploy": "lan",
+    "model_address": "ws://192.168.1.10:33677",
+    "robot_type": "DESKTOP",
+    "mode_type": "EndPose",
+    "infer_type": "sync",
+    "infer_params": {
+      "action_horizon": 32,
+      "async_params": {
+        "algorithm": "sync",
+        "api_schema": "public_v2",
+        "embodiment": "teletwin_desktop/gripper-g",
+        "normalization": "provided",
+        "image_wire_format": "base64_jpeg"
+      }
+    }
+  },
+  "data": [
+    {
+      "case_id": 1,
+      "instruction": "Put the spoon into the bowl.",
+      "env_description": {
+        "开场摆放": "空碗放在桌面中间偏左，白色勺子分开放在碗右侧。"
+      },
+      "scores_dict": {
+        "The spoon is inside the bowl": 1
+      },
+      "timeout": 480
+    }
+  ],
+  "new_data": [
+    {
+      "case_id": 1,
+      "instruction": "Put the spoon into the bowl.",
+      "env_description": {
+        "开场摆放": "空碗放在桌面中间偏左，白色勺子分开放在碗右侧。"
+      },
+      "scores_dict": {
+        "The spoon is inside the bowl": 1
+      },
+      "timeout": 480,
+      "task": "Desktop G 勺子放碗"
+    }
+  ]
+}

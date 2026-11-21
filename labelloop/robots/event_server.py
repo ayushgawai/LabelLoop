@@ -10,7 +10,7 @@ from websockets.asyncio.server import serve
 from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, hold_response, pack, unpack)
 
 MAX_FRAME_BYTES = 32 * 1024 * 1024
-EMBODIMENTS = ("quanta_x1_pro", "quanta_x1_pro/gripper-g", "quanta_x1_pro/gripper-h")
+EMBODIMENTS = ("quanta_x1_pro", "quanta_x1_pro/gripper-g", "quanta_x1_pro/gripper-h", "teletwin_desktop", "teletwin_desktop/gripper-g", "teletwin_desktop/gripper-h")  # teletwin = the event robots
 
 
 def validate_request(request):  # organizer rules
