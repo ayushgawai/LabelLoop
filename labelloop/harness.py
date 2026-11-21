@@ -14,18 +14,34 @@ from labelloop.wallx_client import home_response, move_response
 FOOT = 1.0  # held-parcel disc radius = FOOT x half the box diagonal + 3 cm
 
 
+def apply_profile(cfg):
+    """Bind the camera model of cfg["profile"] (default sim) into look.py and its arm frame into cfg["look"]; real_safe forces every scripted
+    arm motion off (hold + scripted HOME only), one parcel, scripted home. Returns a new cfg."""
+    cfg = copy.deepcopy(cfg)
+    ab = look.set_profile(cfg["profiles"][cfg.get("profile", "sim")])
+    cfg["look"].update(ab)
+    if cfg.get("real_safe"):
+        for k in ("show", "spin", "slide", "look"):
+            cfg[k]["enabled"] = False
+        cfg.update(calib_test=False, handover=False, scripted_home=True, max_parcels=1)
+        cfg["tries"] = {**cfg["tries"], "SWIPE": 0, "INSPECT": 0}
+    return cfg
+
+
 class Harness:
     """Perception + state machine + runlog; one step() per WALLX call. `agent` is accepted and unused (v3 has no vision agent)."""
 
     def __init__(self, task_cfg, agent=None, runlog=None, clock=time.monotonic):
         if task_cfg.get("reject_mode", "tray") != "tray":  # no tray: its ROI is not a bin (it would mask the table and a code seen there would be ignored)
             task_cfg = {**task_cfg, "scene": {**task_cfg["scene"], "bin_rois": {k: v for k, v in task_cfg["scene"]["bin_rois"].items() if k != "black"}}}
+        task_cfg = apply_profile(task_cfg)
         self.cfg, self.agent, self.runlog, self.clock = task_cfg, agent, runlog, clock
         self.sm = StateMachine(task_cfg)
         self.reset()
 
     def reset(self):
         self.sm.reset()
+        self.last_pose = None
         self.home = None  # episode-start pose, captured on the first step()
         self.views, self.point, self.look_info = [], None, None  # LOOK viewpoints / point_test pose, built at SCAN -> LOOK
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])  # items are (camera, text): same text in N consecutive frames of ONE camera
@@ -39,6 +55,11 @@ class Harness:
 
     def step(self, images, state):
         if self.home is None:
+            if self.cfg.get("real_safe"):  # home = a pose seen twice in a row (both arms + grippers still); until then hold
+                pose = np.array([*state["left_ee"]["position"], *state["right_ee"]["position"]])
+                if self.last_pose is None or np.abs(pose - self.last_pose).max() >= self.cfg["home_still_m"]:
+                    self.last_pose = pose
+                    return None
             self.home = copy.deepcopy(state)
         self.calls += 1
         if self.cfg.get("calib_test") and self.calib is None:
@@ -48,14 +69,15 @@ class Harness:
         self.cal_cur = None
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]
+        qf = scene.blank_bins(front, cfg) if self.cfg.get("real_safe") else front  # codes are decoded from this: bins blanked first (real_safe)
         box = scene.roi_box(front, cfg)
         pre = self.sm.calls  # index of the scripted call whose result this image shows
         on = self.on_parcel(before, front, cfg, box, pre)  # head code centre -> does it lie on the tracked parcel?
-        codes = [(t, p) for t, p in locate(front) if on(p)]
+        codes = [(t, p) for t, p in locate(qf) if on(p)]
         cb = scene.changed_box(front, self.ref, cfg) if self.ref is not None and before in ("SCAN", "SPIN") else None
         if not codes and cb:  # small QR missed on this frame: retry on the changed-pixel crop (the parcel, anywhere on the table) at 2x
             cb = (max(cb[0] - 20, 0), max(cb[1] - 20, 0), cb[2] + 20, cb[3] + 20)
-            crop = cv2.resize(front[cb[1]:cb[3], cb[0]:cb[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+            crop = cv2.resize(qf[cb[1]:cb[3], cb[0]:cb[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
         wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k in self.wrist_cams(before, pre)})}
         seen = {("front", t) for t, _ in codes} | wrist
@@ -179,8 +201,10 @@ class Harness:
         return lambda p: base(p) and 0 <= int(p[1]) < m.shape[0] and 0 <= int(p[0]) < m.shape[1] and m[int(p[1]), int(p[0])] > 0
 
     def wrist_cams(self, before, pre):
-        """Wrist cameras whose codes count: SHOW = the holding arm's, once it grips (from the close call); LOOK = the looking arm's; INSPECT / HANDOVER = both
+        """Wrist cameras whose codes count (none in real_safe: head only): SHOW = the holding arm's, once it grips (from the close call); LOOK = the looking arm's; INSPECT / HANDOVER = both
         (untracked); SCAN / SPIN: none (the arms are home, their view is not the parcel)."""
+        if self.cfg.get("real_safe"):
+            return set()
         if before == "SHOW":
             return {self.show["arm"][:-3] + "_wrist"} if self.show and pre >= 4 else set()
         if before == "LOOK" and self.look_index is not None:

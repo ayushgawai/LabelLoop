@@ -26,6 +26,15 @@ def in_bin(p, img, cfg):
     return any(inside(p, _frac_box(img, (b[0] - m, b[1] - m, b[2] + m, b[3] + m))) for b in cfg["bin_rois"].values())
 
 
+def blank_bins(img, cfg):
+    """Copy of img with every bin / tray ROI (+ bin_margin) blacked out, so no code there can ever be decoded."""
+    out, g = img.copy(), cfg.get("bin_margin", 0.03)
+    for b in cfg["bin_rois"].values():
+        x0, y0, x1, y1 = _frac_box(img, (b[0] - g, b[1] - g, b[2] + g, b[3] + g))
+        out[max(y0, 0):y1, max(x0, 0):x1] = 0
+    return out
+
+
 def table_region(img, cfg):
     """(bbox x0, y0, x1, y1, mask) of the detection region. whole_table: the projected tabletop (scene.table, root box [x0, x1, y0, y1]) clipped to the
     image minus every bin / tray ROI (+ bin_margin); else the induction ROI box, all True."""

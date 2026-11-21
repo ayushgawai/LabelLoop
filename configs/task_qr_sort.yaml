@@ -10,7 +10,7 @@ sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> bla
   B: ["900", "901", "902"]
 lanes: {A: blue, B: red}
 arms: {A: left, B: right, reject: right}   # arm that places each lane / the reject bin (words in the PLACE / REJECT instructions)
-reject_mode: floor_right  # floor_right = a rejected parcel is SWIPED off the table's right edge by a scripted push (no WALLX, state SWIPE); tray = REJECT puts it in the black bin (WALLX)
+reject_mode: tray  # floor_right = a rejected parcel is SWIPED off the table's right edge by a scripted push (no WALLX, state SWIPE); tray = REJECT puts it in the black bin (WALLX)
 swipe:                    # scripted reject swipe (look.swipe_plan): an arm pushes the parcel along -y through its +y face centre, fingertips low, strokes of up to `stroke` m;
                           # each entry re-fits the parcel (the other arm takes over mid-table when the first cannot reach on), until it is off the table
   edge_y: -0.5642         # root y of the table's right edge; the stroke ends `past` m beyond it
@@ -171,3 +171,52 @@ instructions:
     - "pick up the {obj} with both arms and put it into the {mat} bin"
   HOME:
     - "put both arms back to the home position"
+
+# ---- Camera / robot PROFILES (look.set_profile). profile: sim (default) | real (event relay). Frame = robot root (+x fwd, +y left, +z up).
+profile: sim
+real_safe: false          # true (first real-robot runs): ONLY hold still + scripted HOME. SHOW/SPIN/SLIDE/SWIPE/LIFT2/LOOK/calib never run: a reject, an unread
+                          # label or a big parcel latches HOLD ("operator_hold: ..."); lanes go to WALLX PLACE; head camera only (bins blanked before decoding);
+                          # one parcel (max_parcels 1); home captured only after two consecutive steady observations (pose delta < home_still_m)
+home_still_m: 0.005
+profiles:
+  sim:
+    table_z: 0.015
+    arm_y: 0.29           # arm base = root + (0, +-arm_y, arm_z); from stock G-asset hints (the URDF says 0.266 / 0)
+    arm_z: 0.03
+    head: {pos: [0.084, 0.0, 0.517], quat_xyzw: [0.21263, -0.21263, -0.67438, 0.67438]}   # forward (0.574, 0, -0.819): 55 deg down
+    head_intrinsics: {fx: 686.2093862815885, fy: 692.0388349514564, cx: 640, cy: 360, w: 1280, h: 720}
+    wrist_mount: {cam_off: [0.074088, 0, 0.097993], cam_tilt: 0.43633}   # wrist camera in the EE frame (URDF)
+  real:
+    # From results/event/merged_calibration.yaml + intrinsics.yaml. INFERRED CONVENTION (flag: unverified on the robot): M_X_to_head maps points of
+    # X's arm-base frame to the head; ONLY the opposite reading "head origin in the arm frame = translation, head axes = rotation columns" gives a sane layout (left arm
+    # left of the head, both bases ~0.2 m ahead of and ~0.18 m below the camera, 25 deg down-tilt about the lateral axis). That arm-base frame is
+    # CAMERA-LIKE (x right, y down, z forward); root axes = (fwd = z, left = -x, up = -y). Root origin = midpoint of the two bases, at base height.
+    # Head in root: left M -> (-0.2066, -0.016, 0.1734), right M -> (-0.2165, -0.016, 0.1999) with arm_y 0.263 (= half the 0.526 base spacing); we average.
+    # Head distortion (k1 -0.016, k2 0.005, p1/p2 ~4e-4) is ignored (small: a few px at the corners).
+    table_z: -0.015       # CALIBRATE: table height in root z (base height = 0). Assumes the base plate sits ~15 mm above the table (as the sim); head is ~0.19 m up
+    arm_y: 0.263
+    arm_z: 0.0
+    head: {pos: [-0.2115, -0.016, 0.1866], rot: [[0.015734, 0.425139, -0.904991], [-0.999808, -0.00389, -0.01921], [-0.011688, 0.90512, 0.424996]]}   # GL camera -> root (left M)
+    head_intrinsics: {fx: 717.9853, fy: 717.8105, cx: 640.1221, cy: 354.3393, w: 1280, h: 720, model: pinhole_5params}
+    wrist_intrinsics: {left: {fx: 699.1753, fy: 699.6572, cx: 826.4175, cy: 596.9008, w: 1600, h: 1200, model: fisheye_opencv}, right: {fx: 700.3877, fy: 700.4567, cx: 829.5233, cy: 622.7926, w: 1600, h: 1200, model: fisheye_opencv}}   # fisheye_opencv, dist in intrinsics.yaml; stored for later (not used)
+    calibration:          # stored for later (wrist LOOK / SHOW are off in real_safe); 4x4 row-major
+      M_gripper_to_camL:
+        - [0.020038, -0.998861, 0.0433, -0.000863]
+        - [-0.425919, -0.04771, -0.903502, 0.11997]
+        - [0.904539, -0.000338, -0.42639, -0.039625]
+        - [0, 0, 0, 1]
+      M_gripper_to_camR:
+        - [-0.005785, -0.998879, 0.046986, -0.00075]
+        - [-0.436317, -0.039757, -0.898914, 0.112206]
+        - [0.899775, -0.025701, -0.435597, -0.051134]
+        - [0, 0, 0, 1]
+      M_left_to_head:
+        - [0.999808, -0.00389, -0.01921, 0.27917]
+        - [0.011688, 0.90512, 0.424996, -0.173369]
+        - [0.015734, -0.425139, 0.904991, -0.206578]
+        - [0, 0, 0, 1]
+      M_right_to_head:
+        - [0.996538, -0.062793, -0.054486, -0.246987]
+        - [0.079904, 0.904393, 0.419152, -0.199923]
+        - [0.022957, -0.422055, 0.90628, -0.216483]
+        - [0, 0, 0, 1]

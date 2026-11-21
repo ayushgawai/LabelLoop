@@ -5,16 +5,38 @@ import numpy as np
 
 from labelloop.pose import interp_rpy, matrix_to_rpy, rpy_to_matrix
 
-TABLE_Z, SIGN = 0.015, {"left_ee": 1.0, "right_ee": -1.0}  # arm base = root + (0, SIGN * look.arm_y, look.arm_z)
-HEAD_POS = np.array([0.084, 0.0, 0.517])
-# OpenGL camera (looks along -Z, +Y up). The brief's tuple (0.21263, -0.21263, -0.67438, 0.67438) only meets its own
-# sanity check (forward (0.574, 0, -0.819), image-right = -y) read as (x, y, z, w).
-_x, _y, _z, _w = 0.21263, -0.21263, -0.67438, 0.67438
-HEAD_R = np.array([[1 - 2 * (_y**2 + _z**2), 2 * (_x * _y - _z * _w), 2 * (_x * _z + _y * _w)],
-                   [2 * (_x * _y + _z * _w), 1 - 2 * (_x**2 + _z**2), 2 * (_y * _z - _x * _w)],
-                   [2 * (_x * _z - _y * _w), 2 * (_y * _z + _x * _w), 1 - 2 * (_x**2 + _y**2)]])
-FX, FY, CX, CY = 2.97 / 5.54 * 1280, 2.97 / 3.09 * 720, 640, 360
-CAM_OFF, CAM_TILT = np.array([0.074088, 0, 0.097993]), 0.43633  # wrist camera in the EE frame (URDF)
+SIGN = {"left_ee": 1.0, "right_ee": -1.0}  # arm base = root + (0, SIGN * look.arm_y, look.arm_z)
+# Camera / robot constants come from the task yaml `profiles` (sim | real); set_profile() rebinds these module globals (functions read them at call time).
+# Head camera = OpenGL convention (looks along -Z, +Y up): head.rot is root <- GL camera, or head.quat_xyzw (the sim brief's tuple).
+
+
+def set_profile(p):
+    """Bind the camera model of one profile dict (cfg["profiles"][name]); returns {arm_y, arm_z} for the look config."""
+    global TABLE_Z, HEAD_POS, HEAD_R, FX, FY, CX, CY, CAM_OFF, CAM_TILT
+    TABLE_Z, h, k = p["table_z"], p["head"], p["head_intrinsics"]
+    HEAD_POS = np.array(h["pos"], float)
+    if "rot" in h:
+        HEAD_R = np.array(h["rot"], float)
+    else:
+        x, y, z, w = h["quat_xyzw"]
+        HEAD_R = np.array([[1 - 2 * (y**2 + z**2), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                           [2 * (x * y + z * w), 1 - 2 * (x**2 + z**2), 2 * (y * z - x * w)],
+                           [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x**2 + y**2)]])
+    FX, FY, CX, CY = k["fx"], k["fy"], k["cx"], k["cy"]
+    if "wrist_mount" in p:  # the real wrist mount (M_gripper_to_cam*) is stored in the profile but not used yet: the sim URDF mount stays
+        CAM_OFF, CAM_TILT = np.array(p["wrist_mount"]["cam_off"], float), p["wrist_mount"]["cam_tilt"]
+    return {"arm_y": p["arm_y"], "arm_z": p["arm_z"]}
+
+
+def _load_sim():
+    import os
+
+    import yaml
+    with open(os.path.join(os.path.dirname(__file__), "..", "configs", "task_qr_sort.yaml")) as f:
+        set_profile(yaml.safe_load(f)["profiles"]["sim"])
+
+
+_load_sim()
 TCP = np.array([0.217, 0, -0.01])  # G-gripper fingertips in the EE frame (stock ex001_6r.py)
 # One arm, from ex001_6r_legacy.urdf: (joint origin xyz, axis) per joint 1-6, then the limits (rad).
 _AX = (2, 1, 1, 1, 2, 0)
@@ -68,8 +90,9 @@ def ik(pos, rpy, tries=8, q0=None):
         if e[0] < 1e-3 and e[1] < 0.02:
             break
     return best
-def pixel_to_table(u, v, wh=(1280, 720), z=TABLE_Z):
+def pixel_to_table(u, v, wh=(1280, 720), z=None):
     """Root-frame point where the head camera ray through pixel (u, v) of a wh-sized image meets the plane height z."""
+    z = TABLE_Z if z is None else z
     u, v = u * 1280 / wh[0], v * 720 / wh[1]
     d = HEAD_R @ [(u - CX) / FX, -(v - CY) / FY, -1.0]
     return HEAD_POS + (z - HEAD_POS[2]) / d[2] * d

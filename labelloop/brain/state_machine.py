@@ -28,6 +28,9 @@ COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE")  #
 WALLX = ACTIONS + ("INSPECT", "HANDOVER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
+SCRIPTED = ("SWIPE", "SLIDE", "SHOW", "SHOWSET", "SPIN", "LOOK")
+
+
 class StateMachine:
     """step(ev) -> instruction | None (None = hold still).
     ev = {"presence": zone changed fraction, "kroi": kraft fraction of the zone, "codes": confirmed code texts,
@@ -51,6 +54,8 @@ class StateMachine:
         self.faces, self.flat = {"top"}, self.cfg.get("show", {}).get("flat_default", True)  # label faces observed (top: seen at SCAN); flat parcel = only top / bottom carry a label
 
     def _go(self, state, why):
+        if self.cfg.get("real_safe") and (state in SCRIPTED + ("LIFT2", "HANDOVER", "LOOKHOME") or state == "REJECT" and why not in ("unknown_zip", "bad_code")):  # a read-but-unroutable code goes to WALLX REJECT (black bin)  # interlock: never dispatched, latch HOLD for the operator
+            state, why = "HOLD", "operator_hold: %s (%s)" % (why, state)
         if state in WALLX and self.remaining() < self.cfg["budget"]["wallx_call_s"]:  # not even one more WALLX call fits
             state, why = "HOME", "budget"
         self.transitions.append((self.state, state, why))
@@ -188,6 +193,8 @@ class StateMachine:
                 self._read(codes)
             elif self.calls >= cfg["scan_max_calls"] or self.remaining() < cfg["budget"]["deliver_reserve_s"]:
                 self._search_next()
+        elif s == "HOLD":  # real_safe latch: arms still, no WALLX call, until the operator ends the episode
+            pass
         elif s == "SPIN":
             if codes and self.calls >= ev.get("spin_push", 0):  # the arm is home again
                 self._read(codes)

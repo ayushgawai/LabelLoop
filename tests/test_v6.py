@@ -24,7 +24,7 @@ import build_task as bt  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
 BASE = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "reject_mode": "tray"}  # old tray flow; floor_right: test_v9
-FLOOR = load_yaml(ROOT / "configs/task_qr_sort.yaml")
+FLOOR = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "reject_mode": "floor_right"}  # pinned: the yaml default is tray
 ROBOT = load_yaml(ROOT / "configs/ex001_6r.yaml")
 BIG = {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}
 NOSLIDE = {**BASE, "slide": {**BASE["slide"], "enabled": False}, "show": {**BASE["show"], "enabled": False}}  # the hand-off (SLIDE) has its own tests in test_v7, SHOW in test_v8

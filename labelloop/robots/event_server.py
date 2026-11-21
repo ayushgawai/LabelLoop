@@ -1,8 +1,10 @@
 """Event-day relay: robot client (WALLX public_v2) -> harness picks instruction -> real WALLX. Replies pass through."""
 import argparse
 import asyncio
+import base64
 import json
 import time
+from pathlib import Path
 
 import numpy as np
 from websockets.asyncio.server import serve
@@ -37,6 +39,15 @@ def validate_request(request):  # organizer rules
             raise ValueError("Finite scalar gripper required")
 
 
+def save_request(root, ep, n, req):
+    """Raw JPEG bytes of the three cameras + a sidecar JSON (state, instruction; never keys/headers) -> root/ep/<n>_<camera>.jpg / <n>.json."""
+    d = Path(root) / ep
+    d.mkdir(parents=True, exist_ok=True)
+    for cam, b64 in req["observation"]["images"].items():
+        (d / f"{n}_{cam}.jpg").write_bytes(base64.b64decode(b64))
+    (d / f"{n}.json").write_text(json.dumps({"instruction": req["instruction"], "state": _plain_state(req["observation"]["state"])}))
+
+
 def _plain_state(state):
     return {arm: {"position": np.asarray(state[arm]["position"], float).tolist(),
                   "rotation_rpy": np.asarray(state[arm]["rotation_rpy"], float).tolist(),
@@ -46,12 +57,12 @@ def _plain_state(state):
 class Relay:
     """make_harness() -> Harness per downstream connection, or None for passthrough."""
 
-    def __init__(self, endpoint, headers, make_harness=None, make_client=None):
-        self.endpoint, self.headers, self.make_harness, self.make_client = endpoint, headers, make_harness, make_client
+    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None):
+        self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir = endpoint, headers, make_harness, make_client, save_dir
 
     async def handle(self, downstream):
         wallx = self.make_client() if self.make_client else WallxClient(self.endpoint, self.headers)
-        harness, goal, n, fresh = None, None, 0, True
+        harness, goal, n, fresh, ep, k = None, None, 0, True, None, 0
         try:
             harness = self.make_harness() if self.make_harness else None
             await asyncio.to_thread(wallx.connect)
@@ -62,9 +73,13 @@ class Relay:
                 validate_request(req)
                 if req["instruction"] != goal:
                     goal = req["instruction"]
+                    ep, k = time.strftime("%Y%m%d_%H%M%S"), 0  # a new episode: image log restarts
                     print(json.dumps({"event": "goal", "goal": goal}), flush=True)
                     if harness:
                         harness.reset()
+                if self.save_dir and k % 10 == 0:  # the 1st request of an episode, then every 10th (the instruction logged is the robot's)
+                    save_request(self.save_dir, ep, k, req)
+                k += 1
                 state = _plain_state(req["observation"]["state"])
                 instruction = req["instruction"]
                 if harness:
@@ -111,6 +126,9 @@ async def main():
     p.add_argument("--passthrough", action="store_true", help="forward with the client's instruction, no harness")
     p.add_argument("--task", default="configs/task_qr_sort.yaml")
     p.add_argument("--log", default="runs/event.jsonl")
+    p.add_argument("--profile", choices=("sim", "real"), default="real", help="camera / robot model (task yaml profiles)")
+    p.add_argument("--real-safe", action=argparse.BooleanOptionalAction, default=True, help="hold + scripted HOME only; rejects / unread / big parcels latch HOLD")
+    p.add_argument("--save-images", default="runs/event_images", help="dir for the 1st + every 10th request's camera JPEGs and state ('' = off)")
     a = p.parse_args()
     from labelloop.config import load_env, load_yaml
     load_env()
@@ -119,9 +137,9 @@ async def main():
         from labelloop.brain.agent import VisionAgent
         from labelloop.eval.runlog import RunLog
         from labelloop.harness import Harness
-        task, agent, runlog = load_yaml(a.task), VisionAgent.from_env(), RunLog(a.log)
+        task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe}, VisionAgent.from_env(), RunLog(a.log)
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731
-    async with start(Relay(None, None, make_harness, WallxClient.from_env), a.host, a.port):  # backend from configs/wallx.yaml
+    async with start(Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None), a.host, a.port):  # backend from configs/wallx.yaml
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
 
