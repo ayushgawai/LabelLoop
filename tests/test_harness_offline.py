@@ -25,10 +25,10 @@ def test_stream_of_five_routes_each_parcel_and_never_latches_done(tmp_path):
     objs = [parcel(A), parcel(B, fail_places=2), parcel(UNKNOWN), nolabel(), garbage()]
     scene, log = FakeScene(objs), tmp_path / "sub" / "run.jsonl"
     h, sent = run(scene, runlog=RunLog(str(log)), until=lambda h: h.sm.parcels == 5)
-    assert [scene.at[id(o)] for o in objs] == ["blue", "orange", "reject", "reject", "reject"]
+    assert [scene.at[id(o)] for o in objs] == ["blue", "red", "reject", "reject", "reject"]
     assert [r["outcome"] for r in h.sm.results] == ["ok"] * 5 and not h.done
     instrs = [i for _, i in sent if i]
-    assert "put the block into the blue bin" in instrs and "put the block into the orange bin" in instrs
+    assert "put the block into the blue bin" in instrs and "put the block into the red bin" in instrs
     assert "put the object into the black bin" in instrs
     for _ in range(20):  # keeps waiting for the next parcel, silently
         assert h.step(*scene.observe()) is None and not h.done

@@ -9,7 +9,7 @@ GAIN = 0.01  # > mat_gain
 
 
 def ev(presence=0.0, kroi=0.0, codes=(), kmats=None, reject=0.0):
-    return {"reject": reject, "presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "orange": 0.0}}
+    return {"reject": reject, "presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "red": 0.0}}
 
 
 def parcel(sm, code, kroi=0.08):
@@ -27,10 +27,10 @@ def lane_a(sm):
 def finish(sm, reject=0.0, **landed):
     """Object gone from the zone, kraft gained on the given mats: through HOME and VERIFY."""
     for _ in range(2):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}, reject=reject))
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "red": 0.0, **landed}, reject=reject))
     states = []
     while sm.state in ("HOME", "VERIFY"):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "orange": 0.0, **landed}, reject=reject))
+        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "red": 0.0, **landed}, reject=reject))
         states.append(sm.state)
     return states
 
@@ -39,8 +39,8 @@ def test_lane_a_place_ok_early_end_home_verify_idle_and_counts():
     sm = StateMachine(CFG)
     assert parcel(sm, A) == "put the block into the blue bin"
     assert sm.step(ev(0.06, 0.08)) == "put the block into the blue bin" and sm.state == "PLACE"
-    assert sm.step(ev(0.0, kmats={"blue": GAIN, "orange": 0.0})) == "put the block into the blue bin"  # ok 1 of 2
-    assert sm.step(ev(0.0, kmats={"blue": GAIN, "orange": 0.0})) == "put both arms back to the home position"
+    assert sm.step(ev(0.0, kmats={"blue": GAIN, "red": 0.0})) == "put the block into the blue bin"  # ok 1 of 2
+    assert sm.step(ev(0.0, kmats={"blue": GAIN, "red": 0.0})) == "put both arms back to the home position"
     assert sm.state == "HOME" and sm.calls == 0
     assert finish(sm, blue=GAIN)[-1] == "IDLE"
     assert sm.parcels == 1 and sm.results[0]["outcome"] == "ok" and sm.results[0]["lane"] == "A"
@@ -49,18 +49,18 @@ def test_lane_a_place_ok_early_end_home_verify_idle_and_counts():
 
 def test_lane_b_place_fails_twice_then_ok_on_third_try():
     sm = StateMachine(CFG)
-    assert parcel(sm, B) == "put the block into the orange bin" and sm.state == "PLACE"
+    assert parcel(sm, B) == "put the block into the red bin" and sm.state == "PLACE"
     for _ in range(CFG["tries"]["PLACE"] - 1):  # object never leaves: budget runs out, HOME, retry
         for _ in range(CFG["max_calls"]["PLACE"]):
-            assert sm.step(ev(0.06, 0.08)) == "put the block into the orange bin" or sm.state == "HOME"
+            assert sm.step(ev(0.06, 0.08)) == "put the block into the red bin" or sm.state == "HOME"
         assert sm.state == "HOME"
         while sm.state in ("HOME", "VERIFY"):
             sm.step(ev(0.06, 0.08))
         assert sm.state == "PLACE"
     for _ in range(2):
-        sm.step(ev(0.0, kmats={"orange": GAIN, "blue": 0.0}))
+        sm.step(ev(0.0, kmats={"red": GAIN, "blue": 0.0}))
     assert sm.state == "HOME"
-    assert finish(sm, orange=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
+    assert finish(sm, red=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
 
 
 def test_push_still_works_when_enabled():

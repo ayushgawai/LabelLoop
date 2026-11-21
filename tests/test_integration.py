@@ -30,7 +30,7 @@ def stream():
 
 
 def check_episode(objs, scene, harness):
-    assert [scene.at[id(o)] for o in objs] == ["blue", "orange", "reject", "reject", "reject"]
+    assert [scene.at[id(o)] for o in objs] == ["blue", "red", "reject", "reject", "reject"]
     assert harness.sm.parcels == 5 and not harness.done  # stream mode never latches DONE
 
 

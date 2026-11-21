@@ -1,10 +1,13 @@
-"""Generate QR labels, box textures and a printable A4 sheet. Self-checks every texture by decoding it.
+"""Generate the lane-sort parcel QR labels, box textures and a printable A4 label sheet. Self-checks every image by decoding it.
 
-Cube CUBE_MM; label = QR symbol (QR_MM wide) + MARGIN_MM white quiet zone on every side (QR_MM + 2*MARGIN_MM =
-50 mm), centred on the top face and on the +Y side face.
+Label = QR symbol (QR_MM wide) + MARGIN_MM white quiet zone on every side (QR_MM + 2*MARGIN_MM = 50 mm). Payload 420/<ZIP5>/<seq3>
+(GS1 AI 420 = ship-to ZIP). A parcel without a measured prop is a CUBE_MM cube: face + side texture, label centred on both.
+A measured parcel (qr_sort_task/props.py PARCELS) gets six face tiles box_<id>_<face>.png at PPM px/mm: its body colour, its tape
+stripe, and the label centred on each face listed in its `labels`.
 """
 import argparse
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -12,22 +15,23 @@ import qrcode
 import zxingcpp
 from PIL import Image, ImageDraw, ImageFont
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "qr_sort_task"))
+from props import FACES, PARCELS  # noqa: E402
+
 CUBE_MM = 60.0  # parcel edge; G gripper opens ~97 mm
 QR_MM, MARGIN_MM = 40.0, 5.0
 FACE_MM = SIDE_MM = (CUBE_MM, CUBE_MM)
 A4_MM = (210, 297)
-KRAFT = [(181, 142, 96), (170, 132, 88), (190, 152, 106)]  # [0] boxes, [1:] decoys
-
-
-def code_for(zone, n):
-    return f"LL|ZONE-{zone}|{n:03d}"
-
-
-ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # GS1 AI 420 = ship-to ZIP5 / seq3
+KRAFT = (181, 142, 96)
+PPM = 5  # px per mm of measured-parcel face tiles: 40 mm QR -> 200 px, 8 px per module
+ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # asset suffix -> payload
+# tile axes of each face, as make_usd.box_mesh maps them: u = (box axis, +1 | -1 direction), v = box axis (always +; image rows run -v)
+TILE_U = {"pz": ("x", 1), "nz": ("x", -1), "py": ("x", -1), "ny": ("x", 1), "px": ("y", 1), "nx": ("y", -1)}
+TILE_V = {"pz": "y", "nz": "y", "py": "z", "ny": "z", "px": "z", "nx": "z"}
 
 
 def safe(code):
-    return code.replace("|", "_").replace("/", "_")
+    return code.replace("/", "_")
 
 
 def px(mm, dpi):
@@ -53,6 +57,35 @@ def texture(size_mm, dpi, color, label=None):
     if label is not None:
         img.paste(label, ((img.width - label.width) // 2, (img.height - label.height) // 2))
     return img
+
+
+def parcel_faces(p, code):
+    """{face: tile} of a measured parcel; tile = the face seen from outside, u/v as TILE_U / TILE_V."""
+    mm = dict(zip("xyz", (v * 1000 for v in p["size"])))
+    lab = label_image(code, QR_MM, PPM * 25.4) if code else None
+    t = p.get("tape")
+    out = {}
+    for f in FACES:
+        (ua, us), va = TILE_U[f], TILE_V[f]
+        img = Image.new("RGB", (round(mm[ua] * PPM), round(mm[va] * PPM)), tuple(p["color"]))
+        if t and t["axis"] in (ua, va):  # the stripe crosses this face
+            band = round(t["mm"] * PPM)
+            d = ImageDraw.Draw(img)
+            if t["axis"] == va:  # horizontal stripe; image row grows as v falls
+                y0 = math.floor((img.height - band) / 2 - t["at"] * PPM)
+                d.rectangle([0, y0, img.width - 1, y0 + band - 1], fill=tuple(t["rgb"]))
+            else:  # vertical stripe
+                x0 = math.floor((img.width - band) / 2 + us * t["at"] * PPM)
+                d.rectangle([x0, 0, x0 + band - 1, img.height - 1], fill=tuple(t["rgb"]))
+        for q in (q for q in p.get("patches", ()) if q["face"] == f):  # printed rectangles, centre (u, v) mm from the face centre
+            w, h = (round(v * PPM) for v in q["mm"])
+            x0 = math.floor(img.width / 2 + q["at"][0] * PPM - w / 2)
+            y0 = math.floor(img.height / 2 - q["at"][1] * PPM - h / 2)
+            ImageDraw.Draw(img).rectangle([x0, y0, x0 + w - 1, y0 + h - 1], fill=tuple(q["rgb"]))
+        if lab is not None and f in p["labels"]:
+            img.paste(lab, ((img.width - lab.width) // 2, (img.height - lab.height) // 2))
+        out[f] = img
+    return out
 
 
 def decode(img):
@@ -87,45 +120,41 @@ def sheet(codes, dpi):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="sim/assets")
-    ap.add_argument("--per-zone", type=int, default=3)
     ap.add_argument("--dpi", type=int, default=300)
     a = ap.parse_args(argv)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    codes = [code_for(z, n) for z in "AB" for n in range(1, a.per_zone + 1)]
-    for code in codes:
-        s = safe(code)
-        lab = label_image(code, QR_MM, a.dpi)
-        lab.save(out / f"{s}_qr.png", dpi=(a.dpi, a.dpi))
-        face = texture(FACE_MM, a.dpi, KRAFT[0], lab)
-        side = texture(SIDE_MM, a.dpi, KRAFT[0], lab)
-        for name, img in (("qr", lab), ("face", face), ("side", side)):
-            check(img, [code], f"{s}_{name}")
-        face.save(out / f"{s}_face.png", dpi=(a.dpi, a.dpi))
-        side.save(out / f"{s}_side.png", dpi=(a.dpi, a.dpi))
-    for i, color in enumerate(KRAFT[1:], 1):
-        img = texture(FACE_MM, a.dpi, color)
-        check(img, [], f"decoy_{i}")
-        img.save(out / f"decoy_{i}.png", dpi=(a.dpi, a.dpi))
-    for name, code in ROUTES.items():  # lane-sort parcels (cases 7-12)
-        s = safe(code)
-        lab = label_image(code, QR_MM, a.dpi)
-        face = texture(FACE_MM, a.dpi, KRAFT[0], lab)
-        side = texture(SIDE_MM, a.dpi, KRAFT[0], lab)
-        for kind, img in (("qr", lab), ("face", face), ("side", side)):
-            check(img, [code], f"{s}_{kind}")
-        lab.save(out / f"{s}_qr.png", dpi=(a.dpi, a.dpi))
-        face.save(out / f"{s}_face.png", dpi=(a.dpi, a.dpi))
-        side.save(out / f"{s}_side.png", dpi=(a.dpi, a.dpi))
-    img = texture(FACE_MM, a.dpi, KRAFT[0])
-    check(img, [], "nolabel")
-    img.save(out / "nolabel.png", dpi=(a.dpi, a.dpi))
+    codes = list(ROUTES.values())
+    for name, code in [*ROUTES.items(), ("nolabel", None), ("garbage", None)]:
+        if name == "garbage" and name not in PARCELS:  # the stand-in red cube is untextured (make_usd.py)
+            continue
+        if name in PARCELS:  # measured prop: six face tiles
+            for f, img in parcel_faces(PARCELS[name], code).items():
+                check(img, [code] if code and f in PARCELS[name]["labels"] else [], f"box_{name}_{f}")
+                img.save(out / f"box_{name}_{f}.png")
+        elif code is None:  # plain kraft cube
+            img = texture(FACE_MM, a.dpi, KRAFT)
+            check(img, [], "nolabel")
+            img.save(out / "nolabel.png", dpi=(a.dpi, a.dpi))
+        else:  # labelled cube
+            s = safe(code)
+            lab = label_image(code, QR_MM, a.dpi)
+            face = texture(FACE_MM, a.dpi, KRAFT, lab)
+            side = texture(SIDE_MM, a.dpi, KRAFT, lab)
+            for kind, img in (("face", face), ("side", side)):
+                check(img, [code], f"{s}_{kind}")
+            face.save(out / f"{s}_face.png", dpi=(a.dpi, a.dpi))
+            side.save(out / f"{s}_side.png", dpi=(a.dpi, a.dpi))
+        if code:  # the bare label, at print resolution (QR gate, label sheet)
+            lab = label_image(code, QR_MM, a.dpi)
+            check(lab, [code], f"{safe(code)}_qr")
+            lab.save(out / f"{safe(code)}_qr.png", dpi=(a.dpi, a.dpi))
     page = sheet(codes, 300)
     got = sorted(decode(page))
     if got != sorted(codes):
         raise SystemExit(f"FAIL sheet: decoded {got}")
     page.save(out / "sheet_a4.png", dpi=(300, 300))
-    print(f"wrote {len(codes)} codes + 2 decoys + sheet_a4.png to {out}; all decode round-trips OK")
+    print(f"wrote {len(codes)} parcel labels + nolabel + sheet_a4.png to {out}; all decode round-trips OK")
 
 
 if __name__ == "__main__":

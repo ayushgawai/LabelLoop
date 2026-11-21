@@ -6,7 +6,7 @@ code_pattern: '^420/(\d{5})/\d{3}$'   # group 1 = ZIP5
 sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> black reject bin
   A: ["950", "951", "940", "941"]
   B: ["900", "901", "902"]
-lanes: {A: blue, B: orange}   # lane -> bin colour
+lanes: {A: blue, B: red}   # lane -> bin colour (a key of scene.bins, and the colour word WALLX hears)
 max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
 # All counts are MODEL CALLS (~1.6 s of motion each; WALLX takes 8-10 s/call), not wall time.
@@ -22,13 +22,17 @@ max_calls: {PUSH: 12, PLACE: 20, REJECT: 20}
 tries: {PUSH: 0, PLACE: 3, REJECT: 3}   # attempts per parcel (0 = action disabled); WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
-# Calibrated on 1280x720 and 640x480 sim head frames (tests/data): kraft S 60-155, mats S > 120.
+# kraft / zone values: calibrated on 1280x720 and 640x480 sim head frames of the old props (tests/data). Bin ranges: first guesses
+# from phone photos of the shoe boxes (sim/qr_sort_task/props.py). CALIBRATE both on head frames of the new boxes (sim, then venue light).
 scene:
-  blue: [[95, 120, 80], [125, 255, 255]]
-  orange: [[10, 150, 150], [30, 255, 255]]
-  kraft: [[8, 60, 60], [28, 155, 200]]
+  bins:                   # lane bin colour -> HSV ranges [lo, hi] (a pixel matching any range counts)
+    blue: [[[95, 85, 35], [125, 255, 130]]]   # navy shoe box: photo H 105, S 96-129, V 65-88. S >= 85 leaves out the perfume box's foil
+                                              # (S 49-78); V <= 130 leaves out the mailer's bright blue band (V 175-198)
+    red: [[[0, 150, 70], [7, 255, 255]], [[170, 150, 70], [179, 255, 255]]]  # red shoe box: photo H 0/179, S 216-250 (red wraps at H 0)
+  kraft: [[8, 60, 60], [28, 155, 255]]   # V up to 255: lit tops of the real Amazon parcels read V 237-242. NOTE: the blue and red
+                                         # boxes are kraft inside (photo H 17-18, S 120-140)
   mat_min_area: 0.004
-  mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a mat bbox to count as landed there
+  mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a bin's bbox to count as landed there
   induction_roi: [0.46, 0.48, 0.84, 0.92]   # x0, y0, x1, y1 fractions (sim cases 18-23: drop spot in front of the right gripper, below the bin row, left of its home pose)
   reject_bin_roi: [0.725, 0.15, 0.88, 0.40]   # x0, y0, x1, y1 fractions of the head image; sim cases 18-23 black bin, calibrate on the real table
   reject_gain: 0.015      # sim: a cube in the bin changes ~4% (noise-free render); fraction of the reject-bin box changed vs the snapshot taken when the object arrived = something landed in it
@@ -37,7 +41,7 @@ scene:
   kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)
   ref_refresh_calls: 5    # IDLE sees an empty zone this many calls -> refresh the reference
 
-# Wording, one sentence per call, as WALLX was trained. {mat} -> blue|orange, {obj} -> "block" (kraft) | "object".
+# Wording, one sentence per call, as WALLX was trained. {mat} -> blue|red, {obj} -> "block" (kraft) | "object".
 # "put the block into the blue bin" sorted 2/2 zero-shot (results/phase4_case1_wording.md); no location phrases.
 instruction_variant: 0
 instructions:
