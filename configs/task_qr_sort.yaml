@@ -125,8 +125,8 @@ look:                     # scripted no-contact look-around (SCAN -> LOOK): the 
   move_calls: 2           # calls driving to each view, then
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
-max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
-tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 5, REJECT: 3, LIFT2: 5, SWIPE: 6}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20, CENTER: 8}   # INSPECT per try, HANDOVER fixed (no success check), CENTER per try
+tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 5, REJECT: 3, LIFT2: 5, SWIPE: 6, CENTER: 2}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
                           # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
@@ -143,6 +143,10 @@ scene:
     blue: [0.19, 0.0, 0.50, 0.28]   # = the bin footprint extruded to the wall height 0.127 m, projected with look.table_to_pixel, + 0.01 (tests/test_v9 checks it)
     red: [0.51, 0.0, 0.84, 0.32]
     black: [0.74, 0.13, 0.97, 0.47]   # tray mode only
+  mat: [[35, 60, 40], [95, 255, 255]]   # green work mat (HSV). A parcel is ANY other colour in the induction ROI: event_fast detects an object with
+                                        # an unreadable label (a QR under a gripper / at the table edge) as the largest non-mat blob. CALIBRATE
+  gripper_rois: [[0.0, 0.80, 0.18, 1.0], [0.72, 0.80, 1.0, 1.0]]   # head-image fractions of the parked grippers (the bottom corners): never a parcel. CALIBRATE
+  obj_area: [0.01, 0.6]   # a parcel blob's area / induction ROI area must lie in this range (event_fast object detection)
   bin_gain: 0.015         # fraction of a bin ROI changed vs the snapshot taken when the parcel arrived = something landed in it (sim cube ~4%)
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
@@ -164,6 +168,8 @@ instructions:
     - "lift the {obj} with both arms and turn it over"
   HANDOVER:
     - "hand the {obj} from the left arm to the right arm"
+  CENTER:
+    - "slide the box to the middle of the table with the {arm} arm"
   PLACE:
     - "put the {obj} into the {mat} bin with the {arm} arm"
   REJECT:
@@ -181,7 +187,8 @@ real_safe: false          # true (first real-robot runs): ONLY hold still + scri
 event_fast: false         # true (event relay, default with --profile real; implies real_safe): WALLX-only and fast. No scripted arm motion (only HOLD while waiting / done);
                           # SCAN decodes every call, routes on the first 2-frame-confirmed parcel code; no label -> WALLX "flip the box over" (2 tries) -> reject via WALLX black bin;
                           # a failed place retries straight away (no HOME / VERIFY), success is checked during the calls (ok_calls 1); one WALLX HOME ends the parcel;
-                          # budget = real elapsed time (480 s case, 20 s reserve)
+                          # budget = real elapsed time (480 s case, 20 s reserve); a parcel already on the table at the first frame starts the search at once, and an
+                          # object with an unreadable label gets the CENTER sub-goal (nearest wrist also decodes)
 home_still_m: 0.005
 profiles:
   sim:
@@ -191,10 +198,13 @@ profiles:
     head: {pos: [0.084, 0.0, 0.517], quat_xyzw: [0.21263, -0.21263, -0.67438, 0.67438]}   # forward (0.574, 0, -0.819): 55 deg down
     head_intrinsics: {fx: 686.2093862815885, fy: 692.0388349514564, cx: 640, cy: 360, w: 1280, h: 720}
     wrist_mount: {cam_off: [0.074088, 0, 0.097993], cam_tilt: 0.43633}   # wrist camera in the EE frame (URDF)
+    empty_ref: null       # optional JPEG of the empty table (path from the repo root): the initial zone reference instead of the first frame
   real:
     bin_rois: {blue: [0.29, 0.06, 0.49, 0.47], red: [0.52, 0.06, 0.75, 0.47], black: [0.79, 0.45, 1.0, 1.0]}   # real head image after the bins were pushed to the far edge (runs/event_images/20261121_114511/0_front.jpg)
     induction_roi: [0.02, 0.48, 0.78, 1.0]   # real free table area: below the bin row, left of the black bin (place parcels in the open middle, not under a gripper)
     whole_table: false   # real table geometry not calibrated yet: use the induction ROI (whole free table area below) instead of the projected tabletop
+    empty_ref: null       # optional JPEG of the EMPTY table (e.g. runs/event_images/<ts>/0_front.jpg of an empty bench; path from the repo root):
+                          # the harness then uses it as the initial zone reference instead of the first frame, so a parcel that is already there reads as present
     # From results/event/merged_calibration.yaml + intrinsics.yaml. INFERRED CONVENTION (flag: unverified on the robot): M_X_to_head maps points of
     # X's arm-base frame to the head; ONLY the opposite reading "head origin in the arm frame = translation, head axes = rotation columns" gives a sane layout (left arm
     # left of the head, both bases ~0.2 m ahead of and ~0.18 m below the camera, 25 deg down-tilt about the lateral axis). That arm-base frame is

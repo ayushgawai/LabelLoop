@@ -112,3 +112,33 @@ def kraft_in_roi(img, cfg):
     """Fraction of the induction zone that is kraft-coloured (parcel vs garbage)."""
     x0, y0, x1, y1 = roi_box(img, cfg)
     return float(((_mask(img, [cfg["kraft"]], max(2, img.shape[1] // 200))[y0:y1, x0:x1] > 0) & table_region(img, cfg)[4]).sum() / roi_area(img, cfg))  # logged only: no routing decision uses it
+
+
+def object_box(img, ref, cfg):
+    """Full-image pixel box (x0, y0, x1, y1) of a plausible parcel lying in the induction ROI even when its label cannot be read: the largest
+    blob that is not the mat colour (scene.mat) or, with `ref` = the configured empty-table reference, that changed vs it, with an area in
+    scene.obj_area x the ROI area; the bin / tray ROIs (+ bin_margin) and the parked grippers (scene.gripper_rois) never count. None if
+    there is none. event_fast uses it: WALLX must act on a parcel whose code the head camera cannot see (e.g. half under a gripper)."""
+    x0, y0, x1, y1 = roi_box(img, cfg)
+    if x1 - x0 < 2 or y1 - y0 < 2:
+        return None
+    k = max(2, img.shape[1] // 200)
+    m = cv2.bitwise_not(_mask(img, [cfg["mat"]], k)) if cfg.get("mat") else np.zeros(img.shape[:2], np.uint8)
+    if ref is not None:
+        m |= changed_mask(img, ref, cfg)
+    m = m[y0:y1, x0:x1].copy()
+    m[~table_region(img, cfg)[4]] = 0
+    cut = [(b, cfg.get("bin_margin", 0.03)) for b in (cfg.get("bin_rois") or {}).values()] + [(b, 0.0) for b in cfg.get("gripper_rois") or []]
+    for b, g in cut:
+        bx0, by0, bx1, by1 = _frac_box(img, (b[0] - g, b[1] - g, b[2] + g, b[3] + g))
+        m[max(by0 - y0, 0):max(by1 - y0, 0), max(bx0 - x0, 0):max(bx1 - x0, 0)] = 0
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((2 * k + 1, 2 * k + 1), np.uint8))
+    lo, hi = [f * roi_area(img, cfg) for f in cfg.get("obj_area", [0.01, 0.6])]
+    best = None
+    for c in cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
+        a = cv2.contourArea(c)
+        if lo <= a <= hi and (best is None or a > best[4]):
+            bx, by, bw, bh = cv2.boundingRect(c)
+            best = (bx + x0, by + y0, bx + x0 + bw, by + y0 + bh, a)
+    return None if best is None else tuple(int(v) for v in best[:4])

@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -231,3 +232,110 @@ def test_hold_mode_saves_30_no_wallx(env, tmp_path):  # noqa: F811
         assert r["actions"]["left_ee"]["position"][31] == pytest.approx(t.STATE["left_ee"]["position"])
     assert not stub.requests and len(list(next(tmp_path.iterdir()).glob("*.json"))) == 30
     box["loop"].call_soon_threadsafe(box["stop"].set)
+
+
+# ---- trial 1: the parcel lay on the table when the episode started (part 1-3) and an unreadable label (part 4) ----
+MAT, LBL = (90, 140, 100), (200, 150, 110)  # RGB green work mat / kraft-ish parcel (not the mat colour)
+GRIPPERS = ((0.0, 0.80, 0.18, 1.0), (0.72, 0.80, 1.0, 1.0))  # must match scene.gripper_rois
+
+
+def head_frame(parcel=True, w=200, h=100, box=(0.30, 0.55, 0.55, 0.90)):
+    """Synthetic real-profile head frame: the green mat, a parcel (image fractions) and the parked grippers in the bottom corners."""
+    img = np.zeros((h, w, 3), np.uint8)
+    img[:, :] = MAT
+    for x0, y0, x1, y1 in GRIPPERS:
+        img[int(y0 * h):, int(x0 * w):int(x1 * w)] = (40, 40, 45)
+    if parcel:
+        x0, y0, x1, y1 = box
+        img[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)] = LBL
+    return img
+
+
+def frames(img):
+    return {"front": img, "left_wrist": img, "right_wrist": img}
+
+
+def fast_harness(empty_ref=None):
+    prof = {**CFG["profiles"]["real"], "empty_ref": empty_ref}
+    return Harness({**FAST, "profiles": {**CFG["profiles"], "real": prof}})
+
+
+@pytest.fixture
+def empty_jpg(tmp_path):
+    p = tmp_path / "empty.jpg"
+    assert cv2.imwrite(str(p), cv2.cvtColor(head_frame(parcel=False), cv2.COLOR_RGB2BGR))
+    return str(p)
+
+
+def test_idle_routes_on_a_valid_code_with_zero_presence():
+    for m in (StateMachine(CFG), fast_sm()[0]):  # sim config and event_fast: the label alone gets the search going
+        assert m.step({**EMPTY, "codes": {CODE}}) is None
+        assert m.state == "SCAN" and m.transitions[-1][2] == "code visible"
+        m.step({**EMPTY, "codes": {CODE}})  # SCAN re-reads it: route, no presence change needed
+        assert m.lane == "A" and m.code == CODE and m.state in ("SLIDE", "PLACE")
+    m = StateMachine(CFG)  # a text that is not a parcel label does not leave IDLE
+    m.step({**EMPTY, "codes": {"not-a-label"}})
+    assert m.state == "IDLE"
+
+
+def test_empty_ref_is_the_initial_reference(empty_jpg):
+    img = head_frame()
+    h = fast_harness(empty_jpg)
+    assert h.step(frames(img), STATE) is None and h.ref is None  # home not steady yet
+    h.step(frames(img), STATE)
+    assert h.ref_cfg and h.sm.state == "SCAN"  # not empty vs the configured image -> a parcel is already there
+    assert scene.presence(img, h.ref, h.cfg["scene"]) > 0.1
+    cfg = apply_profile({**FAST, "profiles": {**CFG["profiles"], "real": {**CFG["profiles"]["real"], "empty_ref": "runs/event_images/x/0_front.jpg"}}})
+    assert cfg["empty_ref"].endswith("runs/event_images/x/0_front.jpg") and Path(cfg["empty_ref"]).is_absolute()  # relative to the repo root
+    assert apply_profile(FAST)["empty_ref"] is None
+
+
+def test_first_frame_parcel_is_present_without_a_change():
+    h = fast_harness()  # no empty_ref: the parcel is part of the reference, as in trial 1
+    h.step(frames(head_frame()), STATE)
+    assert h.step(frames(head_frame()), STATE) is None and h.home is not None
+    assert h.sm.state == "SCAN" and h.obj_box is not None and h.near == "left"
+    h2 = fast_harness()
+    h2.step(frames(head_frame(parcel=False)), STATE), h2.step(frames(head_frame(parcel=False)), STATE)
+    assert h2.sm.state == "IDLE" and h2.obj_box is None  # an empty bench stays in IDLE
+
+
+def test_object_box_ignores_the_mat_bins_and_parked_grippers():
+    sc = apply_profile(FAST)["scene"]
+    assert scene.object_box(head_frame(parcel=False), None, sc) is None  # mat + parked grippers only
+    b = scene.object_box(head_frame(), None, sc)
+    assert b is not None and 55 <= b[0] <= 65 and 105 <= b[2] <= 115 and 50 <= b[1] <= 60 and 85 <= b[3] <= 92  # the parcel at 0.30-0.55 x 0.55-0.90
+
+
+def test_wrist_code_counts_for_the_near_arm(monkeypatch, empty_jpg):
+    monkeypatch.setattr("labelloop.harness.locate", lambda im: [])
+    monkeypatch.setattr("labelloop.harness.decode", lambda imgs: [(CODE, v) for v in imgs])
+    h = fast_harness(empty_jpg)
+    for _ in range(4):
+        h.step(frames(head_frame()), STATE)
+    assert h.sm.state == "PLACE" and h.sm.code == CODE and h.near == "left" and h.wrist_cams("SCAN", 0) == {"left_wrist"}
+    h = fast_harness(empty_jpg)
+    for _ in range(4):
+        h.step(frames(head_frame(box=(0.50, 0.55, 0.70, 0.90))), STATE)  # image-right half -> the right wrist
+    assert h.sm.state == "PLACE" and h.near == "right"
+
+
+def test_wrist_code_is_ignored_when_the_head_sees_it_in_a_bin(monkeypatch, empty_jpg):
+    monkeypatch.setattr("labelloop.harness.locate", lambda im: [(CODE, (78.0, 26.0))])  # centre of the real blue bin ROI
+    monkeypatch.setattr("labelloop.harness.decode", lambda imgs: [(CODE, v) for v in imgs])
+    h = fast_harness(empty_jpg)
+    ins = [h.step(frames(head_frame()), STATE) for _ in range(6)]
+    assert h.sm.lane is None and not any(i and "blue" in i for i in ins)  # an already sorted parcel in a bin blinds the wrist text
+
+
+def test_hidden_label_centers_the_box_then_routes(monkeypatch, empty_jpg):
+    seen = []
+    monkeypatch.setattr("labelloop.harness.locate", lambda im: list(seen))
+    monkeypatch.setattr("labelloop.harness.decode", lambda imgs: [])
+    h = fast_harness(empty_jpg)
+    ins = [h.step(frames(head_frame()), STATE) for _ in range(6)]
+    assert h.sm.state == "CENTER" and ins[-1] == "slide the box to the middle of the table with the left arm"
+    assert h.sm.tries["CENTER"] == 1 and h.sm.transitions[-1][2] == "object, no code"
+    seen.append((CODE, (80.0, 70.0)))  # WALLX slid the box out: the label shows now
+    ins = [h.step(frames(head_frame()), STATE) for _ in range(2)]
+    assert h.sm.state == "PLACE" and h.sm.code == CODE and ins[-1] == "put the box into the blue bin"

@@ -4,12 +4,16 @@ import time
 from labelloop.brain.instructions import instruction
 
 # IDLE -> SCAN -> SHOW -> SPIN -> (LOOK -> LOOKHOME) -> INSPECT -> route   (label search; each step is skipped when disabled / tries 0)
+# IDLE -> SCAN also on a valid parcel-format code seen by the head camera inside the induction ROI (outside the bins), even with NO presence
+#   change: the parcel lay on the table when the episode began, so it is part of the empty reference (trial 1).
 # SCAN: head ROI codes; none after scan_max_calls -> SHOW.  SHOW (show.enabled, not big, once per parcel): scripted (no WALLX): one arm grasps the
 #   parcel, lifts it in front of the head camera and turns each face toward it (all cameras decode); the first confirmed code (or the last face) ->
 #   SHOWSET: the arm sets it down inside the delivery arm's grasp region (the delivery arm is known from the code, else the reject arm) and goes
 #   home; then the code is read (route) or the search goes on. No plan (parcel too wide for the gripper, nothing reachable) -> SPIN at once.
 #   SPIN: scripted (no WALLX): one arm pushes the parcel so it yaws, goes home,
 #   then the head camera re-reads (spin.tries tries). LOOK (look.enabled): scripted wrist-camera look-around. INSPECT: WALLX flips it.
+# event_fast (real profile): an object detected on the table (ev["obj"], no readable label) is CENTERed first - WALLX "slide the box to the middle
+#   of the table with the {arm} arm" (nearest arm, max_calls 8, tries 2) - then re-SCANned, then the flip path (INSPECT), then REJECT (black bin).
 # Nothing found after the last step -> reject with "no_label" only if every face that can carry a label was observed (flat parcel: top + bottom; box: all
 #   6; the top is seen at SCAN, SHOW adds the faces it held to the head, an INSPECT try the bottom), else "unread" (also when the budget's deliver reserve is hit
 #   first). There is no colour shortcut: every object gets the full search. A big parcel searches too (SHOW refuses it when too wide, then SPIN pushes it).
@@ -25,8 +29,8 @@ from labelloop.brain.instructions import instruction
 #   edge, each entry re-fitting it (swipe.max_strokes); HOME -> VERIFY (the zone is empty) as for the other actions. reject_mode tray: REJECT puts it in the black bin.
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
-COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE")  # tries counted per parcel
-WALLX = ACTIONS + ("INSPECT", "HANDOVER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
+COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE", "CENTER")  # tries counted per parcel
+WALLX = ACTIONS + ("INSPECT", "HANDOVER", "CENTER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
 SCRIPTED = ("SWIPE", "SLIDE", "SHOW", "SHOWSET", "SPIN", "LOOK")
@@ -36,7 +40,9 @@ class StateMachine:
     """step(ev) -> instruction | None (None = hold still).
     ev = {"presence": zone changed fraction, "kroi": kraft fraction of the zone, "codes": confirmed code texts,
           "bins": {bin colour incl. black: ROI changed fraction vs the snapshot at SCAN}, optional "big": bool override of the presence test,
-          "raw": decoded texts this call, confirmed or not, "spin_push" / "spin_calls": calls of the scripted push (codes are ignored until it is done) / of the whole spin try}."""
+          "raw": decoded texts this call, confirmed or not, "spin_push" / "spin_calls": calls of the scripted push (codes are ignored until it is done) / of the whole spin try},
+          event_fast adds "present" (the zone was not empty on the very first frame: a parcel was already there), "obj" (a plausible
+          object is on the table, label readable or not) and "near" ("left" / "right": the arm nearest it, for CENTER)."""
 
     def __init__(self, cfg, clock=time.monotonic):
         self.cfg, self.pattern, self.clock = cfg, re.compile(cfg["code_pattern"]), clock
@@ -52,6 +58,7 @@ class StateMachine:
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
+        self.near = None  # event_fast: the arm nearest the detected object ("left" / "right"), for CENTER's wording
         self.landed = False  # event_fast: the action's success check held
         self.looked = self.showed = False  # LOOK / SHOW done
         self.faces, self.flat = {"top"}, self.cfg.get("show", {}).get("flat_default", True)  # label faces observed (top: seen at SCAN); flat parcel = only top / bottom carry a label
@@ -71,8 +78,9 @@ class StateMachine:
         s = self.state
         if s in WALLX + ("HOME",):
             key = "INSPECT_BIG" if s == "INSPECT" and self.big else s
+            arm = self.near if s == "CENTER" and self.near else self._arm()  # CENTER: the arm nearest the object
             return instruction(key, self.cfg, self.tries.get("INSPECT", 1) - 1 if s == "INSPECT" else 0,
-                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=self._arm())
+                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm)
 
     def _arm(self):  # the arm that puts the parcel in its bin: the lane's (handover: false) or the receiving right arm
         return "right" if self.cfg.get("handover") else self.cfg["arms"].get(self.lane or "reject", "right")
@@ -93,8 +101,15 @@ class StateMachine:
 
     def _admit(self, s):  # a search try fits: its estimated cost + the deliver reserve + the way home remain
         b, c = self.cfg["budget"], self.cfg
-        cost = c["max_calls"]["INSPECT"] * b["wallx_call_s"] if s == "INSPECT" else c[s.lower()]["est_calls"] * b["scripted_call_s"]
+        cost = c["max_calls"].get(s, 1) * b["wallx_call_s"] if s in WALLX else c[s.lower()]["est_calls"] * b["scripted_call_s"]
         return self.remaining() - cost - c["home_calls"] * b["scripted_call_s"] >= b["deliver_reserve_s"]
+
+    def _center(self):  # event_fast: the object is there but its label cannot be read -> WALLX slides it into the open middle for a fresh look
+        c = self.cfg
+        if not (c.get("event_fast") and self.tries.get("CENTER", 0) < c["tries"].get("CENTER", 0) and self._admit("CENTER")):
+            return False
+        self._go("CENTER", "object, no code")
+        return True
 
     def _bad_grasp(self, ev):
         """event_fast: abort the attempt at once when the acting gripper (the lane arm; ponytail: left for LIFT2) closes on nothing (below grasp.empty_below),
@@ -204,18 +219,21 @@ class StateMachine:
     def step(self, ev):
         cfg, sc, s = self.cfg, self.cfg["scene"], self.state
         self.transitions, self.flags = [], []
-        self.calls += 1
+        self.near, self.calls = ev.get("near"), self.calls + 1
         self.spent += self._cost(s)
         over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
         f, codes = ev["presence"], sorted(c for c in ev["codes"] if c not in self.sorted)
         if s == "IDLE":
-            if f < sc["presence_min"]:
-                self.seen = 0
-            else:  # present: stable only while the fraction stops moving (a hand sliding it in keeps changing it)
-                self.seen = self.seen + 1 if self.seen and abs(f - self.prev) <= cfg["settle_tol"] else 1
+            if ev.get("present") or any(self.pattern.match(c) for c in codes):  # parcel already on the table at the start / its label is visible now
+                self._go("SCAN", "object present" if ev.get("present") else "code visible")
+            else:
+                if f < sc["presence_min"] or not ev.get("obj", True):  # event_fast: a change vs the reference with no object in the image is stale
+                    self.seen = 0
+                else:  # present: stable only while the fraction stops moving (a hand sliding it in keeps changing it)
+                    self.seen = self.seen + 1 if self.seen and abs(f - self.prev) <= cfg["settle_tol"] else 1
+                if self.seen >= cfg["stable_calls"]:
+                    self._go("SCAN", "object in zone")
             self.prev = f
-            if self.seen >= cfg["stable_calls"]:
-                self._go("SCAN", "object in zone")
         elif s == "SCAN":
             self.big = ev.get("big", f >= sc["big_presence"])
             if any(self.pattern.match(c) for c in codes):  # a valid parcel-format decode is never overridden by the kraft test
@@ -223,7 +241,13 @@ class StateMachine:
             elif codes:
                 self._read(codes)
             elif self.calls >= cfg["scan_max_calls"] or self.remaining() < cfg["budget"]["deliver_reserve_s"]:
-                self._search_next()
+                if not (ev.get("obj") and self._center()):  # an object with no readable label: slide it out first
+                    self._search_next()
+        elif s == "CENTER":  # WALLX slid the parcel into the open middle: look again here, then the flip path takes over
+            if codes:
+                self._read(codes)
+            elif self.calls >= cfg["max_calls"][s] or self.remaining() < cfg["budget"]["deliver_reserve_s"]:
+                self._go("SCAN", "centred")
         elif s == "HOLD":  # real_safe latch: arms still, no WALLX call, until the operator ends the episode
             pass
         elif s == "SPIN":

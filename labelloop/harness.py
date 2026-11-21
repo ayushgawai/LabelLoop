@@ -1,5 +1,6 @@
 import copy
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -29,6 +30,11 @@ def apply_profile(cfg):
         cfg["scene"]["induction_roi"] = prof["induction_roi"]
     if prof.get("whole_table") is not None:
         cfg["scene"]["whole_table"] = prof["whole_table"]
+    if prof.get("empty_ref"):  # a JPEG of the empty table = the initial zone reference (relative to the repo root, else absolute)
+        p = Path(prof["empty_ref"])
+        cfg["empty_ref"] = str(p if p.is_absolute() else Path(__file__).resolve().parents[1] / p)
+    else:
+        cfg["empty_ref"] = None
     if cfg.get("real_safe"):
         for k in ("show", "spin", "slide", "look"):
             cfg[k]["enabled"] = False
@@ -67,6 +73,9 @@ class Harness:
         self.swipe, self.swipe_info = None, None  # the same for the reject swipe (SWIPE)
         self.calib, self.cal_n, self.cal_cur = None, 0, None  # calib_test schedule, calls consumed, entry of the current call
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
+        self.ref_cfg = False  # the reference is the configured empty-table image (not the live first frame)
+        self._empty = False  # the loaded empty-table JPEG resized to the frame (False = not read yet, None = unreadable)
+        self.obj_box, self.near = None, None  # event_fast: object on the table with no readable label; the arm nearest it
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
 
     def step(self, images, state):
@@ -88,6 +97,13 @@ class Harness:
         front = images["front"]
         qf = scene.blank_bins(front, cfg) if self.cfg.get("real_safe") else front  # codes are decoded from this: bins blanked first (real_safe)
         box = scene.roi_box(front, cfg)
+        if self.ref is None and self.cfg.get("empty_ref"):  # the configured empty-table JPEG is the initial reference (no parcel baked into it)
+            e = self.empty_frame(front)
+            self.ref, self.ref_cfg = (scene.zone_ref(e, cfg), True) if e is not None else (None, False)
+        self.obj_box, self.near = None, None
+        if self.cfg.get("event_fast"):  # a parcel on the table even with an unreadable label: non-mat colour, or change vs the configured empty image
+            self.obj_box = scene.object_box(front, self.ref if self.ref_cfg else None, cfg)
+            self.near = None if self.obj_box is None else "left" if (self.obj_box[0] + self.obj_box[2]) / 2 < front.shape[1] / 2 else "right"
         pre = self.sm.calls  # index of the scripted call whose result this image shows
         on = self.on_parcel(before, front, cfg, box, pre)  # head code centre -> does it lie on the tracked parcel?
         codes = [(t, p) for t, p in locate(qf) if on(p)]
@@ -96,25 +112,36 @@ class Harness:
             cb = (max(cb[0] - 20, 0), max(cb[1] - 20, 0), cb[2] + 20, cb[3] + 20)
             crop = cv2.resize(qf[cb[1]:cb[3], cb[0]:cb[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
-        wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k in self.wrist_cams(before, pre)})}
+        wcams = {k: v for k, v in images.items() if k in self.wrist_cams(before, pre)}
+        wrist = {(v, t) for t, v in decode(wcams)}
+        if wrist and self.cfg.get("event_fast"):  # only a parcel-format code not already sorted and not the one the head sees sitting in a bin
+            blind = {t for t, p in locate(front) if scene.in_bin(p, front, cfg)}
+            wrist = {(v, t) for v, t in wrist if self.sm.pattern.match(t) and t not in self.sm.sorted and t not in blind}
         seen = {("front", t) for t, _ in codes} | wrist
         confirmed = {t for _, t in self.confirmer.update(seen)}
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
+        present = bool(before == "IDLE" and self.calls == 1 and self.cfg.get("event_fast")
+                       and (pres >= cfg["presence_min"] or codes or self.obj_box is not None))  # a parcel was already there at the episode start
         if before == "IDLE":  # arms are home: keep the reference current whenever the zone has been empty a while
-            self.empty = self.empty + 1 if pres < cfg["presence_min"] else 0
+            empty = pres < cfg["presence_min"] or (self.cfg.get("event_fast") and self.obj_box is None and not codes)  # (event_fast: no object in the image = a stale reference)
+            self.empty = self.empty + 1 if empty else 0
             if self.ref is None or self.sm.rebase or self.empty >= cfg["ref_refresh_calls"]:
-                self.ref, self.empty, self.sm.rebase = scene.zone_ref(front, cfg), 0, False
+                self.ref, self.ref_cfg, self.empty, self.sm.rebase = scene.zone_ref(front, cfg), False, 0, False
         kroi = scene.kraft_in_roi(front, cfg)
         bins = {c: scene.presence(front, r, cfg, "bin_rois", c) for c, r in self.bin_refs.items()}  # {} until the first SCAN
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
-        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen}, "grip": {"left": state["left_ee"]["gripper"], "right": state["right_ee"]["gripper"]},
-                              "show_calls": len(self.show["calls"]) if self.show else 0,
-                              "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
-                              "spin_push": push, "spin_calls": push + sc if self.spin else 1,
-                              "swipe_calls": len(self.swipe["wps"]) + self.cfg["home_calls"] + self.cfg["swipe"]["settle_calls"] if self.swipe else 0,
-                              "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0})  # no feasible push: the try is skipped
+        ev = {"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
+              "grip": {"left": state["left_ee"]["gripper"], "right": state["right_ee"]["gripper"]},
+              "show_calls": len(self.show["calls"]) if self.show else 0,
+              "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
+              "spin_push": push, "spin_calls": push + sc if self.spin else 1,
+              "swipe_calls": len(self.swipe["wps"]) + self.cfg["home_calls"] + self.cfg["swipe"]["settle_calls"] if self.swipe else 0,
+              "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0}  # no feasible push: the try is skipped
+        if self.cfg.get("event_fast"):  # the object on the table (label readable or not) / a parcel already there at the start / the arm nearest it
+            ev.update(present=present, obj=self.obj_box is not None, near=self.near)
+        instr = self.sm.step(ev)
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
         if self.sm.state == "SHOW" and self.sm.calls == 0:  # grasp-and-show: nothing to grasp -> the next search step at once
@@ -161,6 +188,18 @@ class Harness:
                               spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info, swipe=self.swipe_info, show=self.show_info)
         return instr
 
+    def empty_frame(self, front):
+        """The configured empty-table JPEG (empty_ref) resized to the frame, or None; read once (self._empty False = not tried yet)."""
+        if self._empty is False:
+            self._empty = None
+            if self.cfg.get("empty_ref"):
+                img = cv2.imread(str(self.cfg["empty_ref"]))  # BGR on disk, the frames are RGB
+                if img is None:
+                    self.log(warning="empty_ref: cannot read %s" % self.cfg["empty_ref"])
+                else:
+                    self._empty = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), front.shape[1::-1], interpolation=cv2.INTER_AREA)
+        return self._empty
+
     def parcel_hw(self, front, cfg, lc):
         """Half-width from the changed-pixel bbox (FULL-image pixels, as look.footprint expects); lc["hw"] when the box is missing,
         covers nearly the whole zone (stale reference) or is tiny."""
@@ -202,7 +241,8 @@ class Harness:
     def on_parcel(self, before, front, cfg, box, pre):
         """Predicate: does a head-image code centre lie on the tracked parcel? SHOW: on the held parcel's projection (a disc around the show point,
         only once it is lifted); SPIN / LOOK: on the changed pixels of the zone (the parcel lies there, dilated); INSPECT / HANDOVER (WALLX holds it,
-        untracked): anywhere but a bin; else (SCAN ...): inside the induction ROI."""
+        untracked): anywhere but a bin; IDLE (nothing tracked yet): inside the induction ROI (a parcel may already lie there, off the reference); else
+        (SCAN ...): inside the induction ROI."""
         base = lambda p: not scene.in_bin(p, front, cfg)  # a parcel already in a bin / tray is never read, in any state
         if before == "SHOW":
             if not self.show or pre < 4:
@@ -212,14 +252,17 @@ class Harness:
             c, d = look.table_to_pixel(P, front.shape[1::-1]), np.linalg.norm(P - look.HEAD_POS)
             rpx = look.FX * r / d * front.shape[1] / 1280
             return lambda p: base(p) and np.hypot(p[0] - c[0], p[1] - c[1]) <= rpx
-        if before in ("INSPECT", "HANDOVER") or self.ref is None:
-            return lambda p: base(p) and (before in ("INSPECT", "HANDOVER") or scene.inside(p, box))
+        if before in ("INSPECT", "HANDOVER", "IDLE") or self.ref is None:
+            return lambda p: base(p) and (before != "IDLE" or scene.inside(p, box))
         m = cv2.dilate(scene.changed_mask(front, self.ref, cfg), np.ones((21, 21), np.uint8))  # SCAN / SPIN / LOOK: the parcel lies on the table
         return lambda p: base(p) and 0 <= int(p[1]) < m.shape[0] and 0 <= int(p[0]) < m.shape[1] and m[int(p[1]), int(p[0])] > 0
 
     def wrist_cams(self, before, pre):
-        """Wrist cameras whose codes count (none in real_safe: head only): SHOW = the holding arm's, once it grips (from the close call); LOOK = the looking arm's; INSPECT / HANDOVER = both
+        """Wrist cameras whose codes count: event_fast = the arm nearest the detected object while the head searches (SCAN / CENTER); none in
+        real_safe (head only): SHOW = the holding arm's, once it grips (from the close call); LOOK = the looking arm's; INSPECT / HANDOVER = both
         (untracked); SCAN / SPIN: none (the arms are home, their view is not the parcel)."""
+        if self.cfg.get("event_fast"):
+            return {self.near + "_wrist"} if self.obj_box is not None and before in ("SCAN", "CENTER") else set()
         if self.cfg.get("real_safe"):
             return set()
         if before == "SHOW":
