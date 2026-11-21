@@ -43,3 +43,4 @@ You are a coding agent helping team LabelLoop at the hackathon. Work ONLY on thi
 
 ## Status
 (append one line per step: date time, step, commit hash)
+- 2026-11-21 14:08, step 1, 4333892: `kinematics.py` (`joints`, `row_joints`, `trial_joints` -> `joints.json`, incremental for live trials, ~1 ms/row warm-started) + `GET /api/trials/<id>/joints` + `demo.py` (synthetic trials: `python -m labelloop.dashboard.demo --root runs/demo/trials`) + `tests/test_dashboard_v2.py`. Note: at rest (q = 0) joints 2 and 3 sit ON their URDF limits (LO[1] = 0, HI[2] = 0), so `ok` = IK converged and a joint at / near a limit is flagged in `near` (drawn orange), not an IK failure.
