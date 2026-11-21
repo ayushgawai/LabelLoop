@@ -128,6 +128,12 @@ ACTIVE cases (`props.ACTIVE`: the parcels the user has; all lie flat, label top/
 32 bhindi (LL-08, A blue) | 33 iqbar_a (LL-11, B red; IQBAR box, ~6 mm of x play) | 34 miro (LL-12, B red) | 20 z10001 mailer (LL-09, A blue) |
 35 iqbar_b (same box, NO label, reject) | 22 garbage = perfume box (LL-10, A blue, lies flat) | 28 wallet (no label, reject).
 31 calibration (no parcels, 90 s). 36 stream of all 7 (in that order: bhindi, iqbar_a, miro, z10001, iqbar_b, garbage, wallet) 150 s apart, 6 s ... 906 s, timeout 1080 s.
+POSITION tests (case options `anywhere=True`, `prefill=True`): cases 40-46 = one case per active item in ACTIVE order (bhindi, iqbar_a, miro, z10001, iqbar_b, garbage, wallet; drop at 6 s, 150 s), 47 = all 7 anywhere, 150 s apart.
+`anywhere`: `disturb(anywhere=anywhere_cfg)` drops the parcel flat at a uniformly random yaw in [-pi, pi] and a uniform random point of the WHOLE tabletop (rejection sampler `anywhere_sample`, honours `avoid`):
+parcel's yaw-turned bounding box inside the table by 1 cm, 3 cm clear of every bin/tray footprint, between the grippers' keep-out strips (env y band = +-`LEFT_GRIPPER_Y` mirrored), centre within 0.60 m of an arm base (root + (0, +-0.29)).
+The log line `[labelloop] drop <obj> env <i> pos env (x, y) local (x, y) yaw r` lets runs be binned by position. `build_task` asserts the region is non-empty and prints each item's area in `parcel_report`
+(mean over yaw): bhindi 377 cm^2, garbage 414, wallet 607, miro 100 (83% of yaws feasible), iqbar_a/b 104 (50%), mailer z10001 ~14 (17%: only near-sideways yaws fit between bins and table edge).
+`prefill`: kinematic labelled parcels rest label-up (pz) in the bins at reset (`PREFILL`: bhindi_pz in blue, miro_pz in red, garbage_pz in the tray), not in the success assignments: the camera must ignore QR codes of already sorted parcels.
 Every drop zone fits `INDUCT_ENV` unchanged (no widening). Cases 18, 19, 21, 23-27, 29, 30 were removed (their props stay in props.py, unused).
 Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else swipe into the low black tray. This layout replaced the earlier row layout (bins at y +-0.15,
 reject bin beside blue, zone in front of the right arm); the "Cases 18-23" section below is history.

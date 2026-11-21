@@ -4,7 +4,9 @@ Install: copy to <X2REAL>/manaenv/assets/objects/labelloop_qr_sort.py (scene YAM
 background.asset_module). Follows manaenv/assets/objects/move_bottle_to_bin.py.
 USD files + textures come from make_usd.py into $MANAENV_ASSET_ROOT/labelloop/.
 """
+import math
 import os
+import random
 
 import torch
 from isaaclab_arena.assets.object_base import ObjectType
@@ -103,13 +105,51 @@ def _gen(device):
     return _GEN[device]
 
 
-def disturb(env, env_ids, *, object_name, to_xy_range, yaw_range=None, z=None, avoid=(), slide_v=0.0):
+_RNG = random.Random(int.from_bytes(os.urandom(8), "little"))  # anywhere sampler: seeded once per process like _GEN
+
+
+def _anywhere_ok(cfg, x, y, yaw):
+    """Constraint check of an "anywhere" drop (twin of build_task.anywhere_ok; cfg from build_task.anywhere_cfg, env frame): the yaw-turned parcel
+    is inside the table by `edge`, clear of every bin/tray rect by `gap`, between the grippers' keep-out strips (`band`) and its centre is
+    within `reach` of an arm base."""
+    (sx, sy), c, s = cfg["size"], abs(math.cos(yaw)), abs(math.sin(yaw))
+    hx, hy = (sx * c + sy * s) / 2, (sx * s + sy * c) / 2
+    (x0, x1), (y0, y1) = cfg["table"]
+    e, g = cfg["edge"], cfg["gap"]
+    if not (x0 + hx + e <= x <= x1 - hx - e and y0 + hy + e <= y <= y1 - hy - e and cfg["band"][0] + hy <= y <= cfg["band"][1] - hy):
+        return False
+    if any(a - hx - g < x < b + hx + g and cc - hy - g < y < d + hy + g for a, b, cc, d in cfg["rects"]):
+        return False
+    return any(math.hypot(x - ax, y - ay) <= cfg["reach"] for ax, ay in cfg["arms"])
+
+
+def anywhere_sample(cfg, avoid=(), rng=_RNG):
+    """Uniform rejection sample (x, y, yaw) of the valid region (yaw uniform in [-pi, pi]), preferring spots >= cfg["clear"] from every
+    avoid (x, y); if none is found in 50000 draws, the valid spot farthest from them."""
+    (x0, x1), (y0, y1), best = cfg["table"][0], cfg["table"][1], None
+    x1, y0, y1 = min(x1, cfg["arms"][0][0] + cfg["reach"]), max(y0, cfg["band"][0]), min(y1, cfg["band"][1])  # cheap outer box: far reach limit, gripper strips
+    for _ in range(50000):
+        x, y, yaw = rng.uniform(x0, x1), rng.uniform(y0, y1), rng.uniform(-math.pi, math.pi)
+        if not _anywhere_ok(cfg, x, y, yaw):
+            continue
+        d = min((math.hypot(x - a, y - b) for a, b in avoid), default=math.inf)
+        if d >= cfg["clear"]:
+            return x, y, yaw
+        if best is None or d > best[0]:
+            best = (d, x, y, yaw)
+    assert best, "anywhere: no valid spot"
+    return best[1:]
+
+
+def disturb(env, env_ids, *, object_name, to_xy_range=None, yaw_range=None, z=None, avoid=(), slide_v=0.0, anywhere=None):
     """Interval event (``mode: interval, interval_range_s: [t, t], is_global_time: true``): a human slides a parcel in.
 
     object_name: one name, or a list (the label-face variants of one parcel): per env ONE uniformly random member is dropped, and only if
     none of the list has been dropped yet (all still parked, env z < -2 m), so the repeated interval firing cannot drop a second one.
     Teleports it to a random xy/yaw in to_xy_range [[x0,x1],[y0,y1]] (env frame; + optional yaw_range [lo,hi] rad, z) each
     episode: of 32 uniform candidates the one farthest from the ``avoid`` objects, so it never lands inside another parcel.
+    anywhere: build_task.anywhere_cfg dict (instead of to_xy_range): xy AND yaw (yaw_range ignored) are drawn by anywhere_sample over the whole
+    reachable tabletop, honouring ``avoid``; the line then also prints the env and tabletop-local xy and yaw.
     slide_v > 0: a swipe from the left: placed 0.08 m further left (env +y) and given slide_v m/s toward the robot's right (env -y).
     Prints one line per drop: ``[labelloop] drop <object> env <i>``.
     """
@@ -121,27 +161,32 @@ def disturb(env, env_ids, *, object_name, to_xy_range, yaw_range=None, z=None, a
         return
     pick = torch.randint(len(names), (len(ids),), device=env.device, generator=_gen(env.device))
     for k, name in enumerate(names):
-        _drop(env, name, ids[pick == k], to_xy_range, yaw_range, z, avoid, slide_v)
+        _drop(env, name, ids[pick == k], to_xy_range, yaw_range, z, avoid, slide_v, anywhere)
 
 
-def _drop(env, object_name, ids, to_xy_range, yaw_range, z, avoid, slide_v):
+def _drop(env, object_name, ids, to_xy_range, yaw_range, z, avoid, slide_v, anywhere=None):
     if len(ids) == 0:
         return
     asset = env.scene[object_name]
     d = asset.data
     pose = torch.cat([d.root_pos_w.torch, d.root_quat_w.torch], dim=-1)[ids].clone()
     n, u = len(ids), lambda lo, hi: lo + (hi - lo) * torch.rand(n, device=env.device, generator=_gen(env.device))
-    cand = torch.stack([lo + (hi - lo) * torch.rand(n, 32, device=env.device, generator=_gen(env.device)) for lo, hi in to_xy_range], dim=-1)  # (n, 32, 2)
-    if avoid:
-        others = torch.stack([env.scene[o].data.root_pos_w.torch[ids, :2] - env.scene.env_origins[ids, :2] for o in avoid], dim=1)  # (n, M, 2)
-        best = torch.cdist(cand, others).min(dim=-1).values.argmax(dim=-1)
+    if anywhere:
+        oth = [env.scene[o].data.root_pos_w.torch[ids, :2] - env.scene.env_origins[ids, :2] for o in avoid]
+        got = [anywhere_sample(anywhere, [tuple(o[i].tolist()) for o in oth]) for i in range(n)]
+        xy, yaw_a = torch.tensor([g[:2] for g in got], device=env.device), torch.tensor([g[2] for g in got], device=env.device)
     else:
-        best = torch.zeros(n, dtype=torch.int64, device=env.device)
-    xy = cand[torch.arange(n, device=env.device), best]
+        cand = torch.stack([lo + (hi - lo) * torch.rand(n, 32, device=env.device, generator=_gen(env.device)) for lo, hi in to_xy_range], dim=-1)  # (n, 32, 2)
+        if avoid:
+            others = torch.stack([env.scene[o].data.root_pos_w.torch[ids, :2] - env.scene.env_origins[ids, :2] for o in avoid], dim=1)  # (n, M, 2)
+            best = torch.cdist(cand, others).min(dim=-1).values.argmax(dim=-1)
+        else:
+            best = torch.zeros(n, dtype=torch.int64, device=env.device)
+        xy = cand[torch.arange(n, device=env.device), best]
     if slide_v:
         xy[:, 1] += 0.08
     pose[:, :3] = env.scene.env_origins[ids] + torch.cat([xy, torch.full((n, 1), float(z), device=env.device)], dim=-1)
-    yaw = u(*yaw_range) if yaw_range else torch.zeros(n, device=env.device)
+    yaw = yaw_a if anywhere else u(*yaw_range) if yaw_range else torch.zeros(n, device=env.device)
     pose[:, 3:] = torch.stack([torch.zeros_like(yaw), torch.zeros_like(yaw), torch.sin(yaw / 2), torch.cos(yaw / 2)], dim=-1)  # XYZW
     asset.write_root_pose_to_sim_index(root_pose=pose, env_ids=ids)
     if hasattr(asset, "write_root_velocity_to_sim_index"):
@@ -149,4 +194,9 @@ def _drop(env, object_name, ids, to_xy_range, yaw_range, z, avoid, slide_v):
         vel[:, 1] = -slide_v
         asset.write_root_velocity_to_sim_index(root_velocity=vel, env_ids=ids)
     for i in ids.tolist():
-        print(f"[labelloop] drop {object_name} env {i}", flush=True)
+        where = ""
+        if anywhere:
+            k, (tx, ty) = ids.tolist().index(i), anywhere["table_c"]
+            ex, ey = xy[k].tolist()
+            where = f" pos env ({ex:.3f}, {ey:.3f}) local ({tx - ex:.3f}, {ty - ey:.3f}) yaw {yaw[k].item():.2f}"
+        print(f"[labelloop] drop {object_name} env {i}{where}", flush=True)

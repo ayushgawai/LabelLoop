@@ -45,6 +45,12 @@ REJECT_XY = (0.0, math.floor((TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["
 INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.3082, -0.1482]}
 LEFT_GRIPPER_Y, SLIDE_FROM = -0.27, 0.08  # tabletop-local y of the left gripper's inner edge; swipe start offset (disturb's 0.08 m)
 SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry point to the sampled spot; m/s toward the robot's right (env -y) given to a parcel as it is swiped in (disturb slide_v)
+# "anywhere" drops (case option anywhere=True): the parcel lands, flat at a random yaw in [-pi, pi], at a uniformly random point of the WHOLE
+# reachable tabletop (anywhere_ok): inside the table, clear of every bin/tray, outside both grippers' keep-out strips, in reach of an arm.
+ANY_EDGE, ANY_BIN, ARM_Y, REACH = 0.01, 0.03, 0.29, 0.60  # table edge / bin clearance (m) beyond the parcel's yaw-dependent half-extent; arm base offset; reach radius
+ROOT_LOCAL = (0.5267, -0.0092)  # robot root in tabletop-local (root = ROOT_LOCAL - local; root env = (-0.322, -0.259))
+ANY_AREA_STEP, ANY_AREA_YAWS = 0.02, 24  # build-time area estimate: xy grid step (m) and yaw samples over [-pi, pi]
+PREFILL = {"bin_blue": "bhindi_pz", "bin_red": "miro_pz", "reject_bin": "garbage_pz"}  # prefill=True: labelled parcel resting label-up in each receptacle (garbage: label reader stress)
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
 TARGET = {b: SORT_PLAN.get(c.split("/")[1][:3], "reject_bin") for b, c in ROUTES.items()}  # labelled parcel id -> bin from its code's ZIP3
 INSTR = ("Read each parcel's QR label: put ZIP 940, 941, 950 and 951 parcels into the blue bin, ZIP 900-902 into the red bin; "
@@ -56,6 +62,8 @@ STREAM = ACTIVE  # bhindi, iqbar_a, miro, z10001 (mailer), iqbar_b, garbage (per
 CASES = {  # one case per active prop (numbers kept: 32-34 flat boxes, 20 mailer, 22 perfume, 28 wallet), 31 calibration, 36 stream
     **{n: dict(late={b: 6.0}, timeout=150) for n, b in ((32, "bhindi"), (33, "iqbar_a"), (34, "miro"), (20, "z10001"), (35, "iqbar_b"),
                                                       (22, "garbage"), (28, "wallet"))},
+    **{40 + i: dict(late={b: 6.0}, timeout=150, anywhere=True, prefill=True) for i, b in enumerate(ACTIVE)},  # POSITION tests, ACTIVE order
+    47: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174, anywhere=True, prefill=True),
     31: dict(late={}, timeout=90),  # CALIBRATION (harness calib_test: true): no parcels, no events, no success term - time-out only
     36: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 7 parcels
 }
@@ -96,6 +104,44 @@ def half_extent(b):
     return (sx * c + sy * s) / 2, (sy * c + sx * s) / 2
 
 
+def anywhere_cfg(b):
+    """Env-frame constraint set of case option anywhere=True for parcel b (the dict disturb gets; all lengths in m)."""
+    tx, ty = (sorted(TABLE_C[i] - s * TABLE_HALF[i] for s in (-1, 1)) for i in (0, 1))
+    rects = [[*sorted(TABLE_C[0] - v for v in f[:2]), *sorted(TABLE_C[1] - v for v in f[2:])] for f in footprints().values()]
+    rx, ry = TABLE_C[0] - ROOT_LOCAL[0], TABLE_C[1] - ROOT_LOCAL[1]
+    rad = lambda o: math.hypot(*spec(o)["size"][:2]) / 2  # noqa: E731 (circumradius)
+    others = [rad(o) for o in {o for c in CASES.values() for o in c["late"]} - {b}]
+    r4 = lambda v: [round(x, 4) for x in v]  # noqa: E731
+    return dict(size=r4(spec(b)["size"][:2]), table=[r4(tx), r4(ty)], rects=[r4(r) for r in rects], edge=ANY_EDGE, gap=ANY_BIN,
+                band=r4([TABLE_C[1] + LEFT_GRIPPER_Y, TABLE_C[1] - LEFT_GRIPPER_Y]),  # env y strip between the two grippers' keep-outs (right = mirror of left)
+                arms=[r4([rx, ry + ARM_Y]), r4([rx, ry - ARM_Y])], reach=REACH, table_c=r4(TABLE_C),
+                clear=round(rad(b) + max(others, default=0) + 0.02, 4))  # preferred distance to other parcels (fallback: farthest found)
+
+
+def anywhere_ok(cfg, x, y, yaw):
+    """True if a parcel centred at env (x, y) with this yaw satisfies every anywhere constraint of cfg (anywhere_cfg). Pure-python twin
+    of labelloop_qr_sort._anywhere_ok (tests/test_layout.py checks the sampler's output against this one)."""
+    (sx, sy), c, s = cfg["size"], abs(math.cos(yaw)), abs(math.sin(yaw))
+    hx, hy = (sx * c + sy * s) / 2, (sx * s + sy * c) / 2
+    (x0, x1), (y0, y1) = cfg["table"]
+    e = cfg["edge"]
+    if not (x0 + hx + e <= x <= x1 - hx - e and y0 + hy + e <= y <= y1 - hy - e and cfg["band"][0] + hy <= y <= cfg["band"][1] - hy):
+        return False
+    g = cfg["gap"]
+    if any(a - hx - g < x < b + hx + g and cc - hy - g < y < d + hy + g for a, b, cc, d in cfg["rects"]):
+        return False
+    return any(math.hypot(x - ax, y - ay) <= cfg["reach"] for ax, ay in cfg["arms"])
+
+
+def anywhere_area(b):
+    """(area m^2, fraction of yaws with a valid spot) of parcel b's anywhere region, averaged over yaw (grid estimate)."""
+    cfg, st = anywhere_cfg(b), ANY_AREA_STEP
+    (x0, x1), (y0, y1) = cfg["table"]
+    pts = [(x0 + (i + .5) * st, y0 + (j + .5) * st) for i in range(int((x1 - x0) / st)) for j in range(int((y1 - y0) / st))]
+    per = [sum(anywhere_ok(cfg, x, y, -math.pi + (k + .5) * 2 * math.pi / ANY_AREA_YAWS) for x, y in pts) * st * st for k in range(ANY_AREA_YAWS)]
+    return sum(per) / len(per), sum(a > 0 for a in per) / len(per)
+
+
 def zone(b):
     """[[x0, x1], [y0, y1]] env range of parcel b's centre: INDUCT_ENV, shrunk so the whole parcel (at any allowed yaw) stays
     EDGE_MARGIN inside the table, ZONE_GAP in front of the lane bins and clear of the reject bin. The 60 mm cubes get INDUCT_ENV unchanged."""
@@ -125,6 +171,11 @@ def check_layout(margin=0.01):
         assert ax1 <= bx0 or bx1 <= ax0 or ay1 <= by0 or by1 <= ay0, f"{a} overlaps {b}"
     for b in {b for c in CASES.values() for b in c["late"]}:
         zone(b)
+    for b in {b for c in CASES.values() if c.get("anywhere") for b in c["late"]}:
+        assert anywhere_area(b)[0] > 0, f"no anywhere region for {b}"
+    for bn, v in PREFILL.items():  # prefilled parcel fits its receptacle's floor
+        (sx, sy, _), (L, W, _) = variants(v.rsplit("_", 1)[0])[v]["size"], BINS[bn]["size"]
+        assert sx <= L - 2 * WALL and sy <= W - 2 * WALL, f"prefill {v} does not fit {bn}"
 
 
 def parcel_report():
@@ -146,6 +197,9 @@ def parcel_report():
             warn.append(f"{(sz - H) * 1000:.0f} mm taller than the {tgt} walls")
         lines.append(f"  {b}: {sx * 1000:.0f} x {sy * 1000:.0f} x {sz * 1000:.0f} mm -> {tgt}, centre zone env x {zone(b)[0]} y {zone(b)[1]}"
                      + (f"  WARN: {'; '.join(warn)}" if warn else ""))
+    for b in sorted({b for c in CASES.values() if c.get("anywhere") for b in c["late"]}):
+        a, f = anywhere_area(b)
+        lines.append(f"  {b}: anywhere region {a * 1e4:.0f} cm^2 (mean over yaw), {f:.0%} of yaws have a valid spot")
     return "\n".join(lines)
 
 
@@ -176,11 +230,18 @@ def scene(n, c):
     objs = [obj(f"box_{v}", f"labelloop_box_{v}", ["pickable", "qr_box"], spawn_mass=list(PARCELS[b]["mass"]) if b in PARCELS else mass,
                 spawn_static_friction=1.0, spawn_dynamic_friction=1.0) for b in late for v in variants(b)]
     objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in (*BIN_XY, "reject_bin")]
+    pre = PREFILL if c.get("prefill") else {}
+    for bn, v in pre.items():  # prefilled parcels: kinematic (must not move), label up (pz), centred on the receptacle floor, not in any assignment
+        objs.append(obj(f"pre_{v}", f"labelloop_box_{v}", ["prefilled"], kinematic=True))
     objs.append(obj("table_mat", "labelloop_table_mat", [], kinematic=True))  # no pickable/container tag
     nodes = {i: on_table(i, *xy) for i, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
     # explicit pose (origin = underside centre, on the bare tabletop): the layout solver can't pack a table-sized surface object
     nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "pose", "poses": [
         {"id": "on_table", "position": [TABLE_C[0], TABLE_C[1], TABLE_Z], "orientation": [0, 0, 0, 1]}]}}
+    for bn, v in pre.items():
+        ex, ey = to_local(*BIN_XY.get(bn, REJECT_XY))
+        nodes[f"pre_{v}"] = {"object": f"pre_{v}", "placement": {"type": "pose", "poses": [{"id": "in_bin", "orientation": [0, 0, 0, 1], "position": [
+            round(ex, 4), round(ey, 4), round(SURFACE_Z + WALL + variants(v.rsplit("_", 1)[0])[v]["size"][2] / 2, 4)]}]}}
     for i, v in enumerate(vs):  # parked far below the table until the human event fires (distinct spots)
         nodes[f"box_{v}"] = {"object": f"box_{v}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5 + 0.5 * (i % 8), 3.0 + 0.5 * (i // 8), -5.0], "orientation": [0, 0, 0, 1]}]}}
@@ -199,7 +260,8 @@ def dag(n, c):
     assign = [[[f"box_{v}" for v in variants(b)], TARGET.get(b, "reject_bin")] for b in late]  # [variants of b, bin]: the dropped one must rest in it
     events = {f"human_adds_{b}": {  # human slides the parcel in: teleport it, resting on the table, to a random spot of its zone
         "_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t], "is_global_time": True, "object_name": [f"box_{v}" for v in variants(b)],
-        "to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]], "z": SURFACE_Z + spec(b)["size"][2] / 2,
+        **({"anywhere": anywhere_cfg(b), "yaw_range": [-math.pi, math.pi]} if c.get("anywhere") else
+           {"to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]]}), "z": SURFACE_Z + spec(b)["size"][2] / 2,
         "avoid": [f"box_{v}" for o in late if o != b for v in variants(o)]} for b, t in late.items()}
     sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, **({"event_component": {"terms": events}} if events else {})}
     longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s

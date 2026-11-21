@@ -138,8 +138,8 @@ def test_label_registry_routes_match_sort_plan_and_code_pattern():
 
 def test_active_cases_are_exactly_the_users_seven_parcels_plus_calibration_and_stream():
     assert set(props.ACTIVE) == {"bhindi", "iqbar_a", "miro", "z10001", "iqbar_b", "garbage", "wallet"}
-    assert set(bt.CASES) == {20, 22, 28, 31, 32, 33, 34, 35, 36}
-    single = {n: next(iter(c["late"])) for n, c in bt.CASES.items() if len(c["late"]) == 1}
+    assert set(bt.CASES) == {20, 22, 28, 31, 32, 33, 34, 35, 36, *range(40, 48)}
+    single = {n: next(iter(c["late"])) for n, c in bt.CASES.items() if len(c["late"]) == 1 and n < 40}
     assert single == {32: "bhindi", 33: "iqbar_a", 34: "miro", 20: "z10001", 35: "iqbar_b", 22: "garbage", 28: "wallet"}
     assert all(bt.CASES[n] == dict(late={b: 6.0}, timeout=150) for n, b in single.items())
     assert bt.CASES[31] == dict(late={}, timeout=90) and tuple(bt.STREAM) == props.ACTIVE
@@ -170,3 +170,90 @@ def test_reject_tray_is_low_black_lid_on_the_right_inside_the_table():
     assert abs(hx - (t["size"][0] / 2 - bt.WALL)) < 1e-4 and zmax == round(t["size"][2] + 0.0635, 4)
     for p in props.ACTIVE:  # every flat parcel's resting centre is inside the region
         assert bt.WALL + bt.spec(p)["size"][2] / 2 <= zmax
+
+
+def _sampler():
+    """labelloop_qr_sort.py imports Isaac Sim / torch at the top: load it with stubs, only its pure-python sampler is used."""
+    import importlib.util
+    import types
+    stubs = {"torch": {}, "isaaclab_arena": {}, "isaaclab_arena.assets": {}, "manaenv": {}, "manaenv.assets": {},
+             "isaaclab_arena.assets.object_base": {"ObjectType": types.SimpleNamespace(RIGID=0)},
+             "isaaclab_arena.assets.object_library": {"LibraryObject": object},
+             "isaaclab_arena.assets.register": {"register_asset": lambda c: None},
+             "manaenv.assets.resolver": {"resolve_runtime_asset_reference": lambda s: s}}
+    saved = {k: sys.modules.get(k) for k in stubs}
+    try:
+        for k, attrs in stubs.items():
+            sys.modules[k] = types.ModuleType(k)
+            sys.modules[k].__dict__.update(attrs)
+        spec = importlib.util.spec_from_file_location("lq_stub", Path(__file__).resolve().parents[1] / "sim" / "qr_sort_task" / "labelloop_qr_sort.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    finally:
+        for k, v in saved.items():
+            sys.modules.pop(k, None) if v is None else sys.modules.__setitem__(k, v)
+    return mod
+
+
+def test_anywhere_sampler_respects_every_constraint_on_10k_samples_per_item():
+    import random
+    lq = _sampler()
+    rng = random.Random(7)
+    for b in props.ACTIVE:
+        cfg = bt.anywhere_cfg(b)
+        area, yaw_frac = bt.anywhere_area(b)
+        assert area > 0 and yaw_frac > 0, b
+        for _ in range(10000):
+            x, y, yaw = lq.anywhere_sample(cfg, [], rng)
+            assert -math.pi <= yaw <= math.pi and bt.anywhere_ok(cfg, x, y, yaw) and lq._anywhere_ok(cfg, x, y, yaw), (b, x, y, yaw)
+        for _ in range(3000):  # the two checks agree on arbitrary points, not only on accepted ones
+            x, y, yaw = rng.uniform(-0.3, 0.8), rng.uniform(-0.9, 0.4), rng.uniform(-math.pi, math.pi)
+            assert bt.anywhere_ok(cfg, x, y, yaw) == lq._anywhere_ok(cfg, x, y, yaw)
+        # independent re-derivation from the footprint corners (tabletop-local): table, bins +3 cm, gripper strips, reach
+        for _ in range(300):
+            x, y, yaw = lq.anywhere_sample(cfg, [], rng)
+            cs = list(corners(b, x, y, yaw))
+            assert all(abs(px) <= bt.TABLE_HALF[0] - bt.ANY_EDGE + 1e-6 and abs(py) <= bt.TABLE_HALF[1] - bt.ANY_EDGE + 1e-6 for px, py in cs)
+            assert all(bt.LEFT_GRIPPER_Y - 1e-6 <= py <= -bt.LEFT_GRIPPER_Y + 1e-6 for px, py in cs)
+            for x0, x1, y0, y1 in bt.footprints().values():
+                assert all(not (x0 - bt.ANY_BIN < px < x1 + bt.ANY_BIN and y0 - bt.ANY_BIN < py < y1 + bt.ANY_BIN) for px, py in cs)
+            lx, ly = bt.to_local(x, y)
+            assert any(math.hypot(bt.ROOT_LOCAL[0] - lx, bt.ROOT_LOCAL[1] - ly - s * bt.ARM_Y) <= bt.REACH + 1e-6 for s in (-1, 1))
+    # avoid honoured: with another parcel sitting somewhere valid, the draw keeps cfg["clear"] away
+    cfg, other = dict(bt.anywhere_cfg("bhindi"), clear=0.1), (0.05, -0.27)
+    assert all(math.hypot(x - other[0], y - other[1]) >= cfg["clear"] for x, y, _ in (lq.anywhere_sample(cfg, [other], rng) for _ in range(500)))
+
+
+def test_prefill_parcels_rest_label_up_inside_their_bins_and_are_not_assigned():
+    for n in (*range(40, 48),):
+        c = bt.CASES[n]
+        sc, dg = bt.scene(n, c), bt.dag(n, c)
+        pre = {o["id"]: o for o in sc["objects"] if o["id"].startswith("pre_")}
+        assert set(pre) == {f"pre_{v}" for v in bt.PREFILL.values()} and all(o["kinematic"] for o in pre.values())
+        for bn, v in bt.PREFILL.items():
+            base = v.rsplit("_", 1)[0]
+            assert v.endswith("_pz") and bt.variants(base)[v]["labels"] == ("pz",) and pre[f"pre_{v}"]["asset"]["id"] == f"labelloop_box_{v}"
+            pose = sc["layout"]["nodes"][f"pre_{v}"]["placement"]["poses"][0]
+            (px, py, pz), (bx, by, _) = pose["position"], sc["layout"]["nodes"][bn]["placement"]["poses"][0]["position"]
+            sx, sy, sz = bt.variants(base)[v]["size"]
+            assert pose["orientation"] == [0, 0, 0, 1]  # label face up (+z), yaw 0
+            assert abs(pz - (bt.SURFACE_Z + bt.WALL + sz / 2)) < 1e-3
+            L, W, _ = bt.BINS[bn]["size"]
+            assert abs(px - bx) <= (L - sx) / 2 - bt.WALL + 1e-6 and abs(py - by) <= (W - sy) / 2 - bt.WALL + 1e-6  # inside the cavity
+        nodes = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
+        assigned = {o for objs, _ in nodes["assignments"] for o in objs}
+        assert not any(o.startswith("box_pre_") or o.startswith("pre_") for o in assigned) and assigned == {f"box_{v}" for b in c["late"] for v in bt.variants(b)}
+    assert not any(o["id"].startswith("pre_") for o in bt.scene(36, bt.CASES[36])["objects"])  # option off -> unchanged
+
+
+def test_position_cases_40_to_47():
+    assert all(bt.CASES[40 + i] == dict(late={b: 6.0}, timeout=150, anywhere=True, prefill=True) for i, b in enumerate(props.ACTIVE))
+    s = bt.CASES[47]
+    assert list(s["late"]) == list(props.ACTIVE) and list(s["late"].values()) == [6.0 + 150 * i for i in range(7)] and s["anywhere"] and s["prefill"]
+    for n in range(40, 48):
+        ev = bt.dag(n, bt.CASES[n])["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
+        for b, e in ev.items():
+            assert "to_xy_range" not in e and e["yaw_range"] == [-math.pi, math.pi] and e["anywhere"]["size"] == bt.anywhere_cfg(b[len("human_adds_"):])["size"]
+    for b in props.ACTIVE:
+        assert bt.anywhere_area(b)[0] > 0
+    assert "anywhere region" in bt.parcel_report()
