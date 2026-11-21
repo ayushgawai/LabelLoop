@@ -5,6 +5,7 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
   /api/trials                     list (newest first)
   /api/trials/<id>                {meta, rows, summary}
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
+  /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
 """
 import argparse
@@ -159,6 +160,9 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 after = -1
             return self._json([r for r in read_rows(d) if row_index(r) > after])
+        if len(rest) == 2 and rest[1] == "joints":
+            from labelloop.dashboard import kinematics  # (late: numpy + the arm model only when a page asks for joints)
+            return self._json(kinematics.trial_joints(d, read_rows(d)))
         if len(rest) == 4 and rest[1] == "frame":
             camera = rest[3]
             if not CAMERA_RE.match(camera):
