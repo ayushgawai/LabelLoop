@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, SORT_PLAN, WALL, variants
+from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, SORT_PLAN, TABLE_MAT, WALL, variants
 
 MOD = "manaenv.assets.objects.labelloop_qr_sort"
 SCENE = lambda n: f"labelloop_qr_sort_case{n}_scene"
@@ -25,6 +25,7 @@ ENV = lambda n: f"artixon_arm6a_G_labelloop_qr_sort_case{n}_id_env"
 TABLE_C = (0.2047, -0.2682)
 TABLE_HALF = (0.3425, 0.555)  # tabletop half extents, local x (depth) / y (across)
 TABLE_Z = -0.235
+SURFACE_Z = TABLE_Z + TABLE_MAT["size"][2]  # top of the green mat: bins and parcels rest here, not on the bare tabletop
 to_local = lambda ex, ey: (TABLE_C[0] - ex, TABLE_C[1] - ey)  # noqa: E731 (env <-> tabletop-local is its own inverse)
 # Layout, tabletop-local, the shoe boxes of props.py with their length pointing away from the robot. The two lane bins stand side by side
 # in one row on the FAR side, centred across the table and pushed back to FAR_MARGIN from the far edge so a measured parcel standing
@@ -36,10 +37,10 @@ LANE_Y = 0.13
 BIN_XY = {"bin_blue": (BIN_X, -LANE_Y), "bin_red": (BIN_X, LANE_Y)}
 REJECT_XY = (0.0, round(TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["size"][1] / 2, 4))
 # induction zone (range of the parcel CENTRE), ENV frame (parcels are teleported with env coordinates): a human swipes parcels onto the
-# table from the LEFT, in front of the LEFT arm (lateral -0.25..0.0 m, env y = TABLE_C.y - local y), which detects and handles them.
-# zone() shrinks it per parcel and keeps the whole parcel, including the swipe's start point SLIDE_FROM further left, right of
-# LEFT_GRIPPER_Y: the left gripper's home pose (preview 1: parcels swiped to lateral -0.35 slid into it).
-INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.2682, -0.0182]}
+# table from the LEFT (the slide), but the zone ends near the table centre (lateral -0.12..+0.04 m, env y = TABLE_C.y - local y) so
+# BOTH arms can reach it. zone() shrinks it per parcel and keeps the whole parcel, including the swipe's start point SLIDE_FROM
+# further left, right of LEFT_GRIPPER_Y: the left gripper's home pose (it no longer binds with the zone this far in).
+INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.3082, -0.1482]}
 LEFT_GRIPPER_Y, SLIDE_FROM = -0.27, 0.08  # tabletop-local y of the left gripper's inner edge; swipe start offset (disturb's 0.08 m)
 SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry point to the sampled spot; m/s toward the robot's right (env -y) given to a parcel as it is swiped in (disturb slide_v)
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
@@ -158,8 +159,10 @@ def obj(oid, asset, tags, **kw):
 
 
 def on_table(oid, x, y):
-    return {"object": oid, "placement": {"type": "surface", "surface": "tabletop",
-            "ranges": {"x": [x - 0.01, x + 0.01], "y": [y - 0.01, y + 0.01]}, "orientation": [0, 0, 0, 1]}}
+    """Tabletop-local (x, y) as an env-frame pose on the mat top (surface placement would put it on the bare tabletop); yaw 180 = the frame flip."""
+    ex, ey = to_local(x, y)
+    return {"object": oid, "placement": {"type": "pose", "poses": [{"id": "on_mat", "position": [round(ex, 4), round(ey, 4), SURFACE_Z],
+                                                                    "orientation": [0, 0, 1, 0]}]}}
 
 
 def scene(n, c):
@@ -168,7 +171,10 @@ def scene(n, c):
     objs = [obj(f"box_{v}", f"labelloop_box_{v}", ["pickable", "qr_box"], spawn_mass=list(PARCELS[b]["mass"]) if b in PARCELS else mass,
                 spawn_static_friction=1.0, spawn_dynamic_friction=1.0) for b in late for v in variants(b)]
     objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in (*BIN_XY, "reject_bin")]
+    objs.append(obj("table_mat", "labelloop_table_mat", [], kinematic=True))  # no pickable/container tag
     nodes = {i: on_table(i, *xy) for i, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
+    nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "surface", "surface": "tabletop",
+                          "ranges": {"x": [-0.001, 0.001], "y": [-0.001, 0.001]}, "orientation": [0, 0, 0, 1]}}  # centred on the tabletop
     for i, v in enumerate(vs):  # parked far below the table until the human event fires (distinct spots)
         nodes[f"box_{v}"] = {"object": f"box_{v}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5 + 0.5 * (i % 8), 3.0 + 0.5 * (i // 8), -5.0], "orientation": [0, 0, 0, 1]}]}}
@@ -187,7 +193,7 @@ def dag(n, c):
     assign = [[[f"box_{v}" for v in variants(b)], TARGET.get(b, "reject_bin")] for b in late]  # [variants of b, bin]: the dropped one must rest in it
     events = {f"human_adds_{b}": {  # human slides the parcel in: teleport it, resting on the table, to a random spot of its zone
         "_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t], "is_global_time": True, "object_name": [f"box_{v}" for v in variants(b)],
-        "to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]], "z": TABLE_Z + spec(b)["size"][2] / 2,
+        "to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]], "z": SURFACE_Z + spec(b)["size"][2] / 2,
         "avoid": [f"box_{v}" for o in late if o != b for v in variants(o)]} for b, t in late.items()}
     sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, "event_component": {"terms": events}}
     longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s

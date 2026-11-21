@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from props import BINS, FACES, PARCELS, WALL, variants
+from props import BINS, FACES, PARCELS, TABLE_MAT, WALL, variants
 
 CUBE = 0.06  # keep equal to make_qr_boxes.CUBE_MM / 1000
 HX = HY = HZ = CUBE / 2
@@ -166,6 +166,9 @@ def main():
     for name, b in BINS.items():  # shoe-box bins (props.py)
         looks = material("out", omni(color=srgb_to_linear(b["outside"]))) + material("in", omni(color=srgb_to_linear(b["inside"])))
         (out / f"{name}.usda").write_text(usda("bin", bin_body(b["size"]), looks, kinematic=True, mass=0.3))
+    L, W, T = TABLE_MAT["size"]  # flat green mat, origin at the centre of its underside (rests on the tabletop)
+    (out / "labelloop_table_mat.usda").write_text(usda("mat", cube("mat", (L, W, T), (0, 0, T / 2), "mat"),
+                                                       material("mat", omni(color=srgb_to_linear(TABLE_MAT["color"]), roughness=0.9)), kinematic=True))
     for base in PARCELS:  # measured props, one asset per label-face variant
         for vid, p in variants(base).items():
             mesh = box_mesh("pic", tuple(v / 2 for v in p["size"]), tile_atlas(vid))

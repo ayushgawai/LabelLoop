@@ -117,10 +117,13 @@ means they would also have to be turned 90 degrees to fit their bin. `build_task
 Layout, tabletop-local: `bin_blue` and `bin_red` side by side in one row on the far side, centred across the table (blue y -0.13 = robot's left,
 image-left; red y +0.13 = robot's right), pushed to 15 mm from the far edge, x centre `BIN_X` -0.1497. The black `reject_bin` stands on the right side
 of the table, beside the right arm, 1 cm in from the right edge (y 0.4307) at mid-depth (x 0), length along x: rejects are done by the right arm.
-The induction zone starts empty and a human swipes each parcel in FROM THE LEFT, in front of the LEFT arm (which detects and handles it):
-parcels are teleported, resting on the table, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.118..0.082 = lateral -0.35..-0.15 m on the
-left) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
-for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284).
+A thin kinematic green mat (`props.TABLE_MAT`, 0.685 x 1.11 x 0.003 m, sRGB (46, 178, 150) matte, from the event photo: the real benches are mint/teal
+and WALLX was likely trained on them; `labelloop_table_mat.usda`, no pickable/container tag) covers the whole tabletop; bins (env-frame `pose`
+placement, 180 deg yaw = the table-frame flip) and parcel drops rest on its top, `SURFACE_Z` = `TABLE_Z` + 3 mm. Success regions stay relative to bin origins.
+The induction zone starts empty and a human swipes each parcel in FROM THE LEFT, but the zone ends near the table centre so BOTH arms can reach it
+(reach analysis, results/reviews/: with wrist joint 5 limited to +-90 deg an arm only reaches poses facing the body centre or ahead, so parcels at lateral -0.35..-0.15 were reachable for viewing/pushing by the right arm only and small boxes by neither; near the centre both arms reach them): parcels are teleported, resting
+on the mat, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.308..-0.148 = lateral -0.12..+0.04 m) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
+for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
 18 z95112 (lane A) | 19 z90210 (lane B) | 20 z10001 (unknown ZIP, reject) | 21 nolabel | 22 garbage | 24 z94110 (A) | 25 z90015 (B) | 26 z60601 (reject) |
 27 z95014 (A, not graspable) | 28 wallet (reject) | 29 plainbox (reject): all at 6 s, timeout 150 s.
 23 stream: z95112 6 s, z90210 156 s, z10001 306 s, nolabel 456 s, garbage 606 s (timeout 780 s).

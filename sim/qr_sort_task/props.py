@@ -123,6 +123,10 @@ def variants(base):
     dims = {"pz": (x, y), "nz": (x, y), "py": (x, z), "ny": (x, z), "px": (y, z), "nx": (y, z)}
     return {f"{base}_{f}": dict(p, labels=(f,)) for f in FACES if fits(dims[f], p["label"])}
 
+# Table mat: the real event benches have a mint/teal green work mat over the whole tabletop (WALLX was likely trained on those).
+# size (x depth, y across, z thickness) m, sRGB matte; colour sampled from the event photo, adjust if needed.
+TABLE_MAT = dict(size=(0.685, 1.11, 0.003), color=(46, 178, 150))
+
 BINS = {  # asset/scene id -> outer size (m) and sRGB colours
     "bin_blue": dict(size=(14 * IN, 8 * IN, 5 * IN), outside=(40, 57, 73), inside=(223, 178, 112)),       # navy shoe box, kraft inside: lane A
     "bin_red": dict(size=(14 * IN, 9.5 * IN, 5 * IN), outside=(235, 30, 30), inside=(236, 188, 124)),     # red shoe box, kraft inside: lane B

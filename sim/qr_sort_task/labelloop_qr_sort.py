@@ -43,6 +43,7 @@ for _n in PARCELS:
     _register(f"labelloop_box_{_n}", f"box_{_n}", ["pickable", "qr_box"])
 for _b in ("bin_blue", "bin_red", "reject_bin"):  # the three shoe boxes (props.py)
     _register(f"labelloop_{_b}", _b, ["container", "bin"])
+_register("labelloop_table_mat", "labelloop_table_mat", [])  # not "pickable"/"container": no semantic role
 
 
 def register_assets() -> None:
