@@ -56,6 +56,12 @@ What we learned so far (do not repeat these):
 - NEXT TESTS, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
   raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
   (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.
+- PARCEL SIZES (mm, L x W x H) vs the 97.5 mm gripper opening: Miro black box 216 x 165 x 38, Bhindi food carton 165 x 102 x 38,
+  IQBAR 267 x 102 x 64, perfume box 152 x 102 x 51 -> ALL too wide for ONE gripper lying flat (that is why single-arm pickups slid
+  and tilted them). Use TWO-ARM wording for these, e.g. PLACE "pick up the box with both arms and put it into the {mat} bin" or
+  "use both arms to lift the flat package at the {where} of the green table by its two short ends and put it into the {mat} bin".
+  Wallet 114 x 89 x 19 fits one gripper (grasp across the 89 mm side). The team chooses the judged props, so also report which
+  parcel sizes / bin types worked best (a recommendation for the props we bring).
 - WORDING MUST BE GENERIC: the judged cases use unknown parcels, so never use a product name (no "Bhindi Masala").
 
 Visual prompt (run_trial "overlay"): WALLX never reads grid numbers in text, but our relay can draw on the head image it sees:
@@ -193,6 +199,11 @@ class Agent:
         out, files = self.session(["--hold"], "hold still", 15)
         return json.dumps({"client": out}), self.montage(files[-1:], f"snap{self.sessions}.jpg", 1)
 
+    def save(self, name, args, out):  # progress survives a crash / exhausted credits: journal + live notes after every tool call
+        with open(self.dir / "progress.jsonl", "a") as f:
+            f.write(json.dumps({"t": time.strftime("%H:%M:%S"), "tool": name, "args": args, "out": out[:4000]}) + "\n")
+        (self.dir / "journal.json").write_text(json.dumps(self.journal, indent=1))
+
     # ---- loop ----
     def ask(self, inp, prev):
         body = {"model": self.a.model, "instructions": SYSTEM, "input": inp, "tools": TOOLS, "reasoning": {"effort": "medium"}}
@@ -238,6 +249,7 @@ class Agent:
                     except Exception as e:
                         out = f"tool error: {type(e).__name__}: {e}"[:500]
                 print("   ->", out[:300], flush=True)
+                self.save(c["name"], args, out)
                 inp.append({"type": "function_call_output", "call_id": c["call_id"], "output": out})
                 if img:
                     inp.append({"role": "user", "content": [{"type": "input_text", "text": f"Head-camera frames from {c['name']}:"},
