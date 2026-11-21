@@ -16,8 +16,8 @@ EMBODIMENTS = ("quanta_x1_pro", "quanta_x1_pro/gripper-g", "quanta_x1_pro/grippe
 
 
 def validate_request(request):  # organizer rules
-    if not isinstance(request, dict) or request.get("normalization") != "provided":
-        raise ValueError("Expected WALLX observation with normalization=provided")
+    if not isinstance(request, dict) or request.get("normalization") not in (None, "provided"):  # the event client omits it (deprecated)
+        raise ValueError(f"Expected a WALLX observation; got keys {sorted(request) if isinstance(request, dict) else type(request)}")
     if request.get("embodiment") not in EMBODIMENTS:
         raise ValueError("Unsupported embodiment")
     if any(k in request for k in ("use_rtc", "prev_action_chunk", "inference_delay")):
@@ -57,10 +57,27 @@ def _plain_state(state):
 class Relay:
     """make_harness() -> Harness per downstream connection, or None for passthrough."""
 
-    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None):
-        self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir = endpoint, headers, make_harness, make_client, save_dir
+    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None, hold=False):
+        self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir, self.hold = endpoint, headers, make_harness, make_client, save_dir, hold
+
+    async def handle_hold(self, downstream, cap=30):
+        """Camera-capture mode: every request gets a hold reply (arms stay put), no WALLX, no harness; the first `cap` requests are saved."""
+        await downstream.send(pack({"model": "hold"}))
+        ep, k = time.strftime("%Y%m%d_%H%M%S"), 0
+        async for frame in downstream:
+            req = unpack(frame)
+            validate_request(req)
+            if self.save_dir and k < cap:
+                save_request(self.save_dir, ep, k, req)
+            k += 1
+            await downstream.send(pack(hold_response(req["embodiment"], _plain_state(req["observation"]["state"]))))
 
     async def handle(self, downstream):
+        if self.hold:
+            return await self.handle_hold(downstream)
+        return await self.handle_wallx(downstream)
+
+    async def handle_wallx(self, downstream):
         wallx = self.make_client() if self.make_client else WallxClient(self.endpoint, self.headers)
         harness, goal, n, fresh, ep, k = None, None, 0, True, None, 0
         try:
@@ -128,18 +145,20 @@ async def main():
     p.add_argument("--log", default="runs/event.jsonl")
     p.add_argument("--profile", choices=("sim", "real"), default="real", help="camera / robot model (task yaml profiles)")
     p.add_argument("--real-safe", action=argparse.BooleanOptionalAction, default=True, help="hold + scripted HOME only; rejects / unread / big parcels latch HOLD")
+    p.add_argument("--fast", action=argparse.BooleanOptionalAction, default=True, help="event_fast (with --profile real): WALLX-only, no scripted motion, retries skip HOME, real-time budget")
+    p.add_argument("--hold", action="store_true", help="camera-capture mode: hold reply to every request, no WALLX / harness, save the first 30 requests' images")
     p.add_argument("--save-images", default="runs/event_images", help="dir for the 1st + every 10th request's camera JPEGs and state ('' = off)")
     a = p.parse_args()
     from labelloop.config import load_env, load_yaml
     load_env()
     make_harness = None
-    if not a.passthrough:
+    if not a.passthrough and not a.hold:
         from labelloop.brain.agent import VisionAgent
         from labelloop.eval.runlog import RunLog
         from labelloop.harness import Harness
-        task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe}, VisionAgent.from_env(), RunLog(a.log)
+        task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731
-    async with start(Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None), a.host, a.port):  # backend from configs/wallx.yaml
+    async with start(Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold), a.host, a.port):  # backend from configs/wallx.yaml
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
 

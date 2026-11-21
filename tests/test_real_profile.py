@@ -127,3 +127,107 @@ def test_save_images(env, tmp_path):  # noqa: F811
     j = json.loads((eps[0] / "10.json").read_text())
     assert j["state"]["left_ee"]["gripper"] == pytest.approx(.1) and j["instruction"] == "sort the boxes" and set(j) == {"instruction", "state"}
     box["loop"].call_soon_threadsafe(box["stop"].set)
+
+
+# ---- event_fast: WALLX-only ----
+FAST = {**CFG, "profile": "real", "real_safe": True, "event_fast": True}
+EMPTY = {"presence": 0.0, "kroi": 0, "codes": set(), "bins": {"blue": 0, "red": 0, "black": 0}, "raw": set()}
+ON = {**EMPTY, "presence": 0.3}
+LANDED = {**EMPTY, "bins": {"blue": 0.1, "red": 0, "black": 0}}
+CODE = "420/95123/001"  # ZIP3 951 -> lane A (blue)
+
+
+def fast_sm():
+    t = [0.0]
+    m = StateMachine(apply_profile(FAST), lambda: t[0])
+    return m, t
+
+
+def drive(m, evs):
+    """Steps m through evs; returns the (state, instruction) of every call that sent something non-None or changed state."""
+    out = []
+    for ev in evs:
+        out.append((m.state, m.step(ev)))
+    return out
+
+
+def test_fast_top_label_call_sequence_and_no_scripted_reply():
+    m, _ = fast_sm()
+    assert not m.cfg["scripted_home"] and not any(m.cfg[k]["enabled"] for k in ("show", "spin", "slide", "look")) and m.cfg["reject_mode"] == "tray"
+    out = drive(m, [ON, ON, {**ON, "codes": {CODE}}, ON, LANDED, EMPTY, EMPTY])
+    # IDLE (stable 1) -> SCAN (2 calls) -> PLACE until the bin changed -> HOME (1) -> DONE
+    assert [i for _, i in out if i] == ["put the block into the blue bin with the left arm"] * 2 + ["put both arms back to the home position"]
+    assert m.results == [{"code": CODE, "lane": "A", "reason": "routed", "outcome": "ok"}] and m.state == "DONE"
+    assert all(i is None or "home position" in i or "bin" in i for _, i in out)
+
+
+def test_fast_retry_skips_home():
+    m, _ = fast_sm()
+    drive(m, [ON, ON, {**ON, "codes": {CODE}}])
+    assert m.state == "PLACE"
+    for _ in range(m.cfg["max_calls"]["PLACE"]):
+        ins = m.step(ON)
+    assert m.state == "PLACE" and m.tries["PLACE"] == 2 and "home" not in ins and [t[2] for t in m.transitions] == ["retry"]
+    m.step(LANDED)
+    assert m.state == "HOME"
+
+
+def test_fast_flip_read_route_and_unread_rejects_via_wallx():
+    m, _ = fast_sm()
+    drive(m, [ON] * 4)
+    assert m.state == "SCAN"
+    ins = m.step(ON)  # scan_max_calls 4
+    assert m.state == "INSPECT" and ins == "flip the box over"
+    assert m.step({**ON, "codes": {CODE}}) and m.state == "PLACE"  # flip -> read -> route
+    m, _ = fast_sm()
+    drive(m, [ON] * 5)
+    assert m.state == "INSPECT"
+    for _ in range(2 * m.cfg["max_calls"]["INSPECT"]):
+        ins = m.step(ON)
+    assert m.state == "REJECT" and ins == "put the box into the black bin" and m.tries["INSPECT"] == 2
+
+
+def test_fast_budget_is_real_elapsed_time():
+    m, t = fast_sm()
+    drive(m, [ON, ON, {**ON, "codes": {CODE}}])
+    t[0] = 470.0  # 10 s left < 20 s reserve: no retry, home
+    for _ in range(m.cfg["max_calls"]["PLACE"]):
+        m.step(ON)
+    assert m.state == "HOME"
+
+
+def test_fast_grasp_abort_retries_once():
+    for seq, flag in (([1.5, 0.1], "grasp:missed"), ([1.5, 1.0, 1.5], "grasp:dropped")):  # closed on nothing / parcel never left the spot after reopening
+        m, _ = fast_sm()
+        m.cfg.setdefault("grasp", {})["check"] = True  # off by default on the real robot until gripper units are calibrated
+        drive(m, [ON, ON, {**ON, "codes": {CODE}}])
+        flags = []
+        for g in seq:
+            m.step({**ON, "grip": {"left": g, "right": g}})
+            flags += m.flags
+        assert flag in flags and m.state == "PLACE" and m.tries["PLACE"] == 2 and m.calls == 0  # retry at once, no HOME
+        for g in seq:  # the second attempt may fail too: no third try
+            m.step({**ON, "grip": {"left": g, "right": g}})
+        assert m.state == "HOME"
+    m, _ = fast_sm()  # a good grasp (closed on the parcel, then the bin changed) is not aborted
+    drive(m, [ON, ON, {**ON, "codes": {CODE}}])
+    for g in (1.5, 1.0, 1.0):
+        m.step({**ON, "grip": {"left": g, "right": g}})
+    assert m.state == "PLACE" and m.tries["PLACE"] == 1
+    m.step({**LANDED, "grip": {"left": 1.5, "right": 1.5}})
+    assert m.state == "HOME"
+
+
+def test_hold_mode_saves_30_no_wallx(env, tmp_path):  # noqa: F811
+    stub, _ = env
+    from labelloop.robots import event_server
+    import test_event_server as t
+    from websockets.sync.client import connect
+    box = t.start_relay(event_server.Relay(None, None, None, None, str(tmp_path), hold=True))
+    ws = connect("ws://127.0.0.1:%d" % box["port"], compression=None, max_size=None)
+    ws.recv(timeout=10)
+    for _ in range(32):
+        r = ask(ws, req())
+        assert r["actions"]["left_ee"]["position"][31] == pytest.approx(t.STATE["left_ee"]["position"])
+    assert not stub.requests and len(list(next(tmp_path.iterdir()).glob("*.json"))) == 30
+    box["loop"].call_soon_threadsafe(box["stop"].set)

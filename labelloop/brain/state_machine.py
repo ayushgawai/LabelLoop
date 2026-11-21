@@ -1,4 +1,5 @@
 import re
+import time
 
 from labelloop.brain.instructions import instruction
 
@@ -37,29 +38,32 @@ class StateMachine:
           "bins": {bin colour incl. black: ROI changed fraction vs the snapshot at SCAN}, optional "big": bool override of the presence test,
           "raw": decoded texts this call, confirmed or not, "spin_push" / "spin_calls": calls of the scripted push (codes are ignored until it is done) / of the whole spin try}."""
 
-    def __init__(self, cfg):
-        self.cfg, self.pattern = cfg, re.compile(cfg["code_pattern"])
+    def __init__(self, cfg, clock=time.monotonic):
+        self.cfg, self.pattern, self.clock = cfg, re.compile(cfg["code_pattern"]), clock
         self.lane_of = {z: lane for lane, zips in cfg["sort_plan"].items() for z in zips}
         self.reset()
 
     def reset(self):
         self.state, self.calls, self.parcels, self.results, self.spent = "IDLE", 0, 0, [], 0.0
+        self.t0 = None  # event_fast: case start on the clock
         self.transitions, self.flags, self.rebase, self.sorted = [], [], False, set()  # sorted: codes done this run
         self._fresh()
 
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
+        self.landed = False  # event_fast: the action's success check held
         self.looked = self.showed = False  # LOOK / SHOW done
         self.faces, self.flat = {"top"}, self.cfg.get("show", {}).get("flat_default", True)  # label faces observed (top: seen at SCAN); flat parcel = only top / bottom carry a label
 
     def _go(self, state, why):
-        if self.cfg.get("real_safe") and (state in SCRIPTED + ("LIFT2", "HANDOVER", "LOOKHOME") or state == "REJECT" and why not in ("unknown_zip", "bad_code")):  # a read-but-unroutable code goes to WALLX REJECT (black bin)  # interlock: never dispatched, latch HOLD for the operator
+        fast = self.cfg.get("event_fast")  # event_fast: WALLX does lifts / rejects too, only scripted states stay latched
+        if self.cfg.get("real_safe") and (state in SCRIPTED + ("LOOKHOME",) or not fast and (state in ("LIFT2", "HANDOVER") or state == "REJECT" and why not in ("unknown_zip", "bad_code"))):  # a read-but-unroutable code goes to WALLX REJECT (black bin)  # interlock: never dispatched, latch HOLD for the operator
             state, why = "HOLD", "operator_hold: %s (%s)" % (why, state)
         if state in WALLX and self.remaining() < self.cfg["budget"]["wallx_call_s"]:  # not even one more WALLX call fits
             state, why = "HOME", "budget"
         self.transitions.append((self.state, state, why))
-        self.state, self.calls, self.ok = state, 0, 0
+        self.state, self.calls, self.ok, self.gp = state, 0, 0, 0
         if state in COUNTED:
             self.tries[state] = self.tries.get(state, 0) + 1
 
@@ -77,14 +81,41 @@ class StateMachine:
         b = self.cfg["budget"]
         return b["wallx_call_s"] if s in WALLX or (s == "HOME" and not self.cfg.get("scripted_home")) else b["scripted_call_s"]
 
+    def begin(self):
+        self.t0 = self.clock() if self.t0 is None else self.t0
+
     def remaining(self):
         b = self.cfg["budget"]
+        if self.cfg.get("event_fast"):  # real elapsed time on the harness clock
+            self.begin()
+            return b["case_s"] - (self.clock() - self.t0)
         return min(b["case_s"], b.get("sim_case_s") or b["case_s"]) - self.spent
 
     def _admit(self, s):  # a search try fits: its estimated cost + the deliver reserve + the way home remain
         b, c = self.cfg["budget"], self.cfg
         cost = c["max_calls"]["INSPECT"] * b["wallx_call_s"] if s == "INSPECT" else c[s.lower()]["est_calls"] * b["scripted_call_s"]
         return self.remaining() - cost - c["home_calls"] * b["scripted_call_s"] >= b["deliver_reserve_s"]
+
+    def _bad_grasp(self, ev):
+        """event_fast: abort the attempt at once when the acting gripper (the lane arm; ponytail: left for LIFT2) closes on nothing (below grasp.empty_below),
+        or reopens (after closing on the parcel) while the parcel is still in its table spot. Phases gp: 0 wait open, 1 open, 2 holding."""
+        if not self.cfg.get("grasp", {}).get("check", True):  # real robot: gripper units unverified (rests at ~0) -> off until calibrated
+            return False
+        g = ev.get("grip", {}).get("left" if self.state == "LIFT2" else self._arm())
+        if g is None or ev["presence"] < self.cfg["scene"]["presence_min"]:
+            return False
+        lo, op = self.cfg["grasp"]["empty_below"], self.cfg["show"]["grip_open"] * 0.9
+        if self.gp == 0:
+            self.gp = int(g >= op)
+        elif g < lo:
+            self.flags.append("grasp:missed")
+            return True
+        elif self.gp == 1:
+            self.gp = 1 if g >= op else 2
+        elif g >= op:
+            self.flags.append("grasp:dropped")
+            return True
+        return False
 
     def _next_action(self):  # retry the plan only while EVERY step of it has tries left (HANDOVER too) and time for a delivery remains
         ok = all(self.tries.get(a, 0) < self.cfg["tries"].get(a, 1 << 30) for a in self.plan)
@@ -242,6 +273,20 @@ class StateMachine:
                 self._go("HOME", "budget")
             elif self.calls >= cfg["max_calls"][s]:
                 self._go(self.plan[1], "handed over")
+        elif s in ACTIONS and cfg.get("event_fast"):  # verified DURING the calls; a retry goes straight back to the action, HOME only to end the parcel
+            self.ok = self.ok + 1 if self._success(ev) else 0
+            if self.ok >= cfg["ok_calls"]:
+                self.landed = True
+                self._go("HOME", "outcome ok")
+            elif self.calls >= cfg["max_calls"][s] or over or self._bad_grasp(ev):
+                nxt = self._next_action()
+                self._go(nxt or "HOME", "retry" if nxt else "budget")
+        elif s == "HOME" and cfg.get("event_fast"):
+            if self.calls >= cfg["home_calls"]:
+                if not self.landed:
+                    self.flags.append("failed:%s:%s" % (self.code, self.reason))
+                    self.rebase = True
+                self._done("ok" if self.landed else "failed")
         elif s in ACTIONS:
             self.ok = self.ok + 1 if self._success(ev) else 0
             if self.ok >= cfg["ok_calls"] or self.calls >= cfg["max_calls"][s] or over:

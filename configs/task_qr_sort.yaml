@@ -58,6 +58,7 @@ grasp:                    # can the delivery arm grasp the parcel where it lies?
   grip_margin: 0.01
   grasp_depth: 0.02       # fingertips this far below the top face at the grasp (m)
   grasp_pitches_deg: [90, 85, 80, 75, 70]   # steepest first (90 = straight down), as calib
+  check: false            # real robot: gripper rests at ~0 in the event state (units unverified) -> grasp abort rule off until calibrated
   empty_below: 0.6        # gripper value (WALLX units) after the close call: below it the jaws closed on nothing (a 76 mm parcel keeps ~1.2, a 38 mm ~0.6) -> missed grasp. CALIBRATE in sim
   reroute_wide: true      # narrow side too wide for the gripper -> LIFT2 (both arms) if tries.LIFT2 > 0, else reject
 slide:                    # scripted hand-off (SLIDE before PLACE / REJECT): if the delivery arm cannot grasp the parcel but the OTHER arm can push it,
@@ -177,6 +178,10 @@ profile: sim
 real_safe: false          # true (first real-robot runs): ONLY hold still + scripted HOME. SHOW/SPIN/SLIDE/SWIPE/LIFT2/LOOK/calib never run: a reject, an unread
                           # label or a big parcel latches HOLD ("operator_hold: ..."); lanes go to WALLX PLACE; head camera only (bins blanked before decoding);
                           # one parcel (max_parcels 1); home captured only after two consecutive steady observations (pose delta < home_still_m)
+event_fast: false         # true (event relay, default with --profile real; implies real_safe): WALLX-only and fast. No scripted arm motion (only HOLD while waiting / done);
+                          # SCAN decodes every call, routes on the first 2-frame-confirmed parcel code; no label -> WALLX "flip the box over" (2 tries) -> reject via WALLX black bin;
+                          # a failed place retries straight away (no HOME / VERIFY), success is checked during the calls (ok_calls 1); one WALLX HOME ends the parcel;
+                          # budget = real elapsed time (480 s case, 20 s reserve)
 home_still_m: 0.005
 profiles:
   sim:

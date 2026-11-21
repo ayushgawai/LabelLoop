@@ -20,7 +20,7 @@ def test_model_wrapper_serves_33x14(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "policy_space", types.ModuleType("policy_space"))
     monkeypatch.setitem(sys.modules, "policy_space.base", base)
     stub = Stub()
-    for k, v in {"WALLX_ENDPOINT": stub.url, "WALLX_API_KEY": "", "WALLX_HEADERS_FILE": "", "AGENT_CHAT_URL": ""}.items():
+    for k, v in {"WALLX_BACKEND": "cloud", "WALLX_ENDPOINT": stub.url, "WALLX_API_KEY": "", "WALLX_HEADERS_FILE": "", "AGENT_CHAT_URL": ""}.items():
         monkeypatch.setenv(k, v)
     path = Path(__file__).parent.parent / "policies/labelloop/model.py"
     spec = importlib.util.spec_from_file_location("ll_model", path)
@@ -47,7 +47,7 @@ def test_model_passthrough_sends_fixed_instruction(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "policy_space", types.ModuleType("policy_space"))
     monkeypatch.setitem(sys.modules, "policy_space.base", base)
     stub = Stub()
-    for k, v in {"WALLX_ENDPOINT": stub.url, "WALLX_API_KEY": "", "WALLX_HEADERS_FILE": "", "AGENT_CHAT_URL": ""}.items():
+    for k, v in {"WALLX_BACKEND": "cloud", "WALLX_ENDPOINT": stub.url, "WALLX_API_KEY": "", "WALLX_HEADERS_FILE": "", "AGENT_CHAT_URL": ""}.items():
         monkeypatch.setenv(k, v)
     spec = importlib.util.spec_from_file_location("ll_model2", Path(__file__).parent.parent / "policies/labelloop/model.py")
     mod = importlib.util.module_from_spec(spec)

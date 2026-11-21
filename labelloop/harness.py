@@ -18,6 +18,8 @@ def apply_profile(cfg):
     """Bind the camera model of cfg["profile"] (default sim) into look.py and its arm frame into cfg["look"]; real_safe forces every scripted
     arm motion off (hold + scripted HOME only), one parcel, scripted home. Returns a new cfg."""
     cfg = copy.deepcopy(cfg)
+    if cfg.get("event_fast"):
+        cfg["real_safe"] = True  # event_fast sits on top of real_safe
     ab = look.set_profile(cfg["profiles"][cfg.get("profile", "sim")])
     cfg["look"].update(ab)
     if cfg.get("real_safe"):
@@ -25,6 +27,13 @@ def apply_profile(cfg):
             cfg[k]["enabled"] = False
         cfg.update(calib_test=False, handover=False, scripted_home=True, max_parcels=1)
         cfg["tries"] = {**cfg["tries"], "SWIPE": 0, "INSPECT": 0}
+    if cfg.get("event_fast"):  # WALLX-only and fast: no scripted arm motion, HOME by WALLX once per parcel, flips / rejects / oversize by WALLX, real-time budget
+        cfg.update(reject_mode="tray", scripted_home=False, home_calls=1, ok_calls=1, qr_confirm_frames=2, scan_max_calls=4, stable_calls=1)
+        cfg["tries"] = {**cfg["tries"], "INSPECT": 2, "PLACE": 2, "REJECT": 2, "LIFT2": 2}  # few tries, confident grips (grasp abort in the state machine)
+        cfg["max_calls"] = {**cfg["max_calls"], "INSPECT": 6}
+        cfg["budget"] = {**cfg["budget"], "case_s": 480, "deliver_reserve_s": 20, "wallx_call_s": 2.5, "sim_case_s": None}
+        cfg["instructions"] = {**cfg["instructions"], "INSPECT": ["flip the box over"], "REJECT": ["put the box into the black bin"],
+                               "LIFT2": ["pick up the box with both arms and put it into the {mat} bin"]}
     return cfg
 
 
@@ -36,7 +45,7 @@ class Harness:
             task_cfg = {**task_cfg, "scene": {**task_cfg["scene"], "bin_rois": {k: v for k, v in task_cfg["scene"]["bin_rois"].items() if k != "black"}}}
         task_cfg = apply_profile(task_cfg)
         self.cfg, self.agent, self.runlog, self.clock = task_cfg, agent, runlog, clock
-        self.sm = StateMachine(task_cfg)
+        self.sm = StateMachine(task_cfg, clock)
         self.reset()
 
     def reset(self):
@@ -54,6 +63,7 @@ class Harness:
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
 
     def step(self, images, state):
+        self.sm.begin()  # event_fast: the case clock starts with the first observation
         if self.home is None:
             if self.cfg.get("real_safe"):  # home = a pose seen twice in a row (both arms + grippers still); until then hold
                 pose = np.array([*state["left_ee"]["position"], *state["right_ee"]["position"]])
@@ -92,7 +102,7 @@ class Harness:
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
-        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
+        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen}, "grip": {"left": state["left_ee"]["gripper"], "right": state["right_ee"]["gripper"]},
                               "show_calls": len(self.show["calls"]) if self.show else 0,
                               "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
                               "spin_push": push, "spin_calls": push + sc if self.spin else 1,
@@ -134,7 +144,7 @@ class Harness:
         if before == "IDLE" and self.sm.state == "SCAN":  # object arrived, arms home: snapshot every bin
             self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
-        self.subgoal_changed = self.sm.state != before
+        self.subgoal_changed = self.sm.state != before or any(t[1] == before for t in self.sm.transitions)  # a retry restarts the same sub-goal
         if self.runlog:
             self.runlog.write(call=self.calls, state=before, instruction=instr, codes=codes, wrist_codes=wrist,
                               confirmed=confirmed, lane=self.sm.lane, presence=pres, bin_change=bins, kraft_roi=kroi,
