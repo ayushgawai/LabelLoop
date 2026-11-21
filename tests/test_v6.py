@@ -436,7 +436,7 @@ def test_all_points_refused_still_latches_hold_and_the_empty_case_builds(tmp_pat
     assert [o["id"] for o in bt.scene(31, c)["objects"] if "qr_box" in o["semantic_tags"]] == []
     d = bt.dag(31, c)["graph_task_generator"]
     assert "event_component" not in d["definition"]["component_sections"]
-    assert "success" not in d["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]
+    assert d["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]["_func"].endswith(".never")  # X2Real needs one
 
 
 def test_calib_mode_refuses_infeasible_points(tmp_path):

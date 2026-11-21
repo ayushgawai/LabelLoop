@@ -23,9 +23,10 @@ def roi_box(img, cfg, key="induction_roi", sub=None):
 
 
 def zone_ref(img, cfg, key="induction_roi", sub=None):
-    """Blurred gray crop of the induction zone (or another ROI): the reference, or the current frame to compare to it."""
+    """Blurred COLOUR crop of the induction zone (or another ROI): the reference, or the current frame to compare to it.
+    Colour, not gray: a kraft box on the green work mat has almost the same gray level as the mat (sim v7 probe: presence 0.0)."""
     x0, y0, x1, y1 = roi_box(img, cfg, key, sub)
-    return cv2.GaussianBlur(cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_RGB2GRAY), (img.shape[1] // 100 | 1,) * 2, 0)
+    return cv2.GaussianBlur(img[y0:y1, x0:x1], (img.shape[1] // 100 | 1,) * 2, 0)
 
 
 def presence(img, ref, cfg, key="induction_roi", sub=None):
@@ -35,7 +36,7 @@ def presence(img, ref, cfg, key="induction_roi", sub=None):
 
 def _changed(img, ref, cfg, key="induction_roi", sub=None):
     cur = zone_ref(img, cfg, key, sub)
-    return cv2.absdiff(cur, cv2.resize(ref, cur.shape[::-1])) > cfg["presence_thr"]
+    return cv2.absdiff(cur, cv2.resize(ref, cur.shape[1::-1])).max(axis=2) > cfg["presence_thr"]  # any channel
 
 
 def centroid(img, ref, cfg):
