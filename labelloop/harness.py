@@ -20,8 +20,15 @@ def apply_profile(cfg):
     cfg = copy.deepcopy(cfg)
     if cfg.get("event_fast"):
         cfg["real_safe"] = True  # event_fast sits on top of real_safe
-    ab = look.set_profile(cfg["profiles"][cfg.get("profile", "sim")])
+    prof = cfg["profiles"][cfg.get("profile", "sim")]
+    ab = look.set_profile(prof)
     cfg["look"].update(ab)
+    if prof.get("bin_rois"):  # measured on the real head image: overrides the sim bin regions (blanking, bin-change success)
+        cfg["scene"]["bin_rois"] = prof["bin_rois"]
+    if prof.get("induction_roi"):
+        cfg["scene"]["induction_roi"] = prof["induction_roi"]
+    if prof.get("whole_table") is not None:
+        cfg["scene"]["whole_table"] = prof["whole_table"]
     if cfg.get("real_safe"):
         for k in ("show", "spin", "slide", "look"):
             cfg[k]["enabled"] = False
@@ -32,7 +39,7 @@ def apply_profile(cfg):
         cfg["tries"] = {**cfg["tries"], "INSPECT": 2, "PLACE": 2, "REJECT": 2, "LIFT2": 2}  # few tries, confident grips (grasp abort in the state machine)
         cfg["max_calls"] = {**cfg["max_calls"], "INSPECT": 6}
         cfg["budget"] = {**cfg["budget"], "case_s": 480, "deliver_reserve_s": 20, "wallx_call_s": 2.5, "sim_case_s": None}
-        cfg["instructions"] = {**cfg["instructions"], "INSPECT": ["flip the box over"], "REJECT": ["put the box into the black bin"],
+        cfg["instructions"] = {**cfg["instructions"], "PLACE": ["put the box into the {mat} bin"], "INSPECT": ["flip the box over"], "REJECT": ["put the box into the black bin"],
                                "LIFT2": ["pick up the box with both arms and put it into the {mat} bin"]}
     return cfg
 

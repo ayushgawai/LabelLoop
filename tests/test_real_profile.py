@@ -156,7 +156,7 @@ def test_fast_top_label_call_sequence_and_no_scripted_reply():
     assert not m.cfg["scripted_home"] and not any(m.cfg[k]["enabled"] for k in ("show", "spin", "slide", "look")) and m.cfg["reject_mode"] == "tray"
     out = drive(m, [ON, ON, {**ON, "codes": {CODE}}, ON, LANDED, EMPTY, EMPTY])
     # IDLE (stable 1) -> SCAN (2 calls) -> PLACE until the bin changed -> HOME (1) -> DONE
-    assert [i for _, i in out if i] == ["put the block into the blue bin with the left arm"] * 2 + ["put both arms back to the home position"]
+    assert [i for _, i in out if i] == ["put the box into the blue bin"] * 2 + ["put both arms back to the home position"]
     assert m.results == [{"code": CODE, "lane": "A", "reason": "routed", "outcome": "ok"}] and m.state == "DONE"
     assert all(i is None or "home position" in i or "bin" in i for _, i in out)
 
