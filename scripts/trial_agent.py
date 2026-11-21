@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV = {k: v.strip().strip('"').strip("'") for k, v in (l.strip().split("=", 1) for l in open(ROOT / ".env") if "=" in l and not l.lstrip().startswith("#"))}
 PY = str(ROOT / ".venv/bin/python")
 GOAL = "Read each parcel label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else to the black bin."
-KEYS = ("PLACE", "REJECT", "INSPECT", "CENTER", "HOME", "LIFT2", "STAND", "PICK", "PICK_STANDING")
+KEYS = ("PLACE", "REJECT", "INSPECT", "CENTER", "HOME", "LIFT2", "STAND", "PICK", "PICK_STANDING", "PICK_WIDE", "PLACE_WIDE")
 FIELDS = {"mat", "arm", "where", "obj", "fix", "fix_side", "lift", "lift_side"}
 CLIENT = ("source /opt/xr/bot/x2robot_client/share/x2robot_client/scripts/session_env.sh >/dev/null 2>&1; timeout -s INT {sec} python3 "
           "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address 192.168.1.157:8001 --instruction {instr} "
@@ -59,6 +59,12 @@ What we learned so far (do not repeat these):
   edge; success = footprint shrinks 40 %) -> PICK "pick up the box" / "pick up the standing box from the top with the {arm} arm"
   (all bins painted out) -> PLACE (only the target bin visible). Wording keys STAND, PICK, PICK_STANDING, PLACE. TEST stage=true
   FIRST (default wording), then tune STAND / PICK_STANDING wording. Report per sub-goal which worked.
+- Agent run 4 (13:56): STAND failed 3/3 (the box only slid / rotated); "Use both arms to squeeze the short ends ... and roll it" LIFTED
+  the Miro box clean off the table (first real pick of a wide parcel!). The bin_moved stop that followed was a FALSE alarm (the lifted
+  box hid the blue bin); fixed: the bin check is off once the parcel has left its table spot. Now (stage=true): wide parcels skip
+  STAND and get PICK_WIDE "use both arms to squeeze the short ends of the box and lift it up" then PLACE_WIDE "put the box into the
+  {mat} bin with both arms" (only the target bin visible). PICK / PLACE get up to 35 calls (~50 s) per try: slow is fine, finish it.
+  Use run_trial seconds 200-300.
 - OLDER TEST PLAN, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
   raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
   (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.
@@ -238,6 +244,14 @@ class Agent:
                f"New run. You have {self.a.sessions} robot sessions and {self.a.minutes} minutes. The human just reset the table: "
                "bins in place, the test parcel somewhere on the table. Take a snapshot first. Learn from the earlier runs"
                + (" in this thread." if prev else ":\n\n" + past)}]}], None
+        if self.a.video:  # reference footage from the human: frames as images (the API takes no video)
+            inp[0]["content"].append({"type": "input_text", "text": (
+                "REFERENCE VIDEO from the human (frames in time order, two 3x3 grids): X Square's own robot (the WALLX family) sorting "
+                "parcels at speed. Study exactly how it grasps flat parcels (which arm, from where, side vs top, two arms, flips) and how "
+                "it drops them into bins, then translate that into our sub-goal wording (PICK_WIDE / PLACE_WIDE / PICK / PLACE / STAND) "
+                "and test it. The human says picking up or flipping a parcel should be this easy; get our robot to at least do it, slowly is fine.")})
+            for img in video_grids(self.a.video, self.dir):
+                inp[0]["content"].append({"type": "input_image", "image_url": "data:image/jpeg;base64," + img})
         if prev:
             inp = self.pending(prev) + inp
         while report is None:
@@ -279,6 +293,28 @@ class Agent:
         print("REPORT", rep, flush=True)
 
 
+def video_grids(path, out_dir, n=18, per=9):
+    cap = cv2.VideoCapture(str(path))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frames = []
+    for i in np.linspace(0, total - 1, n).astype(int):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
+        ok, f = cap.read()
+        if ok:
+            f = cv2.resize(f, (360, int(360 * f.shape[0] / f.shape[1])))
+            cv2.putText(f, "%.0fs" % (i / (cap.get(cv2.CAP_PROP_FPS) or 25)), (8, 30), 0, 0.9, (0, 0, 255), 2)
+            frames.append(f)
+    grids = []
+    for k in range(0, len(frames), per):
+        g = frames[k:k + per]
+        while len(g) % 3:
+            g.append(np.zeros_like(g[0]))
+        img = np.vstack([np.hstack(g[i:i + 3]) for i in range(0, len(g), 3)])
+        cv2.imwrite(str(Path(out_dir) / f"video_{k // per}.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        grids.append(base64.b64encode(cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 75])[1]).decode())
+    return grids
+
+
 def summarize(log):
     rows = [json.loads(l) for l in open(log)] if Path(log).exists() else []
     st = [r for r in rows if "state" in r]
@@ -299,6 +335,7 @@ if __name__ == "__main__":
     ap.add_argument("--model", default="gpt-6.2-sol")
     ap.add_argument("--sessions", type=int, default=12)
     ap.add_argument("--minutes", type=int, default=75)
+    ap.add_argument("--video", default="", help="reference video: frames are shown to the model at the start")
     ap.add_argument("--fresh", action="store_true", help="start a new thread (default: continue the last one; earlier reports are given to a new thread)")
     assert os.environ.get("ROBOT_ASKPASS"), "set ROBOT_ASKPASS"
     Agent(ap.parse_args()).run()

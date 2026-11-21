@@ -437,16 +437,17 @@ def test_staged_place_timeout_restarts_pick():
     assert m.state == "PICK" and m.tries["PICK"] == 2
 
 
-def test_staged_pick_uses_presence_at_the_original_parcel_spot(monkeypatch):
+def test_staged_pick_uses_presence_at_the_original_parcel_spot(monkeypatch):  # this synthetic parcel is wider than the gripper: two-arm wording
     monkeypatch.setattr("labelloop.harness.locate", lambda _: [(CODE, (80, 65))])
+    monkeypatch.setattr(Harness, "_wide_parcel", lambda *_: True)  # pin it: the width check depends on global camera-profile state
     h = Harness({**FAST, "event_fast_stage": True, "zip_ocr": False, "tries": {**CFG["tries"], "STAND": 0}})
     for _ in range(4):
         instr = h.step(frames(head_frame()), STATE)
-    assert h.state_name == "PICK" and instr == "pick up the box"
+    assert h.state_name == "PICK" and instr == "use both arms to squeeze the short ends of the box and lift it up"
     assert h.mask_bins == {"blue", "red", "black"}
-    assert h.step(frames(head_frame()), STATE) == "pick up the box"
+    assert h.step(frames(head_frame()), STATE) == "use both arms to squeeze the short ends of the box and lift it up"
     # Another object away from the pickup spot keeps the overall table presence high.
-    assert h.step(frames(head_frame(box=(0.61, 0.56, 0.70, 0.88))), STATE) == "put the box into the blue bin"
+    assert h.step(frames(head_frame(box=(0.61, 0.56, 0.70, 0.88))), STATE) == "put the box into the blue bin with both arms"
     assert h.mask_bins == {"red", "black"} and h.subgoal_changed
 
 
@@ -455,7 +456,7 @@ def test_staged_pick_uses_presence_at_the_original_parcel_spot(monkeypatch):
     ("420/90012/001", "right", "left"),
 ])
 def test_stand_confirms_shrunk_footprint_then_picks_from_top(code, lift, fix):
-    m = staged_sm(code, parcel={"wide": True, "box_area": 1000})
+    m = staged_sm(code, parcel={"wide": True, "box_area": 1000}, tries={**CFG["tries"], "STAND": 2})
     assert m.state == "STAND"
     assert m.instruction() == (f"use the {fix} arm to hold the {fix} side of the box still and "
                                f"use the {lift} arm to push the {lift} side up until the box stands on its long thin edge")
@@ -469,7 +470,7 @@ def test_stand_confirms_shrunk_footprint_then_picks_from_top(code, lift, fix):
 
 
 def test_stand_retries_once_then_homes_without_pick():
-    m = staged_sm(parcel={"wide": True, "box_area": 1000}, max_calls={**CFG["max_calls"], "STAND": 2})
+    m = staged_sm(parcel={"wide": True, "box_area": 1000}, max_calls={**CFG["max_calls"], "STAND": 2}, tries={**CFG["tries"], "STAND": 2})
     for area in (800, 600):
         m.step({**ON, "box_area": area})
     assert m.state == "STAND" and m.tries["STAND"] == 2
@@ -496,7 +497,7 @@ def test_harness_stand_uses_table_grid_or_pixel_fallback(monkeypatch, mat, parce
     monkeypatch.setattr("labelloop.perception.table_grid.find_table_quad", lambda _: quad)
     monkeypatch.setattr("labelloop.perception.scene.object_box", lambda *_: (x, y, x + w, y + h))
     monkeypatch.setattr("labelloop.harness.locate", lambda _: [(CODE, (x + 10, y + 10))])
-    harness = Harness({**FAST, "event_fast_stage": True, "zip_ocr": False})
+    harness = Harness({**FAST, "event_fast_stage": True, "zip_ocr": False, "tries": {**CFG["tries"], "STAND": 2}})
     for _ in range(4):
         harness.step(frames(front), STATE)
     assert harness.state_name == expected
@@ -509,3 +510,12 @@ def test_recorded_wide_parcel_is_detected(name):
     harness = Harness({**FAST, "event_fast_stage": True})
     box = scene.object_box(front, None, harness.cfg["scene"])
     assert box is not None and harness._wide_parcel(front, box)
+
+
+def test_bin_check_off_once_the_parcel_left_its_spot():  # agent run 4: the lifted box occluded the blue bin -> false bin_moved
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True})
+    sm = StateMachine(cfg)
+    sm.lane, sm.state, sm.plan = [k for k, v in cfg["lanes"].items() if v == "red"][0], "PLACE", ["PLACE"]
+    for _ in range(4):
+        sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0.95, "red": 0.1, "black": 0.5}, "spot_cleared": True})
+    assert sm.state == "PLACE"

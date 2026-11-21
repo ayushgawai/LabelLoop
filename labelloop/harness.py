@@ -167,7 +167,7 @@ class Harness:
             ev["box_area"] = (x1 - x0) * (y1 - y0)
             if before != "STAND":
                 ev["wide"] = self._wide_parcel(front, self.obj_box)
-        if before == "PICK" and self.pick_spot is not None:
+        if before in ("PICK", "PLACE") and self.pick_spot is not None:
             spot, initial = self.pick_spot
             now = self._spot_presence(front, cfg, spot)
             ev["spot_cleared"] = initial > cfg["presence_min"] and now <= initial * (1 - self.cfg["stage_grasp"]["spot_drop"])

@@ -125,8 +125,8 @@ look:                     # scripted no-contact look-around (SCAN -> LOOK): the 
   move_calls: 2           # calls driving to each view, then
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
-max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20, CENTER: 8, STAND: 8}   # INSPECT, CENTER and STAND per try, HANDOVER fixed (no success check)
-tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 5, REJECT: 3, LIFT2: 5, SWIPE: 6, CENTER: 2, STAND: 2}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 35, REJECT: 20, LIFT2: 20, CENTER: 8, STAND: 8, PICK: 35}   # INSPECT, CENTER and STAND per try, HANDOVER fixed (no success check)
+tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 5, REJECT: 3, LIFT2: 5, SWIPE: 6, CENTER: 2, STAND: 0}   # STAND off: 0/3 stood up on the robot; wide parcels use the two-arm squeeze (PICK_WIDE) instead   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
                           # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
@@ -174,6 +174,10 @@ instructions:
     - "use the {fix} arm to hold the {fix_side} side of the box still and use the {lift} arm to push the {lift_side} side up until the box stands on its long thin edge"
   PICK:
     - "pick up the box"
+  PICK_WIDE:
+    - "use both arms to squeeze the short ends of the box and lift it up"
+  PLACE_WIDE:
+    - "put the box into the {mat} bin with both arms"
   PICK_STANDING:
     - "pick up the standing box from the top with the {arm} arm"
   PLACE:

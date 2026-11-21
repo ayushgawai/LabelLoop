@@ -59,6 +59,7 @@ class StateMachine:
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
+        self.wide = False  # event_fast_stage: the parcel is wider than the gripper (two-arm squeeze)
         self.binhit = 0  # event_fast: consecutive calls with a non-target bin moved
         self.where = None  # event_fast: "front left" ... (harness where_words), for {where}
         self.near = None  # event_fast: the arm nearest the detected object ("left" / "right"), for CENTER's wording
@@ -84,6 +85,8 @@ class StateMachine:
             key = "INSPECT_BIG" if s == "INSPECT" and self.big else s
             if s == "PICK" and self.standing:
                 key = "PICK_STANDING"
+            elif s in ("PICK", "PLACE") and self.wide and s + "_WIDE" in self.cfg["instructions"]:  # wider than the gripper: two-arm squeeze (agent run 4 lifted the Miro box)
+                key = s + "_WIDE"
             arm = self.near if s == "CENTER" and self.near else self._arm()  # CENTER: the arm nearest the object
             roles = {}
             if s == "STAND":
@@ -117,6 +120,9 @@ class StateMachine:
     def _bin_moved(self, ev, level=0.8, calls=3):
         """A bin region (the target one only while the parcel has not landed) changed >= level for `calls` calls in a row: the bin itself moved (real agent trial: WALLX lifted the
         black bin into the red one: 0.93+, persistent; an arm hovering over a bin reads 0.4-0.6)."""
+        if ev.get("spot_cleared"):  # the parcel left its table spot: the grippers hold it (a lifted parcel occludes bins: agent run 4 false alarm)
+            self.binhit = 0
+            return False
         target = self.cfg["lanes"].get(self.lane, "black")  # the target bin too while the drop has not succeeded (agent run 3: WALLX tipped the red TARGET bin)
         hit = any(v >= level for k, v in ev.get("bins", {}).items() if k != target or not self._success(ev))
         self.binhit = self.binhit + 1 if hit else 0
@@ -268,7 +274,7 @@ class StateMachine:
         self.transitions, self.flags = [], []
         self.near, self.calls = ev.get("near"), self.calls + 1
         self.where = ev.get("where") or self.where  # event_fast: last known parcel place in words, for {where}
-        self.wide, self.box_area = ev.get("wide", False), ev.get("box_area")
+        self.wide, self.box_area = ev.get("wide", self.wide), ev.get("box_area")  # wide is measured in SCAN only: keep it for the parcel
         self.spent += self._cost(s)
         over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
         f, codes = ev["presence"], sorted(c for c in ev["codes"] if c not in self.sorted)
