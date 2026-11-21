@@ -41,7 +41,7 @@ def test_every_zone_is_inside_the_induction_zone_spans_the_centre_and_clear_of_t
 
 def test_green_mat_covers_the_table_and_bins_and_parcels_sit_on_its_top():
     L, W, T = props.TABLE_MAT["size"]
-    assert (L / 2, W / 2) == bt.TABLE_HALF and bt.SURFACE_Z == bt.TABLE_Z + T
+    assert all(0 < h - m / 2 <= 0.01 for h, m in zip(bt.TABLE_HALF, (L, W))) and bt.SURFACE_Z == bt.TABLE_Z + T  # inset <= 1 cm per side
     sc, dg = bt.scene(30, bt.CASES[30]), bt.dag(30, bt.CASES[30])
     mat = next(o for o in sc["objects"] if o["id"] == "table_mat")
     assert mat["kinematic"] and mat["semantic_tags"] == [] and sc["layout"]["nodes"]["table_mat"]["placement"]["surface"] == "tabletop"

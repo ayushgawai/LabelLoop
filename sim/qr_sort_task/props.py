@@ -125,7 +125,7 @@ def variants(base):
 
 # Table mat: the real event benches have a mint/teal green work mat over the whole tabletop (WALLX was likely trained on those).
 # size (x depth, y across, z thickness) m, sRGB matte; colour sampled from the event photo, adjust if needed.
-TABLE_MAT = dict(size=(0.685, 1.11, 0.003), color=(46, 178, 150))
+TABLE_MAT = dict(size=(0.675, 1.10, 0.003), color=(46, 178, 150))  # 5 mm inset per side: the layout solver rejects a mat as big as the tabletop
 
 BINS = {  # asset/scene id -> outer size (m) and sRGB colours
     "bin_blue": dict(size=(14 * IN, 8 * IN, 5 * IN), outside=(40, 57, 73), inside=(223, 178, 112)),       # navy shoe box, kraft inside: lane A
