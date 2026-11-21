@@ -60,10 +60,10 @@ def test_success_region_is_each_bins_cavity():
         assert bt.success_region(b) == [round(L / 2 - bt.WALL, 4), round(W / 2 - bt.WALL, 4), round(H, 4)]
 
 
-def _tray():
-    """build_task.py loaded a second time with REJECT_MODE = "tray" (the previous layout)."""
+def _floor_right():
+    """build_task.py loaded a second time with REJECT_MODE = "floor_right" (no tray; rejects swiped off the right edge)."""
     import importlib.util
-    src = (Path(bt.__file__)).read_text().replace('REJECT_MODE = "floor_right"', 'REJECT_MODE = "tray"')
+    src = (Path(bt.__file__)).read_text().replace('REJECT_MODE = "tray"', 'REJECT_MODE = "floor_right"')
     assert src != Path(bt.__file__).read_text()
     spec = importlib.util.spec_from_loader("bt_tray", loader=None)
     m = importlib.util.module_from_spec(spec)
@@ -72,7 +72,8 @@ def _tray():
     return m
 
 
-def test_floor_right_mode_is_default_two_bins_centred_on_the_far_edge_no_tray():
+def test_floor_right_mode_two_bins_centred_on_the_far_edge_no_tray():
+    bt = _floor_right()
     assert bt.REJECT_MODE == "floor_right" and bt.RECEPTACLES == ("bin_blue", "bin_red") and bt.REJECT_TARGET == "off_right" and bt.REJECT_XY is None
     bt.check_layout()
     fp = bt.footprints()
@@ -93,6 +94,7 @@ def test_floor_right_mode_is_default_two_bins_centred_on_the_far_edge_no_tray():
 
 
 def test_floor_right_anywhere_stays_3cm_inside_the_right_edge_and_keeps_the_right_gripper_strip():
+    bt = _floor_right()
     import random
     lq, rng = _sampler(), random.Random(3)
     for b in props.ACTIVE:
@@ -117,8 +119,8 @@ def test_off_table_right_target():
         assert bool(lq.off_table_right(env, "o", **cfg)[0]) == want, name
 
 
-def test_tray_mode_restores_the_previous_layout():
-    t = _tray()
+def test_tray_mode_is_default_three_receptacles_rejects_go_to_reject_bin():
+    t, f = bt, _floor_right()
     assert t.REJECT_MODE == "tray" and t.REJECT_TARGET == "reject_bin" and t.RECEPTACLES == ("bin_blue", "bin_red", "reject_bin")
     t.check_layout()
     assert t.BIN_XY == {"bin_blue": (-0.2259, -0.3672), "bin_red": (-0.2069, 0.0084)} and t.REJECT_XY == (-0.2107, 0.3738)
@@ -127,11 +129,10 @@ def test_tray_mode_restores_the_previous_layout():
     assert "reject_bin" in sc["layout"]["nodes"] and any(o["id"] == "reject_bin" for o in sc["objects"])
     succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
     assert "off_right" not in succ and [["box_wallet"], "reject_bin"] in succ["assignments"] and "reject_bin" in succ["bins"]
-    assert t.anywhere_cfg("bhindi")["table"] == bt.anywhere_cfg("bhindi")["table"][:1] + [[bt.anywhere_cfg("bhindi")["table"][1][0] - 0.02, bt.anywhere_cfg("bhindi")["table"][1][1]]]
+    assert t.anywhere_cfg("bhindi")["table"] == f.anywhere_cfg("bhindi")["table"][:1] + [[f.anywhere_cfg("bhindi")["table"][1][0] - 0.02, f.anywhere_cfg("bhindi")["table"][1][1]]]
 
 
 def test_layout_bins_turned_90_one_far_row_blue_red_tray_left_to_right_zone_at_the_centre():
-    bt = _tray()
     fp = bt.footprints()
     assert all(abs(y - math.pi / 2) < 1e-9 for y in bt.BIN_YAW.values())
     for b, (x0, x1, y0, y1) in fp.items():  # long side across the table, on the far edge, FAR_MARGIN from it
@@ -260,7 +261,6 @@ def test_every_active_item_has_the_right_label_faces_and_routing():
 
 
 def test_reject_tray_is_low_black_lid_on_the_right_inside_the_table():
-    bt = _tray()
     t = bt.BINS["reject_bin"]
     assert t["size"] == (13.2 * props.IN, 9.2 * props.IN, 1.0 * props.IN) and t["outside"][0] < 60 and min(t["inside"]) > 220
     x0, x1, y0, y1 = bt.footprints()["reject_bin"]

@@ -34,7 +34,7 @@ to_local = lambda ex, ey: (TABLE_C[0] - ex, TABLE_C[1] - ey)  # noqa: E731 (env 
 # parcel is swiped over its rim. The row spans the table, so the whole depth in front of the bins is free for parcels.
 # REJECT_MODE: "floor_right" = no tray; rejects are swiped off the table's RIGHT edge (tabletop-local +y) onto the floor (success: off_table_right);
 # "tray" = the previous behaviour (low black tray, third receptacle at the far right corner). One-line switch.
-REJECT_MODE = "floor_right"
+REJECT_MODE = "tray"
 FAR_MARGIN, EDGE_MARGIN, ZONE_GAP, BIN_GAP = 0.015, 0.01, 0.03, 0.02  # bins to the far edge; parcel/row to the side edges; parcel to the bins; bin to bin
 BIN_YAW = {"bin_blue": math.pi / 2, "bin_red": math.pi / 2, "reject_bin": math.pi / 2}  # tabletop-local yaw of each receptacle (0 = length along x)
 
