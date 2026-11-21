@@ -3,7 +3,8 @@
 Label = QR symbol (QR_MM wide) + MARGIN_MM white quiet zone on every side (QR_MM + 2*MARGIN_MM = 50 mm). Payload 420/<ZIP5>/<seq3>
 (GS1 AI 420 = ship-to ZIP). A parcel without a measured prop is a CUBE_MM cube: face + side texture, label centred on both.
 A measured parcel (qr_sort_task/props.py PARCELS) gets six face tiles box_<id>_<face>.png at PPM px/mm: its body colour, its tape
-stripe, and the label centred on each face listed in its `labels`.
+stripe, and the label centred on its `labels` face. A labelled parcel has one variant id `<id>_<face>` per face that can hold the label
+(props.variants), so the label sits on a random face each episode.
 """
 import argparse
 import math
@@ -16,15 +17,13 @@ import zxingcpp
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "qr_sort_task"))
-from props import FACES, PARCELS  # noqa: E402
+from props import FACES, MARGIN_MM, PARCELS, QR_MM, ROUTES, variants  # noqa: E402
 
 CUBE_MM = 60.0  # parcel edge; G gripper opens ~97 mm
-QR_MM, MARGIN_MM = 40.0, 5.0
 FACE_MM = SIDE_MM = (CUBE_MM, CUBE_MM)
 A4_MM = (210, 297)
 KRAFT = (181, 142, 96)
 PPM = 5  # px per mm of measured-parcel face tiles: 40 mm QR -> 200 px, 8 px per module
-ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # asset suffix -> payload
 # tile axes of each face, as make_usd.box_mesh maps them: u = (box axis, +1 | -1 direction), v = box axis (always +; image rows run -v)
 TILE_U = {"pz": ("x", 1), "nz": ("x", -1), "py": ("x", -1), "ny": ("x", 1), "px": ("y", 1), "nx": ("y", -1)}
 TILE_V = {"pz": "y", "nz": "y", "py": "z", "ny": "z", "px": "z", "nx": "z"}
@@ -125,36 +124,26 @@ def main(argv=None):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     codes = list(ROUTES.values())
-    for name, code in [*ROUTES.items(), ("nolabel", None), ("garbage", None)]:
-        if name == "garbage" and name not in PARCELS:  # the stand-in red cube is untextured (make_usd.py)
-            continue
-        if name in PARCELS:  # measured prop: six face tiles
-            for f, img in parcel_faces(PARCELS[name], code).items():
-                check(img, [code] if code and f in PARCELS[name]["labels"] else [], f"box_{name}_{f}")
-                img.save(out / f"box_{name}_{f}.png")
-        elif code is None:  # plain kraft cube
-            img = texture(FACE_MM, a.dpi, KRAFT)
-            check(img, [], "nolabel")
-            img.save(out / "nolabel.png", dpi=(a.dpi, a.dpi))
-        else:  # labelled cube
-            s = safe(code)
-            lab = label_image(code, QR_MM, a.dpi)
-            face = texture(FACE_MM, a.dpi, KRAFT, lab)
-            side = texture(SIDE_MM, a.dpi, KRAFT, lab)
-            for kind, img in (("face", face), ("side", side)):
-                check(img, [code], f"{s}_{kind}")
-            face.save(out / f"{s}_face.png", dpi=(a.dpi, a.dpi))
-            side.save(out / f"{s}_side.png", dpi=(a.dpi, a.dpi))
-        if code:  # the bare label, at print resolution (QR gate, label sheet)
-            lab = label_image(code, QR_MM, a.dpi)
-            check(lab, [code], f"{safe(code)}_qr")
-            lab.save(out / f"{safe(code)}_qr.png", dpi=(a.dpi, a.dpi))
+    n = 0
+    for base in PARCELS:  # measured props: six face tiles per variant (label on its one face)
+        for vid, p in variants(base).items():
+            for f, img in parcel_faces(p, ROUTES.get(base)).items():
+                check(img, [ROUTES[base]] if f in p["labels"] else [], f"box_{vid}_{f}")
+                img.save(out / f"box_{vid}_{f}.png")
+            n += 1
+    img = texture(FACE_MM, a.dpi, KRAFT)  # plain kraft cube
+    check(img, [], "nolabel")
+    img.save(out / "nolabel.png", dpi=(a.dpi, a.dpi))
+    for code in codes:  # the bare label, at print resolution (QR gate, label sheet)
+        lab = label_image(code, QR_MM, a.dpi)
+        check(lab, [code], f"{safe(code)}_qr")
+        lab.save(out / f"{safe(code)}_qr.png", dpi=(a.dpi, a.dpi))
     page = sheet(codes, 300)
     got = sorted(decode(page))
     if got != sorted(codes):
         raise SystemExit(f"FAIL sheet: decoded {got}")
     page.save(out / "sheet_a4.png", dpi=(300, 300))
-    print(f"wrote {len(codes)} parcel labels + nolabel + sheet_a4.png to {out}; all decode round-trips OK")
+    print(f"wrote {len(codes)} parcel labels, {n} parcel variants x 6 face tiles, nolabel + sheet_a4.png to {out}; all decode round-trips OK")
 
 
 if __name__ == "__main__":

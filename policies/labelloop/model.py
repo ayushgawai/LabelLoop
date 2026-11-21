@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class Passthrough:
-    """Phase 1: one fixed instruction every call, no state machine (LABELLOOP_PASSTHROUGH="...")."""
+    """Phase 1: one fixed instruction every call, no state machine (LABELLOOP_PASSTHROUGH="...").
+    LABELLOOP_PASSTHROUGH=HOLD: arms stay still, no WALLX call (scene previews)."""
     state_name, done, subgoal_changed = "PASSTHROUGH", False, False
 
     def __init__(self, instruction, runlog):
@@ -22,7 +23,7 @@ class Passthrough:
         self.calls += 1
         self.runlog.write(call=self.calls, state=self.state_name, instruction=self.instruction,
                           left_gripper=state["left_ee"]["gripper"], right_gripper=state["right_ee"]["gripper"])
-        return self.instruction
+        return None if self.instruction == "HOLD" else self.instruction
 
     def log_reply(self, latency_s, error=None):
         self.runlog.write(call=self.calls, latency_s=latency_s, error=error)

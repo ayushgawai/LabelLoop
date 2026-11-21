@@ -2,9 +2,9 @@
 
   python sim/qr_sort_task/make_usd.py --labels sim/assets --out $MANAENV_ASSET_ROOT/labelloop
 
-Parcel = one textured box mesh (origin at its centre), one OmniPBR material /<root>/Looks/pic, one atlas texture. A parcel without a
-measured prop is a 60 mm cube (CUBE) whose atlas is three stacked squares (top | labeled +Y side | kraft); a measured parcel
-(props.PARCELS) has its real size and an atlas of its six face tiles from make_qr_boxes.py.
+Parcel = one textured box mesh (origin at its centre), one OmniPBR material /<root>/Looks/pic, one atlas texture. `nolabel` is a plain
+60 mm kraft cube (CUBE); every measured parcel (props.PARCELS) has its real size and an atlas of its six face tiles from make_qr_boxes.py,
+one asset box_<variant>.usda per props.variants (a labelled parcel: one per face that can hold its label).
 Bin = open box, origin at the centre of its underside, length along x; every wall and the floor is two layers (outside colour, inside colour).
 """
 import argparse
@@ -12,13 +12,12 @@ from pathlib import Path
 
 from PIL import Image
 
-from props import BINS, FACES, PARCELS, WALL
+from props import BINS, FACES, PARCELS, WALL, variants
 
 CUBE = 0.06  # keep equal to make_qr_boxes.CUBE_MM / 1000
 HX = HY = HZ = CUBE / 2
 CUBE_UV = {"pz": (0, 2 / 3, 1, 1), "py": (0, 1 / 3, 1, 2 / 3), "ny": (0, 0, 1, 1 / 3), "px": (0, 0, 1, 1 / 3), "nx": (0, 0, 1, 1 / 3),
            "nz": (0, 0, 1, 1 / 3)}  # face -> (u0, v0, u1, v1) in the cube atlas
-ROUTES = {"z95112": "420/95112/001", "z90210": "420/90210/001", "z10001": "420/10001/001"}  # keep equal to make_qr_boxes.ROUTES
 
 
 def material(path, shader_inputs):
@@ -145,13 +144,10 @@ def main():
     out, labels = Path(a.out), Path(a.labels)
     (out / "textures").mkdir(parents=True, exist_ok=True)
 
-    def atlas(top, side, name):
-        t, s = Image.open(top), Image.open(side) if side else None
-        kraft = Image.new("RGB", t.size, t.getpixel((2, 2)))
-        img = Image.new("RGB", (t.width, 3 * t.height))
+    def kraft_atlas(top, name):  # cube atlas: three stacked squares, all plain
+        t = Image.open(top)
+        img = Image.new("RGB", (t.width, 3 * t.height), t.getpixel((2, 2)))
         img.paste(t, (0, 0))
-        img.paste(s.convert("RGB") if s else kraft, (0, t.height))
-        img.paste(kraft, (0, 2 * t.height))
         img.save(out / "textures" / f"{name}_atlas.png")
 
     def tile_atlas(name):
@@ -170,22 +166,12 @@ def main():
     for name, b in BINS.items():  # shoe-box bins (props.py)
         looks = material("out", omni(color=srgb_to_linear(b["outside"]))) + material("in", omni(color=srgb_to_linear(b["inside"])))
         (out / f"{name}.usda").write_text(usda("bin", bin_body(b["size"]), looks, kinematic=True, mass=0.3))
-    for name, code in [*ROUTES.items(), ("nolabel", None), ("garbage", None)]:  # parcels: payload 420/<ZIP5>/<seq3>
-        if name in PARCELS:  # measured prop
-            p = PARCELS[name]
-            mesh = box_mesh("pic", tuple(v / 2 for v in p["size"]), tile_atlas(name))
-            looks = pic(f"box_{name}", **p.get("finish", {}))
-            (out / f"box_{name}.usda").write_text(usda("box", mesh, looks, mass=round(sum(p["mass"]) / 2, 3)))
-        elif name == "garbage":  # stand-in: plain red 50 mm cube, no kraft, no QR
-            g = 0.05
-            (out / "box_garbage.usda").write_text(usda("box", cube("g", (g, g, g), (0, 0, g / 2), "m"), material("m", omni(color=(0.85, 0.05, 0.05))), mass=0.06))
-        else:
-            if code:
-                s = code.replace("/", "_")
-                atlas(labels / f"{s}_face.png", labels / f"{s}_side.png", f"box_{name}")
-            else:
-                atlas(labels / "nolabel.png", None, "box_nolabel")
-            (out / f"box_{name}.usda").write_text(usda("box", box_mesh("pic"), pic(f"box_{name}"), mass=0.08))
+    for base in PARCELS:  # measured props, one asset per label-face variant
+        for vid, p in variants(base).items():
+            mesh = box_mesh("pic", tuple(v / 2 for v in p["size"]), tile_atlas(vid))
+            (out / f"box_{vid}.usda").write_text(usda("box", mesh, pic(f"box_{vid}", **p.get("finish", {})), mass=round(sum(p["mass"]) / 2, 3)))
+    kraft_atlas(labels / "nolabel.png", "box_nolabel")
+    (out / "box_nolabel.usda").write_text(usda("box", box_mesh("pic"), pic("box_nolabel"), mass=0.08))
     print(f"wrote {len(list(out.glob('*.usda')))} usda + textures to {out}")
 
 

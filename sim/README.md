@@ -1,6 +1,6 @@
 # LabelLoop in X2Real (sim) — research + draft
 
-Status (Windows run, Isaac Sim 6.0.1): the suite is cases 18-23 (row layout, see "Cases" below). Cases 1-17 (earlier layouts and their
+Status (Windows run, Isaac Sim 6.0.1): the suite is cases 18-30 (layout and cases: see "Cases" below). Cases 1-17 (earlier layouts and their
 props: a001..b003 boxes, decoys, table mat, lane mats, floor reject basket) were removed on 2026-11-20; the Phase sections are history and still mention them.
 Text below written before running; **[UNVERIFIED]** tags not mentioned in Phase 3 results are still unverified.
 `X2` = X2Real checkout (`manaenv/` paths are relative to it). Items marked **[UNVERIFIED]** need the Linux box.
@@ -62,16 +62,16 @@ cd LabelLoop && python sim/make_qr_boxes.py --out sim/assets
 python sim/qr_sort_task/make_usd.py --labels sim/assets --out $MANAENV_ASSET_ROOT/labelloop
 cp sim/qr_sort_task/labelloop_qr_sort.py $X2REAL_ROOT/manaenv/assets/objects/
 python sim/qr_sort_task/build_task.py --x2real $X2REAL_ROOT
-cd $X2REAL_ROOT && python manaenv/scripts/x2real_eval.py --board labelloop_tabletop --list   # 6 cases, else fix YAML
+cd $X2REAL_ROOT && python manaenv/scripts/x2real_eval.py --board labelloop_tabletop --list   # 13 cases, else fix YAML
 # policy server up (3rd/policy_space template or LabelLoop server on :8001), then from LabelLoop:
 python scripts/run_sim_case.py --case 18 --runs 1 --viz kit
 ```
 `build_task.py` also deletes `labelloop/{scene,task}/caseN` files of cases no longer listed and refreshes the board's `case_count`, so re-running it
-on a checkout built with the old 23 cases cleans it up. First run: look at it in Kit. Tune (all at the top of `build_task.py`): `BIN_XY`, `REJECT_XY`,
+on a checkout built with an older case list cleans it up. First run: look at it in Kit. Tune (all at the top of `build_task.py`): `BIN_XY`, `REJECT_XY`,
 `INDUCT_ENV`, `TABLE_Z`; bin and parcel sizes, colours, masses in `props.py`. `build_task.py` refuses a layout whose bins leave the table or touch
 each other, or where a parcel has no room to arrive; it prints each parcel's drop zone and a WARN for grasp width / bin fit. Then `--viz none --runs N` per case; results:
 `$X2REAL_ROOT/outputs/x2real_eval/labelloop/benchmark/<env>/{evaluation_report.jsonl,videos/combined/episode_*.mp4}`.
-Success = each parcel's centre resting inside its target bin's cavity (z95112 blue, z90210 red, everything else the black reject box), then arms
+Success = each parcel's centre resting inside its target bin's cavity (ZIP3 950/951/940/941 blue, 900/901/902 red, everything else the black reject box; `TARGET` in `build_task.py` is derived from each code's ZIP3), then arms
 home (`lanes_sorted`, labelloop_qr_sort.py; per-bin cavity from `build_task.success_region`).
 
 ## Bins (`qr_sort_task/props.py`, 2026-11-20; photos and measurements of every prop: [docs/props](../docs/props/README.md))
@@ -84,7 +84,7 @@ The three real open shoe boxes (lids off), measured in inches, length pointing a
 | `bin_red` | lane B | 14 x 9.5 x 5 in (356 x 241 x 127 mm) | red / kraft |
 | `reject_bin` | reject | 13 x 9 x 4.5 in (330 x 229 x 114 mm) | black / white |
 
-## Parcels (`props.py` PARCELS; any parcel not listed is still the 60 mm kraft cube)
+## Parcels (`props.py` PARCELS; `nolabel` is still the 60 mm kraft cube)
 
 | id | role | prop | arrives as (away x across x up) | notes |
 |---|---|---|---|---|
@@ -93,6 +93,20 @@ The three real open shoe boxes (lids off), measured in inches, length pointing a
 | `box_z10001` | unknown ZIP -> black, QR `420/10001/001` | package 3: Amazon padded mailer 10 x 8.5 x 0.5 in | 216 x 254 x 13 mm, flat, long side across | off-white, blue tear band, label on top; 0.05-0.10 kg (guess); rigid in sim; **not graspable** |
 | `box_garbage` | garbage (not a parcel) -> black, no label | package 4: perfume box 6 x 4 x 2 in | 152 x 51 x 102 mm, standing on its long edge | light-blue brushed foil (metallic 0.5, roughness 0.35), grey-bordered name label on one side; 0.25-0.40 kg (guess); yaw +-0.3; the real authenticity QR sticker is not modelled |
 
+Sim-only props (nominal sizes, not measured or photographed yet; `props.py`): `z94110` kraft box 3 x 3 x 3 in (lane A, 420/94110/001);
+`z90015` tall kraft box 3 x 5 x 8 in, arrives standing, 3 in across (lane B, 420/90015/001; 76 mm taller than the red bin walls); `z60601` white box
+5 x 3.5 x 2.5 in on its 5 x 2.5 edge (unknown ZIP, reject, 420/60601/001); `z95014` large kraft box 12 x 10 x 6 in, flat, NOT graspable by one gripper
+(lane A, 420/95014/001; parcel_report WARNs, intended; its yaw limit is 0.02 rad because it barely fits between the bins and the table edge, no
+widening of INDUCT_ENV was needed); `wallet` leather wallet 4.5 x 3.5 x 0.75 in, no label (reject); `plainbox` plain kraft box 6 x 4 x 3 in, no label (reject).
+
+**Random label face.** A parcel with a QR code carries its ONE label on a random face each episode. `props.variants(base)` expands it into one variant
+`<id>_<face>` (face in `pz nz py ny px nx`) per face whose both dimensions are >= the 50 mm label (40 mm QR + 5 mm margin): the 13 mm mailer gets only
+pz/nz, every other labelled parcel all six. `make_qr_boxes.py` writes `box_<variant>_<face>.png` tiles (label on that one face, decode-checked),
+`make_usd.py` one `box_<variant>.usda` each, and `labelloop_qr_sort.py` registers them (`LABELLED`, kept equal to props by a test). The scene spawns every
+variant of a case's parcel parked (distinct spots); the "human adds" event gets the list of variant names and per env teleports ONE uniformly random
+one (only while none of them has been dropped yet), printing `[labelloop] drop <object> env <i>`. Success groups are `[variants, bin]`: ok when any
+variant that is not parked rests in the bin (all parked = not ok). A case's `late` stays keyed by the base id.
+
 Package 1 stands on its long edge because that is the only pose the G gripper (97.5 mm open) can close on: 89 mm across, ~4 mm spare per
 finger. It fits the blue box's cavity (346 x 193 mm) as it arrives, but at 152 mm it is 25 mm taller than the walls if it stays upright.
 Packages 2 and 3 cannot be held by the G gripper in any pose (narrowest side from above 206 / 216 mm; package 2 is 102 mm even on edge),
@@ -100,13 +114,19 @@ so cases 19 and 20 are expected to fail with it; they arrive across the table be
 means they would also have to be turned 90 degrees to fit their bin. `build_task.py` prints these as WARN lines.
 
 ## Cases (build_task.py CASES; numbers kept from the old suite so env names and results/ still match)
-Row layout, tabletop-local: bins pushed to 15 mm from the far edge, centres at `BIN_X` -0.1497 (their near half still covers the old bin spot
-x -0.105 where WALLX succeeded): `bin_blue` y +0.15, `bin_red` y -0.15, `reject_bin` y +0.41 (4.4 cm right of blue). Bins span x -0.328..0.028; the
-reject box ends 3 cm from the right table edge. The induction zone starts empty and each parcel is teleported, resting on the table, to a random
-spot of its zone at its time: `INDUCT_ENV` (env x -0.08..0.06, y -0.50..-0.42, in front of the right gripper) for the cubes; `zone()` shrinks it
-for a bigger parcel so all of it stays 3 cm clear of the bins and 1 cm inside the table (package 1: env x -0.0096..0.0284).
-18 z95112 (lane A) | 19 z90210 (lane B) | 20 z10001 (unknown ZIP, reject) | 21 nolabel | 22 garbage (all at 6 s, timeout 150 s) |
+Layout, tabletop-local: `bin_blue` and `bin_red` side by side in one row on the far side, centred across the table (blue y -0.13 = robot's left,
+image-left; red y +0.13 = robot's right), pushed to 15 mm from the far edge, x centre `BIN_X` -0.1497. The black `reject_bin` stands on the right side
+of the table, beside the right arm, 1 cm in from the right edge (y 0.4307) at mid-depth (x 0), length along x: rejects are done by the right arm.
+The induction zone starts empty and a human swipes each parcel in FROM THE LEFT, in front of the LEFT arm (which detects and handles it):
+parcels are teleported, resting on the table, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.118..0.082 = lateral -0.35..-0.15 m on the
+left) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
+for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284).
+18 z95112 (lane A) | 19 z90210 (lane B) | 20 z10001 (unknown ZIP, reject) | 21 nolabel | 22 garbage | 24 z94110 (A) | 25 z90015 (B) | 26 z60601 (reject) |
+27 z95014 (A, not graspable) | 28 wallet (reject) | 29 plainbox (reject): all at 6 s, timeout 150 s.
 23 stream: z95112 6 s, z90210 156 s, z10001 306 s, nolabel 456 s, garbage 606 s (timeout 780 s).
+30 mixed stream of all 11 parcels 150 s apart (z95112, z90210, z10001, nolabel, garbage, z94110, z90015, z60601, z95014, wallet, plainbox; 6 s ... 1506 s,
+timeout 1680 s). Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else black. This layout replaced the earlier row layout (bins at y +-0.15,
+reject bin beside blue, zone in front of the right arm); the "Cases 18-23" section below is history.
 
 ## Unverified (all of it, in short)
 YAML schema accepted by the vNext parser (node-level overrides on DAG nodes, event params); USDA loads and rigid/collision schema;
@@ -155,7 +175,7 @@ Cases 15-17 (lanes as bins): same arrival and dark reject bin as 13/14, but the 
 (`LANE_BIN_XY`; x -0.10 keeps the orange bin >= 4 cm from the reject bin). 15 = z95112, 16 = z90210, 17 = stream z95112 6 s, z90210 60 s, z10001 120 s, nolabel 180 s,
 garbage 240 s (timeout 320 s; the last three go to the dark bin). Success `lanes_sorted` with half 0.07 / z_max 0.09 / vel_max 0.5 for the lane bins.
 
-### Cases 18-23 ("row" layout)
+### Cases 18-23 (earlier "row" layout, superseded)
 WALLX only succeeds zero-shot with case 1's geometry (two open bins side by side on the far side, right arm), so cases 18-23 copy it: `bin_blue` at tabletop-local
 (`BIN_X`, +0.15) and `bin_orange` at (`BIN_X`, -0.15) exactly as case 1, plus the dark `reject_bin` in the same row at (`BIN_X`, +0.36) (image-right of blue, 4.4 cm gap, on the
 table). Parcels are teleported into an induction zone in front of the right arm. Instruction and success (`lanes_sorted`, reject_bin semantics) are the same as

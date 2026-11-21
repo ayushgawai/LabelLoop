@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sim" / "qr_sort_task"))
 import build_task as bt  # noqa: E402
+import props  # noqa: E402
 
 
 def corners(b, ex, ey, yaw):
@@ -18,13 +19,15 @@ def corners(b, ex, ey, yaw):
 
 def test_layout_passes_and_every_parcel_arrives_clear_of_bins_and_on_the_table():
     bt.check_layout()
-    near_bins = max(f[1] for f in bt.footprints().values())
+    fp = bt.footprints()
+    near_bins, reject_y0 = max(fp[b][1] for b in bt.BIN_XY), fp["reject_bin"][2]
     for b in {b for c in bt.CASES.values() for b in c["late"]}:
         (x0, x1), (y0, y1) = bt.zone(b)
         yaw = bt.spec(b)["yaw"]
         for ex, ey, a in itertools.product((x0, x1), (y0, y1), (-yaw, 0.0, yaw)):
             for px, py in corners(b, ex, ey, a):
-                assert px >= near_bins + bt.ZONE_GAP - 1e-6, f"{b} reaches the bins"
+                assert px >= near_bins + bt.ZONE_GAP - 1e-6, f"{b} reaches the lane bins"
+                assert py <= reject_y0 - bt.ZONE_GAP + 1e-6, f"{b} reaches the reject bin"
                 assert abs(px) <= bt.TABLE_HALF[0] - bt.EDGE_MARGIN + 1e-6 and abs(py) <= bt.TABLE_HALF[1] - bt.EDGE_MARGIN + 1e-6
 
 
@@ -40,3 +43,56 @@ def test_success_region_is_each_bins_cavity():
     for b, p in bt.BINS.items():
         L, W, H = p["size"]
         assert bt.success_region(b) == [round(L / 2 - bt.WALL, 4), round(W / 2 - bt.WALL, 4), round(H, 4)]
+
+
+def test_layout_lane_bins_far_row_reject_bin_right_side_zone_on_the_left():
+    (bx, by), (rx, ry), (_, zy) = bt.BIN_XY["bin_blue"], bt.BIN_XY["bin_red"], bt.zone("z94110")
+    assert bx == rx and by < 0 < ry and by == -ry  # one row, centred, blue robot-left, red robot-right
+    x, y = bt.REJECT_XY
+    assert x == 0 and abs(y + bt.BINS["reject_bin"]["size"][1] / 2 - (bt.TABLE_HALF[1] - bt.EDGE_MARGIN)) < 1e-4
+    assert all(bt.to_local(0, ey)[1] < 0 for ey in zy)  # induction zone is on the robot's left
+
+
+def test_target_follows_the_zip3_of_the_code():
+    assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "reject_bin", "z94110": "bin_blue",
+                                                    "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue"}
+    for b in bt.PARCELS:  # unlabelled props are not in TARGET -> reject
+        assert bt.TARGET.get(b, "reject_bin") == "reject_bin" or b in bt.ROUTES
+
+
+def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
+    for b, code in bt.ROUTES.items():
+        x, y, z = bt.PARCELS[b]["size"]
+        dims = {"pz": (x, y), "nz": (x, y), "py": (x, z), "ny": (x, z), "px": (y, z), "nx": (y, z)}
+        v = bt.variants(b)
+        assert list(v) == [f"{b}_{f}" for f in props.FACES if min(dims[f]) >= props.LABEL - 1e-9]
+        assert all(p["labels"] == (vid.rsplit("_", 1)[1],) and p["size"] == bt.PARCELS[b]["size"] for vid, p in v.items())
+    assert list(bt.variants("z10001")) == ["z10001_pz", "z10001_nz"]
+    assert bt.variants("wallet") == {"wallet": bt.PARCELS["wallet"]} and bt.PARCELS["wallet"]["labels"] == ()
+    assert bt.variants("nolabel") == {"nolabel": None}
+
+
+def test_cases_scene_and_dag_group_variants_per_base_id():
+    c = bt.CASES[30]
+    assert len(c["late"]) == 11 and c["timeout"] == max(c["late"].values()) + 174
+    sc, dg = bt.scene(30, c), bt.dag(30, c)
+    names = {o["id"] for o in sc["objects"] if o["id"].startswith("box_")}
+    assert names == {f"box_{v}" for b in c["late"] for v in bt.variants(b)}
+    parked = [n["placement"]["poses"][0]["position"] for k, n in sc["layout"]["nodes"].items() if k in names]
+    assert len({tuple(p) for p in parked}) == len(names)
+    ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
+    assert ev["human_adds_z10001"]["object_name"] == ["box_z10001_pz", "box_z10001_nz"] and ev["human_adds_z10001"]["slide_v"] == bt.SLIDE_V
+    assert set(ev["human_adds_z10001"]["object_name"]) <= set(ev["human_adds_z95112"]["avoid"])
+    succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
+    assert [["box_z10001_pz", "box_z10001_nz"], "reject_bin"] in succ["assignments"]
+    assert [["box_wallet"], "reject_bin"] in succ["assignments"]
+
+
+def test_registered_assets_match_props_variants():
+    import ast
+    src = (Path(__file__).resolve().parents[1] / "sim" / "qr_sort_task" / "labelloop_qr_sort.py").read_text()
+    consts = {n.targets[0].id: n.value for n in ast.parse(src).body if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)}
+    allf = ast.literal_eval(consts["_ALL"])
+    labelled = {k: (allf if isinstance(v, ast.Name) else ast.literal_eval(v)) for k, v in zip(consts["LABELLED"].keys, consts["LABELLED"].values)
+                for k in [ast.literal_eval(k)]}
+    assert labelled == {b: tuple(v.rsplit("_", 1)[1] for v in bt.variants(b)) for b in bt.ROUTES}

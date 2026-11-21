@@ -13,8 +13,8 @@ Two photos are blurred in the background only (a laptop showing a chat list in `
 | Red | lane B: ZIP3 900, 901, 902 | 14 x 9.5 x 5 | 356 x 241 x 127 | 346 x 231 x 122 | red / kraft | `bin_red` |
 | Black | reject: unknown ZIP, bad code, no label, not a parcel | 13 x 9 x 4.5 | 330 x 229 x 114 | 320 x 219 x 109 | black / white | `reject_bin` |
 
-In the sim all three stand in one row on the far side of the table, length pointing away from the robot, 15 mm from the far edge:
-red left of centre, blue right of centre, black 44 mm right of blue.
+In the sim blue (robot-left) and red (robot-right) stand in one row on the far side of the table, length pointing away from the robot, 15 mm from
+the far edge; black stands on the right side of the table beside the right arm.
 
 | Blue | Red | Black |
 |---|---|---|
@@ -32,6 +32,11 @@ The G gripper opens 97.5 mm between the fingers, so a package can only be picked
 | 2 | Amazon box, kraft, black seam tape | 11 x 8.1 x 4 | 279 x 206 x 102 | lane B -> red (`420/90210/001`) | `box_z90210` | flat, long side across the table | **no**: 102 mm even on edge |
 | 3 | Amazon padded mailer, white with blue band | 10 x 8.5 x 0.5 | 254 x 216 x 13 | unknown ZIP -> black (`420/10001/001`) | `box_z10001` | flat, long side across the table | **no**: 13 mm thick, 216 mm wide |
 | 4 | Perfume box, light-blue brushed foil | 6 x 4 x 2 | 152 x 102 x 51 | garbage (not a parcel) -> black | `box_garbage` | standing on its long edge | fits: 51 mm across, ~23 mm spare per finger |
+
+Sim-only props, NOT measured or photographed yet (nominal sizes in `props.py`): `z94110` kraft box 3 x 3 x 3 in (lane A), `z90015` kraft box 3 x 5 x 8 in
+(lane B, arrives standing), `z60601` white box 5 x 3.5 x 2.5 in (reject), `z95014` kraft box 12 x 10 x 6 in (lane A, not graspable), `wallet` leather wallet
+4.5 x 3.5 x 0.75 in (reject, no label), `plainbox` kraft box 6 x 4 x 3 in (reject, no label). Every labelled parcel carries its one QR label on a random
+face per episode (variants `<id>_<face>`, see sim/README.md).
 
 Not measured yet: weights (the sim guesses 0.10-0.20, 0.15-0.30, 0.05-0.10 and 0.25-0.40 kg) and a no-label parcel (still the 60 mm sim cube).
 The QR labels are printed from `sim/make_qr_boxes.py` (`sheet_a4.png`: 40 mm QR + 5 mm white margin); package 4's own authenticity sticker
