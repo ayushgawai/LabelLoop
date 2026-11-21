@@ -2,8 +2,8 @@ import cv2
 import zxingcpp
 
 
-def locate(img):
-    """[(text, (cx, cy))] for every QR in one RGB image. zxing first; OpenCV only if zxing finds nothing."""
+def locate(img, upscale=True):
+    """[(text, (cx, cy))] for every QR in one RGB image. zxing first; OpenCV only if zxing finds nothing; then an upscaled, sharpened retry."""
     out = []
     for b in zxingcpp.read_barcodes(img, formats=zxingcpp.BarcodeFormat.QRCode):
         p = b.position
@@ -14,6 +14,13 @@ def locate(img):
         ok, info, pts, _ = cv2.QRCodeDetector().detectAndDecodeMulti(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY))
         if ok:
             out = [(t, tuple(float(v) for v in q.mean(axis=0))) for t, q in zip(info, pts) if t]
+    if not out and upscale:  # real head camera: a label is ~60 px, oblique, taped (glare); x3 + unsharp reads it (trial 2: every unoccluded frame)
+        s = min(3.0, 3840 / max(img.shape[:2]))
+        g = cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC)
+        g = cv2.addWeighted(g, 1.8, cv2.GaussianBlur(g, (0, 0), 2), -0.8, 0)
+        out = [(b.text, (sum(p.x for p in (b.position.top_left, b.position.bottom_right)) / 2 / s,
+                         sum(p.y for p in (b.position.top_left, b.position.bottom_right)) / 2 / s))
+               for b in zxingcpp.read_barcodes(g, formats=zxingcpp.BarcodeFormat.QRCode)]
     return out
 
 

@@ -339,3 +339,11 @@ def test_hidden_label_centers_the_box_then_routes(monkeypatch, empty_jpg):
     seen.append((CODE, (80.0, 70.0)))  # WALLX slid the box out: the label shows now
     ins = [h.step(frames(head_frame()), STATE) for _ in range(2)]
     assert h.sm.state == "PLACE" and h.sm.code == CODE and ins[-1] == "put the box into the blue bin"
+
+
+def test_real_head_label_reads():  # trial 2: a ~60 px taped label on the real head camera only reads after the x3 + unsharp retry
+    import cv2
+    from pathlib import Path
+    from labelloop.perception.qr import locate
+    img = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / "real_head_qr.jpg")), cv2.COLOR_BGR2RGB)
+    assert [t for t, _ in locate(img)] == ["420/95126/001"]

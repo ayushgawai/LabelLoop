@@ -304,7 +304,7 @@ class StateMachine:
                 self._go("HOME", "outcome ok")
             elif self.calls >= cfg["max_calls"][s] or over or self._bad_grasp(ev):
                 nxt = self._next_action()
-                self._go(nxt or "HOME", "retry" if nxt else "budget")
+                self._go(nxt or "HOME", "retry" if nxt else ("out of tries" if self.remaining() >= cfg["budget"]["deliver_reserve_s"] else "budget"))
         elif s == "HOME" and cfg.get("event_fast"):
             if self.calls >= cfg["home_calls"]:
                 if not self.landed:
