@@ -4,6 +4,8 @@ import math
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sim" / "qr_sort_task"))
 import build_task as bt  # noqa: E402
 import props  # noqa: E402
@@ -20,14 +22,13 @@ def corners(b, ex, ey, yaw):
 def test_layout_passes_and_every_parcel_arrives_clear_of_bins_and_on_the_table():
     bt.check_layout()
     fp = bt.footprints()
-    near_bins, reject_y0 = max(fp[b][1] for b in bt.BIN_XY), fp["reject_bin"][2]
+    near_bins = max(f[1] for f in fp.values())
     for b in {b for c in bt.CASES.values() for b in c["late"]}:
         (x0, x1), (y0, y1) = bt.zone(b)
         yaw = bt.spec(b)["yaw"]
         for ex, ey, a in itertools.product((x0, x1), (y0, y1), (-yaw, 0.0, yaw)):
             for px, py in corners(b, ex, ey, a):
                 assert px >= near_bins + bt.ZONE_GAP - 1e-6, f"{b} reaches the lane bins"
-                assert py <= reject_y0 - bt.ZONE_GAP + 1e-6, f"{b} reaches the reject bin"
                 assert abs(px) <= bt.TABLE_HALF[0] - bt.EDGE_MARGIN + 1e-6 and abs(py) <= bt.TABLE_HALF[1] - bt.EDGE_MARGIN + 1e-6
 
 
@@ -45,7 +46,7 @@ def test_green_mat_covers_the_table_and_bins_and_parcels_sit_on_its_top():
     sc, dg = bt.scene(36, bt.CASES[36]), bt.dag(36, bt.CASES[36])
     mat = next(o for o in sc["objects"] if o["id"] == "table_mat")
     assert mat["kinematic"] and mat["semantic_tags"] == [] and sc["layout"]["nodes"]["table_mat"]["placement"]["poses"][0]["position"] == [bt.TABLE_C[0], bt.TABLE_C[1], bt.TABLE_Z]
-    for b in bt.BINS:
+    for b in bt.RECEPTACLES:
         assert sc["layout"]["nodes"][b]["placement"]["poses"][0]["position"][2] == bt.SURFACE_Z
     ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
     for b, e in ((b, ev[f"human_adds_{b}"]) for b in bt.CASES[36]["late"]):
@@ -59,21 +60,117 @@ def test_success_region_is_each_bins_cavity():
         assert bt.success_region(b) == [round(L / 2 - bt.WALL, 4), round(W / 2 - bt.WALL, 4), round(H, 4)]
 
 
-def test_layout_lane_bins_far_row_reject_bin_right_side_zone_at_the_centre():
-    (bx, by), (rx, ry), (_, zy) = bt.BIN_XY["bin_blue"], bt.BIN_XY["bin_red"], bt.zone("bhindi")
-    assert bx == rx and by < 0 < ry and by == -ry  # one row, centred, blue robot-left, red robot-right
-    x, y = bt.REJECT_XY
-    assert x == 0 and abs(y + bt.BINS["reject_bin"]["size"][1] / 2 - (bt.TABLE_HALF[1] - bt.EDGE_MARGIN)) < 1e-4
-    lo, hi = sorted(bt.to_local(0, ey)[1] for ey in zy)
+def _tray():
+    """build_task.py loaded a second time with REJECT_MODE = "tray" (the previous layout)."""
+    import importlib.util
+    src = (Path(bt.__file__)).read_text().replace('REJECT_MODE = "floor_right"', 'REJECT_MODE = "tray"')
+    assert src != Path(bt.__file__).read_text()
+    spec = importlib.util.spec_from_loader("bt_tray", loader=None)
+    m = importlib.util.module_from_spec(spec)
+    m.__file__ = bt.__file__
+    exec(compile(src, bt.__file__, "exec"), m.__dict__)
+    return m
+
+
+def test_floor_right_mode_is_default_two_bins_centred_on_the_far_edge_no_tray():
+    assert bt.REJECT_MODE == "floor_right" and bt.RECEPTACLES == ("bin_blue", "bin_red") and bt.REJECT_TARGET == "off_right" and bt.REJECT_XY is None
+    bt.check_layout()
+    fp = bt.footprints()
+    assert set(fp) == {"bin_blue", "bin_red"} and set(bt.PREFILL) == {"bin_blue", "bin_red"}
+    b, r = fp["bin_blue"], fp["bin_red"]
+    assert abs(b[2] + r[3]) < 1e-3 and abs(r[2] - b[3] - bt.BIN_GAP) < 1e-3 and b[3] < 0 < r[2] + 1e-9  # centred, 2 cm gap
+    assert abs(b[0] + bt.TABLE_HALF[0] - bt.FAR_MARGIN) < 1e-3 and bt.TABLE_HALF[0] - max(b[1], r[1]) > 0.42
+    for n in (36, 47):
+        sc, dg = bt.scene(n, bt.CASES[n]), bt.dag(n, bt.CASES[n])
+        assert not any("reject_bin" in o["id"] for o in sc["objects"]) and "reject_bin" not in sc["layout"]["nodes"]
+        t = dg["graph_task_generator"]
+        assert [p["id"] for p in t["definition"]["layout"]["runtime_sample"]["targets"]["placements"]] == ["bin_blue", "bin_red"]
+        succ = t["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
+        assert set(succ["bins"]) == {"bin_blue", "bin_red"} and succ["off_right"] == bt.off_right_cfg()
+        assert {tg for _, tg in succ["assignments"]} == {"bin_blue", "bin_red", "off_right"}
+    cfg = bt.off_right_cfg()  # right table edge = local y +TABLE_HALF_y = env y TABLE_C.y - TABLE_HALF_y
+    assert abs(cfg["y_edge"] - (bt.TABLE_C[1] - bt.TABLE_HALF[1])) < 1e-4 and cfg["y_mid"] == bt.TABLE_C[1] and abs(cfg["z_floor"] - (bt.TABLE_Z - 0.05)) < 1e-9
+
+
+def test_floor_right_anywhere_stays_3cm_inside_the_right_edge_and_keeps_the_right_gripper_strip():
+    import random
+    lq, rng = _sampler(), random.Random(3)
+    for b in props.ACTIVE:
+        cfg = bt.anywhere_cfg(b)
+        for _ in range(500):
+            x, y, yaw = lq.anywhere_sample(cfg, [], rng)
+            assert all(bt.LEFT_GRIPPER_Y - 1e-6 <= py <= -bt.LEFT_GRIPPER_Y + 1e-6 and py <= bt.TABLE_HALF[1] - bt.RIGHT_EDGE_KEEP + 1e-6 for _, py in corners(b, x, y, yaw))
+
+
+def test_off_table_right_target():
+    torch = pytest.importorskip("torch")
+    lq = _sampler(real_torch=True)
+    cfg = bt.off_right_cfg()
+
+    from types import SimpleNamespace as N
+    pts = {"on table": (0.0, -0.2, -0.23, False), "beyond right edge": (0.0, -0.9, -0.23, True), "floor, right half": (0.0, -0.5, -0.6, True),
+           "floor, left half": (0.0, 0.3, -0.6, False)}
+    for name, (x, y, z, want) in pts.items():
+        d = N(root_pos_w=N(torch=torch.tensor([[x, y, z]])), root_lin_vel_w=N(torch=torch.zeros(1, 3)))
+        env = N(scene=N(env_origins=torch.zeros(1, 3), __getitem__=None))
+        env.scene = type("S", (), {"env_origins": torch.zeros(1, 3), "__getitem__": lambda self, k: N(data=d)})()
+        assert bool(lq.off_table_right(env, "o", **cfg)[0]) == want, name
+
+
+def test_tray_mode_restores_the_previous_layout():
+    t = _tray()
+    assert t.REJECT_MODE == "tray" and t.REJECT_TARGET == "reject_bin" and t.RECEPTACLES == ("bin_blue", "bin_red", "reject_bin")
+    t.check_layout()
+    assert t.BIN_XY == {"bin_blue": (-0.2259, -0.3672), "bin_red": (-0.2069, 0.0084)} and t.REJECT_XY == (-0.2107, 0.3738)
+    assert set(t.PREFILL) == {"bin_blue", "bin_red", "reject_bin"}
+    sc, dg = t.scene(36, t.CASES[36]), t.dag(36, t.CASES[36])
+    assert "reject_bin" in sc["layout"]["nodes"] and any(o["id"] == "reject_bin" for o in sc["objects"])
+    succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
+    assert "off_right" not in succ and [["box_wallet"], "reject_bin"] in succ["assignments"] and "reject_bin" in succ["bins"]
+    assert t.anywhere_cfg("bhindi")["table"] == bt.anywhere_cfg("bhindi")["table"][:1] + [[bt.anywhere_cfg("bhindi")["table"][1][0] - 0.02, bt.anywhere_cfg("bhindi")["table"][1][1]]]
+
+
+def test_layout_bins_turned_90_one_far_row_blue_red_tray_left_to_right_zone_at_the_centre():
+    bt = _tray()
+    fp = bt.footprints()
+    assert all(abs(y - math.pi / 2) < 1e-9 for y in bt.BIN_YAW.values())
+    for b, (x0, x1, y0, y1) in fp.items():  # long side across the table, on the far edge, FAR_MARGIN from it
+        L, W, _ = bt.BINS[b]["size"]
+        assert abs((x1 - x0) - W) < 1e-3 and abs((y1 - y0) - L) < 1e-3 and abs(x0 + bt.TABLE_HALF[0] - bt.FAR_MARGIN) < 1e-3
+        assert y0 >= -bt.TABLE_HALF[1] + bt.EDGE_MARGIN - 1e-6 and y1 <= bt.TABLE_HALF[1] - bt.EDGE_MARGIN + 1e-6
+    b, r, t = fp["bin_blue"], fp["bin_red"], fp["reject_bin"]
+    assert r[2] > b[3] and t[2] > r[3] and r[2] - b[3] >= bt.BIN_GAP - 1e-4 and t[2] - r[3] >= bt.BIN_GAP - 1e-4  # blue left, red, tray right; gaps
+    assert bt.BIN_XY["bin_blue"][1] < 0 < bt.REJECT_XY[1] and bt.BIN_XY["bin_blue"][0] < 0  # far side
+    lo, hi = sorted(bt.to_local(0, ey)[1] for ey in bt.zone("bhindi")[1])
     assert lo < 0 < hi  # induction zone spans the table centre line: both arms reach it
+    assert bt.TABLE_HALF[0] - max(f[1] for f in fp.values()) > 0.42  # free depth in front of the row (was 0.31)
+
+
+def test_success_region_is_the_footprint_inset_by_the_wall_after_the_bin_yaw():
+    for b, (x0, x1, y0, y1) in bt.footprints().items():
+        hx, hy, _ = bt.success_region(b)
+        c, s = round(math.cos(bt.BIN_YAW[b])), round(math.sin(bt.BIN_YAW[b]))  # bin-frame half extents -> tabletop-local: swap for 90
+        ex, ey = abs(c) * hx + abs(s) * hy, abs(s) * hx + abs(c) * hy
+        assert abs(ex - ((x1 - x0) / 2 - bt.WALL)) < 1e-3 and abs(ey - ((y1 - y0) / 2 - bt.WALL)) < 1e-3
+
+
+def test_in_bin_rotates_the_offset_by_the_bin_yaw():
+    torch = pytest.importorskip("torch")
+    lq = _sampler(real_torch=True)
+    for yaw in (0.0, math.pi / 2, math.pi, math.pi + math.pi / 2, 0.7):
+        w, z = math.cos(yaw / 2), math.sin(yaw / 2)
+        q, v = torch.tensor([[w, 0.0, 0.0, z]]), torch.tensor([[0.1, 0.02, 0.01]])  # bin-frame offset 10 cm along its length
+        c, s = math.cos(yaw), math.sin(yaw)
+        env_rel = torch.tensor([[c * v[0, 0] - s * v[0, 1], s * v[0, 0] + c * v[0, 1], v[0, 2]]])
+        assert torch.allclose(lq._rel_local(env_rel, q), v, atol=1e-6)
 
 
 def test_target_follows_the_zip3_of_the_code():
     assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "bin_blue", "z94110": "bin_blue",
-                                                    "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue",
+                                                    "z90015": "bin_red", "z60601": bt.REJECT_TARGET, "z95014": "bin_blue",
                                                     "bhindi": "bin_blue", "iqbar_a": "bin_red", "miro": "bin_red", "garbage": "bin_blue"}
     for b in bt.PARCELS:  # unlabelled props are not in TARGET -> reject
-        assert bt.TARGET.get(b, "reject_bin") == "reject_bin" or b in bt.ROUTES
+        assert bt.TARGET.get(b, bt.REJECT_TARGET) == bt.REJECT_TARGET or b in bt.ROUTES
 
 
 def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
@@ -108,7 +205,7 @@ def test_cases_scene_and_dag_group_variants_per_base_id():
     assert set(ev["human_adds_z10001"]["object_name"]) <= set(ev["human_adds_bhindi"]["avoid"])
     succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
     assert [["box_z10001_pz", "box_z10001_nz"], "bin_blue"] in succ["assignments"]
-    assert [["box_wallet"], "reject_bin"] in succ["assignments"]
+    assert [["box_wallet"], bt.REJECT_TARGET] in succ["assignments"]
 
 
 def test_registered_assets_match_props_variants():
@@ -130,7 +227,8 @@ def test_label_registry_routes_match_sort_plan_and_code_pattern():
     for r in props.LABELS:
         assert re.match(pat, r["qr_payload"]).group(1) == r["zip5"] and r["zip3"] == r["zip5"][:3]
         assert r["target_bin"] == bt.SORT_PLAN.get(r["zip3"], "reject_bin") and r["lane"] == props.LANE[r["target_bin"]]
-        assert bt.TARGET.get(r["sim_id"], r["target_bin"]) == r["target_bin"]
+        want = bt.REJECT_TARGET if r["target_bin"] == "reject_bin" else r["target_bin"]
+        assert bt.TARGET.get(r["sim_id"], want) == want
     assert {r["sim_id"]: r["qr_payload"] for r in props.LABELS if r["sim_id"]} == props.ROUTES
     spares = [r for r in props.LABELS if not r["sim_id"]]
     assert [r["lane"] for r in spares] == ["reject", "B", "reject", "reject", "reject"] and {r["size"] for r in spares} == {"large"}
@@ -156,12 +254,13 @@ def test_every_active_item_has_the_right_label_faces_and_routing():
     for b, (f1, f2, tgt, lid) in expect.items():
         assert list(bt.variants(b)) == [f"{b}_{f1}", f"{b}_{f2}"] and bt.TARGET[b] == tgt and props.LABEL_OF[b]["label_id"] == lid
     for b in ("iqbar_b", "wallet"):  # no label anywhere -> reject
-        assert bt.variants(b) == {b: bt.PARCELS[b]} and bt.PARCELS[b]["labels"] == () and b not in bt.ROUTES and bt.TARGET.get(b, "reject_bin") == "reject_bin"
+        assert bt.variants(b) == {b: bt.PARCELS[b]} and bt.PARCELS[b]["labels"] == () and b not in bt.ROUTES and bt.TARGET.get(b, bt.REJECT_TARGET) == bt.REJECT_TARGET
     a, c = bt.PARCELS["iqbar_a"], bt.PARCELS["iqbar_b"]
     assert all(a[k] == c[k] for k in ("size", "mass", "yaw", "color", "tape")) and not hasattr(props, "lobar") and "lobar" not in bt.PARCELS
 
 
 def test_reject_tray_is_low_black_lid_on_the_right_inside_the_table():
+    bt = _tray()
     t = bt.BINS["reject_bin"]
     assert t["size"] == (13.2 * props.IN, 9.2 * props.IN, 1.0 * props.IN) and t["outside"][0] < 60 and min(t["inside"]) > 220
     x0, x1, y0, y1 = bt.footprints()["reject_bin"]
@@ -172,11 +271,11 @@ def test_reject_tray_is_low_black_lid_on_the_right_inside_the_table():
         assert bt.WALL + bt.spec(p)["size"][2] / 2 <= zmax
 
 
-def _sampler():
+def _sampler(real_torch=False):
     """labelloop_qr_sort.py imports Isaac Sim / torch at the top: load it with stubs, only its pure-python sampler is used."""
     import importlib.util
     import types
-    stubs = {"torch": {}, "isaaclab_arena": {}, "isaaclab_arena.assets": {}, "manaenv": {}, "manaenv.assets": {},
+    stubs = {**({} if real_torch else {"torch": {}}), "isaaclab_arena": {}, "isaaclab_arena.assets": {}, "manaenv": {}, "manaenv.assets": {},
              "isaaclab_arena.assets.object_base": {"ObjectType": types.SimpleNamespace(RIGID=0)},
              "isaaclab_arena.assets.object_library": {"LibraryObject": object},
              "isaaclab_arena.assets.register": {"register_asset": lambda c: None},
@@ -236,14 +335,21 @@ def test_prefill_parcels_rest_label_up_inside_their_bins_and_are_not_assigned():
             pose = sc["layout"]["nodes"][f"pre_{v}"]["placement"]["poses"][0]
             (px, py, pz), (bx, by, _) = pose["position"], sc["layout"]["nodes"][bn]["placement"]["poses"][0]["position"]
             sx, sy, sz = bt.variants(base)[v]["size"]
-            assert pose["orientation"] == [0, 0, 0, 1]  # label face up (+z), yaw 0
+            assert pose["orientation"] == bt.yaw_quat(math.pi + bt.BIN_YAW[bn])  # label face up (+z), turned with the bin
             assert abs(pz - (bt.SURFACE_Z + bt.WALL + sz / 2)) < 1e-3
             L, W, _ = bt.BINS[bn]["size"]
-            assert abs(px - bx) <= (L - sx) / 2 - bt.WALL + 1e-6 and abs(py - by) <= (W - sy) / 2 - bt.WALL + 1e-6  # inside the cavity
+            assert abs(px - bx) < 1e-6 and abs(py - by) < 1e-6 and sx <= L - 2 * bt.WALL and sy <= W - 2 * bt.WALL  # centred, fits the cavity
         nodes = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
         assigned = {o for objs, _ in nodes["assignments"] for o in objs}
         assert not any(o.startswith("box_pre_") or o.startswith("pre_") for o in assigned) and assigned == {f"box_{v}" for b in c["late"] for v in bt.variants(b)}
     assert not any(o["id"].startswith("pre_") for o in bt.scene(36, bt.CASES[36])["objects"])  # option off -> unchanged
+
+
+def test_anywhere_areas_improved_with_the_bins_on_the_far_row():
+    before = {"bhindi": 377, "garbage": 414, "wallet": 607, "miro": 100, "iqbar_a": 104, "z10001": 14}  # cm^2, bins in the old two-row layout
+    for b, old in before.items():
+        a, f = bt.anywhere_area(b)
+        assert a * 1e4 > 1.5 * old and f > 0.99, (b, a * 1e4, f)
 
 
 def test_position_cases_40_to_47():

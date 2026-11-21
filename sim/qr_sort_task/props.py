@@ -154,5 +154,6 @@ BINS = {  # asset/scene id -> outer size (m) and sRGB colours
     "bin_red": dict(size=(14 * IN, 9.5 * IN, 5 * IN), outside=(235, 30, 30), inside=(236, 188, 124)),     # red shoe box, kraft inside: lane B
     # reject TRAY (id kept so harness/config keep working): the black shoe box's LID upside down, rim 1.0 in high, so a parcel can be swiped
     # over the low rim into it. Black outside, white inside. NOT a bin: success = parcel centre inside the footprint and resting.
+    # UNUSED unless build_task.REJECT_MODE = "tray" (default "floor_right": rejects are swiped off the table's right edge): set REJECT_MODE = 'tray' to restore.
     "reject_bin": dict(size=(13.2 * IN, 9.2 * IN, 1.0 * IN), outside=(40, 40, 38), inside=(245, 240, 225)),
 }

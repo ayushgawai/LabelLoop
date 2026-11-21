@@ -67,11 +67,11 @@ cd $X2REAL_ROOT && python manaenv/scripts/x2real_eval.py --board labelloop_table
 python scripts/run_sim_case.py --case 18 --runs 1 --viz kit
 ```
 `build_task.py` also deletes `labelloop/{scene,task}/caseN` files of cases no longer listed and refreshes the board's `case_count`, so re-running it
-on a checkout built with an older case list cleans it up. First run: look at it in Kit. Tune (all at the top of `build_task.py`): `BIN_XY`, `REJECT_XY`,
+on a checkout built with an older case list cleans it up. First run: look at it in Kit. Tune (all at the top of `build_task.py`): `BIN_YAW`, `FAR_MARGIN`, `BIN_GAP` (the row positions `BIN_XY`, `REJECT_XY` follow),
 `INDUCT_ENV`, `TABLE_Z`; bin and parcel sizes, colours, masses in `props.py`. `build_task.py` refuses a layout whose bins leave the table or touch
 each other, or where a parcel has no room to arrive; it prints each parcel's drop zone and a WARN for grasp width / bin fit. Then `--viz none --runs N` per case; results:
 `$X2REAL_ROOT/outputs/x2real_eval/labelloop/benchmark/<env>/{evaluation_report.jsonl,videos/combined/episode_*.mp4}`.
-Success = each parcel's centre resting inside its target bin's cavity (ZIP3 950/951/940/941 blue, 900/901/902 red, everything else the black reject box; `TARGET` in `build_task.py` is derived from each code's ZIP3), then arms
+Success = each parcel's centre resting inside its target bin's cavity (ZIP3 950/951/940/941 blue, 900/901/902 red, everything else off the table's right edge (`REJECT_MODE`, see Layout; tray mode: the black reject box); `TARGET` in `build_task.py` is derived from each code's ZIP3), then arms
 home (`lanes_sorted`, labelloop_qr_sort.py; per-bin cavity from `build_task.success_region`).
 
 ## Bins (`qr_sort_task/props.py`, 2026-11-20; photos and measurements of every prop: [docs/props](../docs/props/README.md))
@@ -114,16 +114,21 @@ so cases 19 and 20 are expected to fail with it; they arrive across the table be
 means they would also have to be turned 90 degrees to fit their bin. `build_task.py` prints these as WARN lines.
 
 ## Cases (build_task.py CASES; numbers kept from the old suite so env names and results/ still match)
-Layout, tabletop-local: `bin_blue` and `bin_red` side by side in one row on the far side, centred across the table (blue y -0.13 = robot's left,
-image-left; red y +0.13 = robot's right), pushed to 15 mm from the far edge, x centre `BIN_X` -0.1497. The low black `reject_bin` tray lies on the right side
-of the table, beside the right arm, 1 cm in from the right edge (y 0.4281) at mid-depth (x 0), length along x: rejects are swiped in by the right arm. Success for it: parcel centre inside the footprint, resting, z up to rim + 63.5 mm (thickest parcel).
+Layout, tabletop-local (2026-11-21): NO reject tray (`REJECT_MODE = "floor_right"` in `build_task.py`; set `"tray"` to restore the previous layout: lane bins from the left edge + the low
+black `reject_bin` tray at the far right corner, centre (-0.2107, 0.3738); its geometry stays in `props.BINS`, unused otherwise). Rejects (no/unknown ZIP: perfume is blue, but unlabelled IQBAR, wallet) are swiped off the table's RIGHT edge
+(tabletop-local +y) onto the floor: success target `"off_right"` (`labelloop_qr_sort.off_table_right`, thresholds from `build_task.off_right_cfg`): parcel centre beyond the right edge (env y <= -0.8232) or below the tabletop
+(z <= `TABLE_Z` - 5 cm) having left over the right half (env y <= -0.2682), for `consecutive_steps`; `lanes_sorted` takes mixed targets (bin ids and `off_right`). The two lane bins are turned 90 deg (`BIN_YAW`, long side ACROSS the table),
+centred in one row on the far side, 15 mm from the far edge, `BIN_GAP` 2 cm apart: `bin_blue` (356 x 203 mm) centre (-0.2259, -0.1878) = robot's left, image-left; `bin_red` (356 x 241 mm) centre (-0.2069, 0.1878). Centred (not shifted) because
+the free parcel area is the same and it keeps the right half clear for swipes. Root frame (root = (0.5267 - local x, -0.0092 - local y)): blue corners (0.8542, 0.3564), (0.8542, 0.0008), (0.651, 0.0008), (0.651, 0.3564);
+red (0.8542, -0.0192), (0.8542, -0.3748), (0.6129, -0.3748), (0.6129, -0.0192); right table edge = root y -0.5642 (left edge +0.5458). Free depth in front of the row: 0.43 m (red's near edge at local x -0.086 to the table edge; was 0.31 m).
+Success regions (`success_region`) stay in each bin's own frame (x along its length); `in_bin` rotates the centre's offset by the bin's yaw quaternion. Anywhere drops stay `RIGHT_EDGE_KEEP` 3 cm inside the right edge (right gripper strip unchanged); prefill: blue and red only.
 A thin kinematic green mat (`props.TABLE_MAT`, 0.685 x 1.11 x 0.003 m, sRGB (46, 178, 150) matte, from the event photo: the real benches are mint/teal
 and WALLX was likely trained on them; `labelloop_table_mat.usda`, no pickable/container tag) covers the whole tabletop; bins (env-frame `pose`
 placement, 180 deg yaw = the table-frame flip) and parcel drops rest on its top, `SURFACE_Z` = `TABLE_Z` + 3 mm. Success regions stay relative to bin origins.
 The induction zone starts empty and a human swipes each parcel in FROM THE LEFT, but the zone ends near the table centre so BOTH arms can reach it
 (reach analysis, results/reviews/: with wrist joint 5 limited to +-90 deg an arm only reaches poses facing the body centre or ahead, so parcels at lateral -0.35..-0.15 were reachable for viewing/pushing by the right arm only and small boxes by neither; near the centre both arms reach them): parcels are teleported, resting
 on the mat, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.308..-0.148 = lateral -0.12..+0.04 m) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
-for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
+for a bigger parcel so all of it stays 3 cm clear of the bin row and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
 ACTIVE cases (`props.ACTIVE`: the parcels the user has; all lie flat, label top/bottom only, random per episode), one parcel each at 6 s, timeout 150 s:
 32 bhindi (LL-08, A blue) | 33 iqbar_a (LL-11, B red; IQBAR box, ~6 mm of x play) | 34 miro (LL-12, B red) | 20 z10001 mailer (LL-09, A blue) |
 35 iqbar_b (same box, NO label, reject) | 22 garbage = perfume box (LL-10, A blue, lies flat) | 28 wallet (no label, reject).
@@ -132,8 +137,8 @@ POSITION tests (case options `anywhere=True`, `prefill=True`): cases 40-46 = one
 `anywhere`: `disturb(anywhere=anywhere_cfg)` drops the parcel flat at a uniformly random yaw in [-pi, pi] and a uniform random point of the WHOLE tabletop (rejection sampler `anywhere_sample`, honours `avoid`):
 parcel's yaw-turned bounding box inside the table by 1 cm, 3 cm clear of every bin/tray footprint, between the grippers' keep-out strips (env y band = +-`LEFT_GRIPPER_Y` mirrored), centre within 0.60 m of an arm base (root + (0, +-0.29)).
 The log line `[labelloop] drop <obj> env <i> pos env (x, y) local (x, y) yaw r` lets runs be binned by position. `build_task` asserts the region is non-empty and prints each item's area in `parcel_report`
-(mean over yaw): bhindi 377 cm^2, garbage 414, wallet 607, miro 100 (83% of yaws feasible), iqbar_a/b 104 (50%), mailer z10001 ~14 (17%: only near-sideways yaws fit between bins and table edge).
-`prefill`: kinematic labelled parcels rest label-up (pz) in the bins at reset (`PREFILL`: bhindi_pz in blue, miro_pz in red, garbage_pz in the tray), not in the success assignments: the camera must ignore QR codes of already sorted parcels.
+(mean over yaw; every yaw has a valid spot; floor_right mode): bhindi 831 cm^2, garbage (perfume) 876, wallet 1099, miro 436, iqbar_a/b 467, mailer z10001 221 (before the 90 deg turn: 377, 414, 607, 100, 104, ~14).
+`prefill`: kinematic labelled parcels rest label-up (pz) in the bins at reset (`PREFILL`: bhindi_pz in blue, miro_pz in red; garbage_pz in the tray only in tray mode), not in the success assignments: the camera must ignore QR codes of already sorted parcels.
 Every drop zone fits `INDUCT_ENV` unchanged (no widening). Cases 18, 19, 21, 23-27, 29, 30 were removed (their props stay in props.py, unused).
 Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else swipe into the low black tray. This layout replaced the earlier row layout (bins at y +-0.15,
 reject bin beside blue, zone in front of the right arm); the "Cases 18-23" section below is history.

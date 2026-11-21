@@ -67,22 +67,39 @@ def _consecutive(env, ok, n, attr):
     return count >= n
 
 
+def _rel_local(rel, q):
+    """rel (N, 3) env-frame vector rotated into the frame of a body with yaw quaternion q (N, 4) (w, x, y, z; Isaac Lab order): any bin yaw."""
+    w, x, y, z = q.unbind(-1)
+    yaw = torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    c, s = torch.cos(yaw), torch.sin(yaw)
+    return torch.stack([c * rel[:, 0] + s * rel[:, 1], -s * rel[:, 0] + c * rel[:, 1], rel[:, 2]], dim=-1)
+
+
 def in_bin(env, obj, bin_, hx, hy, z_max, vel_max=0.5):
-    """Per-step bool: obj centre inside the bin cavity (|dx| <= hx, |dy| <= hy, 0 <= dz <= z_max relative to the bin origin = centre
-    of its underside) and at rest. The bins are placed with yaw 0 (or 180) so their length lies along env x."""
+    """Per-step bool: obj centre inside the bin cavity (|dx| <= hx, |dy| <= hy, 0 <= dz <= z_max in the BIN's own frame: x along its
+    length, origin = centre of its underside, any yaw) and at rest."""
     p, v = _pos(env, obj)
-    rel = p - _pos(env, bin_)[0]
+    rel = _rel_local(p - _pos(env, bin_)[0], env.scene[bin_].data.root_quat_w.torch)
     return ((rel[:, 0].abs() <= hx) & (rel[:, 1].abs() <= hy) & (rel[:, 2] >= 0.0) & (rel[:, 2] <= z_max)
             & (v.norm(dim=-1) <= vel_max))
 
 
-def lanes_sorted(env, *, assignments, bins, vel_max=0.5, consecutive_steps=5):
-    """Termination: assignments [[objects, bin id], ...]; bins {bin id: [hx, hy, z_max]} (cavity, from build_task.success_region).
+def off_table_right(env, obj, y_edge, y_mid, z_floor):
+    """Per-step bool: obj centre beyond the table's right edge (env y <= y_edge), or below the tabletop (z <= z_floor) having left over the
+    right half (env y <= y_mid). Thresholds are env-frame (relative to the env origin), from build_task.off_right_cfg."""
+    p = _pos(env, obj)[0] - env.scene.env_origins
+    return (p[:, 1] <= y_edge) | ((p[:, 2] <= z_floor) & (p[:, 1] <= y_mid))
+
+
+def lanes_sorted(env, *, assignments, bins, off_right=None, vel_max=0.5, consecutive_steps=5):
+    """Termination: assignments [[objects, bin id or "off_right"], ...] (off_right: off_table_right with the thresholds in `off_right`); bins {bin id: [hx, hy, z_max]} (cavity, from build_task.success_region).
     A group is ok when any of its objects that is NOT parked (env z >= -2 m) rests in its bin; a group whose members are all parked is
     not ok (a labelled parcel has one variant per label face, only the one the human dropped is unparked). Every group for consecutive_steps."""
     ok = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
     for objs, target in assignments:
-        ok &= torch.stack([in_bin(env, o, target, *bins[target], vel_max) & ~_parked(env, o) for o in objs]).any(dim=0)
+        hit = ((lambda o: off_table_right(env, o, **off_right)) if target == "off_right" else
+               (lambda o: in_bin(env, o, target, *bins[target], vel_max)))  # target "off_right": swiped off the table's right edge
+        ok &= torch.stack([hit(o) & ~_parked(env, o) for o in objs]).any(dim=0)
     return _consecutive(env, ok, consecutive_steps, "_labelloop_lanes_count")
 
 

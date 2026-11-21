@@ -28,16 +28,41 @@ TABLE_HALF = (0.3425, 0.555)  # tabletop half extents, local x (depth) / y (acro
 TABLE_Z = -0.235
 SURFACE_Z = TABLE_Z + TABLE_MAT["size"][2]  # top of the green mat: bins and parcels rest here, not on the bare tabletop
 to_local = lambda ex, ey: (TABLE_C[0] - ex, TABLE_C[1] - ey)  # noqa: E731 (env <-> tabletop-local is its own inverse)
-# Layout, tabletop-local, the shoe boxes of props.py with their length pointing away from the robot. The two lane bins stand side by side
-# in one row on the FAR side, centred across the table and pushed back to FAR_MARGIN from the far edge so a measured parcel standing
-# lengthwise fits on the table in front of them: blue on the robot's left (y -LANE_Y, image-left), red on its right (y +LANE_Y). The
-# LOW black reject TRAY (id reject_bin; the shoe box lid upside down, rim 1 in) lies on the RIGHT side of the table, beside the right arm,
-# EDGE_MARGIN in from the right edge, at mid-depth, so a parcel is swiped over its rim.
-FAR_MARGIN, EDGE_MARGIN, ZONE_GAP = 0.015, 0.01, 0.03  # bins to the far edge; parcel to the table edges; parcel to the bins
-BIN_X = round(-(TABLE_HALF[0] - FAR_MARGIN) + max(b["size"][0] for b in BINS.values()) / 2, 4)
-LANE_Y = 0.13
-BIN_XY = {"bin_blue": (BIN_X, -LANE_Y), "bin_red": (BIN_X, LANE_Y)}
-REJECT_XY = (0.0, math.floor((TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["size"][1] / 2) * 1e4) / 1e4)  # floor: never rounds past the margin
+# Layout, tabletop-local. All three receptacles are turned 90 deg (BIN_YAW): their LONG side (14 in) runs ACROSS the table and they stand
+# side by side in ONE row along the FAR edge, FAR_MARGIN from it, BIN_GAP apart, from the robot's left edge: blue (left, y<0, image-left),
+# red (right of it), then the LOW black reject TRAY (id reject_bin; the shoe box lid upside down, rim 1 in) at the far right corner: a
+# parcel is swiped over its rim. The row spans the table, so the whole depth in front of the bins is free for parcels.
+# REJECT_MODE: "floor_right" = no tray; rejects are swiped off the table's RIGHT edge (tabletop-local +y) onto the floor (success: off_table_right);
+# "tray" = the previous behaviour (low black tray, third receptacle at the far right corner). One-line switch.
+REJECT_MODE = "floor_right"
+FAR_MARGIN, EDGE_MARGIN, ZONE_GAP, BIN_GAP = 0.015, 0.01, 0.03, 0.02  # bins to the far edge; parcel/row to the side edges; parcel to the bins; bin to bin
+BIN_YAW = {"bin_blue": math.pi / 2, "bin_red": math.pi / 2, "reject_bin": math.pi / 2}  # tabletop-local yaw of each receptacle (0 = length along x)
+
+
+def _ext(b):
+    """(x, y) tabletop-local extent of receptacle b after BIN_YAW (a quarter turn swaps length and width)."""
+    L, W, _ = BINS[b]["size"]
+    return (W, L) if round(BIN_YAW[b] / (math.pi / 2)) % 2 else (L, W)
+
+
+RECEPTACLES = ("bin_blue", "bin_red") + (("reject_bin",) if REJECT_MODE == "tray" else ())
+REJECT_TARGET = "reject_bin" if REJECT_MODE == "tray" else "off_right"  # success target of a parcel that is not for a lane bin
+
+
+def _row():
+    """Tray mode: row from the left edge. Floor mode: the two lane bins centred across the table (free parcel area is the same; the right half stays clear for swipes)."""
+    width = sum(_ext(b)[1] for b in RECEPTACLES) + BIN_GAP * (len(RECEPTACLES) - 1)
+    y, xy = (-TABLE_HALF[1] + EDGE_MARGIN) if REJECT_MODE == "tray" else -width / 2, {}
+    for b in RECEPTACLES:
+        ex, ey = _ext(b)
+        xy[b] = (round(-(TABLE_HALF[0] - FAR_MARGIN) + ex / 2, 4), round(y + ey / 2, 4))
+        y += ey + BIN_GAP
+    return xy
+
+
+BIN_XY = {b: p for b, p in _row().items() if b != "reject_bin"}
+REJECT_XY = _row().get("reject_bin")  # None in floor mode
+ALL_XY = _row()  # every receptacle on the table
 # induction zone (range of the parcel CENTRE), ENV frame (parcels are teleported with env coordinates): a human swipes parcels onto the
 # table from the LEFT (the slide), but the zone ends near the table centre (lateral -0.12..+0.04 m, env y = TABLE_C.y - local y) so
 # BOTH arms can reach it. zone() shrinks it per parcel and keeps the whole parcel, including the swipe's start point SLIDE_FROM
@@ -48,11 +73,12 @@ SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry 
 # "anywhere" drops (case option anywhere=True): the parcel lands, flat at a random yaw in [-pi, pi], at a uniformly random point of the WHOLE
 # reachable tabletop (anywhere_ok): inside the table, clear of every bin/tray, outside both grippers' keep-out strips, in reach of an arm.
 ANY_EDGE, ANY_BIN, ARM_Y, REACH = 0.01, 0.03, 0.29, 0.60  # table edge / bin clearance (m) beyond the parcel's yaw-dependent half-extent; arm base offset; reach radius
+RIGHT_EDGE_KEEP = 0.03  # floor_right mode: anywhere drops stay this far inside the right table edge
 ROOT_LOCAL = (0.5267, -0.0092)  # robot root in tabletop-local (root = ROOT_LOCAL - local; root env = (-0.322, -0.259))
 ANY_AREA_STEP, ANY_AREA_YAWS = 0.02, 24  # build-time area estimate: xy grid step (m) and yaw samples over [-pi, pi]
-PREFILL = {"bin_blue": "bhindi_pz", "bin_red": "miro_pz", "reject_bin": "garbage_pz"}  # prefill=True: labelled parcel resting label-up in each receptacle (garbage: label reader stress)
+PREFILL = {"bin_blue": "bhindi_pz", "bin_red": "miro_pz", **({"reject_bin": "garbage_pz"} if REJECT_MODE == "tray" else {})}  # prefill=True: labelled parcel resting label-up in each receptacle (garbage: label reader stress)
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
-TARGET = {b: SORT_PLAN.get(c.split("/")[1][:3], "reject_bin") for b, c in ROUTES.items()}  # labelled parcel id -> bin from its code's ZIP3
+TARGET = {b: SORT_PLAN.get(c.split("/")[1][:3], REJECT_TARGET) for b, c in ROUTES.items()}  # labelled parcel id -> bin from its code's ZIP3
 INSTR = ("Read each parcel's QR label: put ZIP 940, 941, 950 and 951 parcels into the blue bin, ZIP 900-902 into the red bin; "
          "swipe anything else into the low black tray on the right; return home.")
 # late: parcel asset suffix -> time (s) a human slides it into the induction zone; every parcel is parked off-table until then,
@@ -87,9 +113,14 @@ BOARD = """  labelloop_tabletop:
 
 
 def footprints():
-    """{bin id: (x0, x1, y0, y1)} tabletop-local outer footprint of each bin."""
-    return {b: (x - BINS[b]["size"][0] / 2, x + BINS[b]["size"][0] / 2, y - BINS[b]["size"][1] / 2, y + BINS[b]["size"][1] / 2)
-            for b, (x, y) in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
+    """{bin id: (x0, x1, y0, y1)} tabletop-local outer footprint of each bin (after its yaw)."""
+    return {b: (x - _ext(b)[0] / 2, x + _ext(b)[0] / 2, y - _ext(b)[1] / 2, y + _ext(b)[1] / 2) for b, (x, y) in ALL_XY.items()}
+
+
+def bin_corners_root(b):
+    """Four footprint corners of receptacle b in the robot ROOT frame (root = ROOT_LOCAL - local), for the harness bin boxes / bin_rois."""
+    x0, x1, y0, y1 = footprints()[b]
+    return [(round(ROOT_LOCAL[0] - x, 4), round(ROOT_LOCAL[1] - y, 4)) for x, y in ((x0, y0), (x0, y1), (x1, y1), (x1, y0))]
 
 
 def spec(b):
@@ -112,6 +143,8 @@ def anywhere_cfg(b):
     rad = lambda o: math.hypot(*spec(o)["size"][:2]) / 2  # noqa: E731 (circumradius)
     others = [rad(o) for o in {o for c in CASES.values() for o in c["late"]} - {b}]
     r4 = lambda v: [round(x, 4) for x in v]  # noqa: E731
+    if REJECT_MODE != "tray":
+        ty[0] += RIGHT_EDGE_KEEP - ANY_EDGE  # right edge = env y min: parcels stay RIGHT_EDGE_KEEP inside it (a nudge must not drop them off the table)
     return dict(size=r4(spec(b)["size"][:2]), table=[r4(tx), r4(ty)], rects=[r4(r) for r in rects], edge=ANY_EDGE, gap=ANY_BIN,
                 band=r4([TABLE_C[1] + LEFT_GRIPPER_Y, TABLE_C[1] - LEFT_GRIPPER_Y]),  # env y strip between the two grippers' keep-outs (right = mirror of left)
                 arms=[r4([rx, ry + ARM_Y]), r4([rx, ry - ARM_Y])], reach=REACH, table_c=r4(TABLE_C),
@@ -144,12 +177,12 @@ def anywhere_area(b):
 
 def zone(b):
     """[[x0, x1], [y0, y1]] env range of parcel b's centre: INDUCT_ENV, shrunk so the whole parcel (at any allowed yaw) stays
-    EDGE_MARGIN inside the table, ZONE_GAP in front of the lane bins and clear of the reject bin. The 60 mm cubes get INDUCT_ENV unchanged."""
+    EDGE_MARGIN inside the table, ZONE_GAP in front of the bin row. The 60 mm cubes get INDUCT_ENV unchanged."""
     hx, hy = half_extent(b)
     fp = footprints()
-    near_bins = max(fp[b][1] for b in BIN_XY)  # tabletop-local x of the lane bins' near edge
+    near_bins = max(f[1] for f in fp.values())  # tabletop-local x of the row's near edge
     lx = (near_bins + ZONE_GAP + hx, TABLE_HALF[0] - EDGE_MARGIN - hx)
-    ly = (max(-TABLE_HALF[1] + EDGE_MARGIN, LEFT_GRIPPER_Y + SLIDE_FROM) + hy, min(TABLE_HALF[1] - EDGE_MARGIN, fp["reject_bin"][2] - ZONE_GAP) - hy)
+    ly = (max(-TABLE_HALF[1] + EDGE_MARGIN, LEFT_GRIPPER_Y + SLIDE_FROM) + hy, (TABLE_HALF[1] - EDGE_MARGIN) - hy)
     ex, ey = sorted(TABLE_C[0] - v for v in lx), sorted(TABLE_C[1] - v for v in ly)  # -> env (the map flips the axes)
     x = [max(INDUCT_ENV["x"][0], ex[0]), min(INDUCT_ENV["x"][1], ex[1])]
     y = [max(INDUCT_ENV["y"][0], ey[0]), min(INDUCT_ENV["y"][1], ey[1])]
@@ -184,16 +217,16 @@ def parcel_report():
     lines = []
     for b in sorted({b for c in CASES.values() for b in c["late"]}):
         sx, sy, sz = spec(b)["size"]
-        tgt = TARGET.get(b, "reject_bin")
-        L, W, H = BINS[tgt]["size"]
+        tgt = TARGET.get(b, REJECT_TARGET)
+        L, W, H = BINS[tgt]["size"] if tgt in BINS else (0, 0, 0)
         warn = []
         if min(sx, sy) > GRIPPER_OPEN:
             warn.append(f"NOT GRASPABLE: narrowest side {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
         elif min(sx, sy) > GRIPPER_OPEN - 0.01:
             warn.append(f"tight grasp: {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
-        if tgt != "reject_bin" and (sx > L - 2 * WALL or sy > W - 2 * WALL):  # tray: swiped in, only the centre must land inside
+        if tgt in BIN_XY and (sx > L - 2 * WALL or sy > W - 2 * WALL):  # tray: swiped in, only the centre must land inside
             warn.append(f"footprint {sx * 1000:.0f} x {sy * 1000:.0f} mm does not fit {tgt} ({(L - 2 * WALL) * 1000:.0f} x {(W - 2 * WALL) * 1000:.0f})")
-        if tgt != "reject_bin" and sz > H:
+        if tgt in BIN_XY and sz > H:
             warn.append(f"{(sz - H) * 1000:.0f} mm taller than the {tgt} walls")
         lines.append(f"  {b}: {sx * 1000:.0f} x {sy * 1000:.0f} x {sz * 1000:.0f} mm -> {tgt}, centre zone env x {zone(b)[0]} y {zone(b)[1]}"
                      + (f"  WARN: {'; '.join(warn)}" if warn else ""))
@@ -201,6 +234,12 @@ def parcel_report():
         a, f = anywhere_area(b)
         lines.append(f"  {b}: anywhere region {a * 1e4:.0f} cm^2 (mean over yaw), {f:.0%} of yaws have a valid spot")
     return "\n".join(lines)
+
+
+def off_right_cfg():
+    """Env-frame thresholds of success target "off_right" (labelloop_qr_sort.off_table_right): parcel centre beyond the table's right edge
+    (env y <= edge; local +y = env -y) or below the tabletop by 5 cm having left over the right half (env y <= table centre)."""
+    return dict(y_edge=round(TABLE_C[1] - TABLE_HALF[1], 4), y_mid=TABLE_C[1], z_floor=round(TABLE_Z - 0.05, 4))
 
 
 def success_region(b):
@@ -217,11 +256,16 @@ def obj(oid, asset, tags, **kw):
     return {"id": oid, "asset": {"type": "asset_id", "id": asset}, "semantic_tags": tags, **kw}
 
 
-def on_table(oid, x, y):
-    """Tabletop-local (x, y) as an env-frame pose on the mat top (surface placement would put it on the bare tabletop); yaw 180 = the frame flip."""
+def yaw_quat(a):
+    """[x, y, z, w] of a rotation by a about z."""
+    return [0, 0, round(math.sin(a / 2), 6), round(math.cos(a / 2), 6)]
+
+
+def on_table(oid, x, y, yaw=0.0):
+    """Tabletop-local (x, y, yaw) as an env-frame pose on the mat top (surface placement would put it on the bare tabletop); env yaw = local yaw + 180 (the frame flip)."""
     ex, ey = to_local(x, y)
     return {"object": oid, "placement": {"type": "pose", "poses": [{"id": "on_mat", "position": [round(ex, 4), round(ey, 4), SURFACE_Z],
-                                                                    "orientation": [0, 0, 1, 0]}]}}
+                                                                    "orientation": yaw_quat(math.pi + yaw)}]}}
 
 
 def scene(n, c):
@@ -229,18 +273,18 @@ def scene(n, c):
     vs = [v for b in late for v in variants(b)]  # every variant of every base id is spawned, parked; the event drops ONE per base
     objs = [obj(f"box_{v}", f"labelloop_box_{v}", ["pickable", "qr_box"], spawn_mass=list(PARCELS[b]["mass"]) if b in PARCELS else mass,
                 spawn_static_friction=1.0, spawn_dynamic_friction=1.0) for b in late for v in variants(b)]
-    objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in (*BIN_XY, "reject_bin")]
+    objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in RECEPTACLES]
     pre = PREFILL if c.get("prefill") else {}
     for bn, v in pre.items():  # prefilled parcels: kinematic (must not move), label up (pz), centred on the receptacle floor, not in any assignment
         objs.append(obj(f"pre_{v}", f"labelloop_box_{v}", ["prefilled"], kinematic=True))
     objs.append(obj("table_mat", "labelloop_table_mat", [], kinematic=True))  # no pickable/container tag
-    nodes = {i: on_table(i, *xy) for i, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
+    nodes = {i: on_table(i, *xy, BIN_YAW[i]) for i, xy in ALL_XY.items()}
     # explicit pose (origin = underside centre, on the bare tabletop): the layout solver can't pack a table-sized surface object
     nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "pose", "poses": [
         {"id": "on_table", "position": [TABLE_C[0], TABLE_C[1], TABLE_Z], "orientation": [0, 0, 0, 1]}]}}
     for bn, v in pre.items():
-        ex, ey = to_local(*BIN_XY.get(bn, REJECT_XY))
-        nodes[f"pre_{v}"] = {"object": f"pre_{v}", "placement": {"type": "pose", "poses": [{"id": "in_bin", "orientation": [0, 0, 0, 1], "position": [
+        ex, ey = to_local(*ALL_XY[bn])
+        nodes[f"pre_{v}"] = {"object": f"pre_{v}", "placement": {"type": "pose", "poses": [{"id": "in_bin", "orientation": yaw_quat(math.pi + BIN_YAW[bn]), "position": [
             round(ex, 4), round(ey, 4), round(SURFACE_Z + WALL + variants(v.rsplit("_", 1)[0])[v]["size"][2] / 2, 4)]}]}}
     for i, v in enumerate(vs):  # parked far below the table until the human event fires (distinct spots)
         nodes[f"box_{v}"] = {"object": f"box_{v}", "placement": {"type": "pose", "poses": [
@@ -257,7 +301,7 @@ def scene(n, c):
 
 def dag(n, c):
     late = c["late"]
-    assign = [[[f"box_{v}" for v in variants(b)], TARGET.get(b, "reject_bin")] for b in late]  # [variants of b, bin]: the dropped one must rest in it
+    assign = [[[f"box_{v}" for v in variants(b)], TARGET.get(b, REJECT_TARGET)] for b in late]  # [variants of b, bin]: the dropped one must rest in it
     events = {f"human_adds_{b}": {  # human slides the parcel in: teleport it, resting on the table, to a random spot of its zone
         "_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t], "is_global_time": True, "object_name": [f"box_{v}" for v in variants(b)],
         **({"anywhere": anywhere_cfg(b), "yaw_range": [-math.pi, math.pi]} if c.get("anywhere") else
@@ -266,12 +310,12 @@ def dag(n, c):
     sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, **({"event_component": {"terms": events}} if events else {})}
     longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s
     tags = [{"mode": 0, "tags": SCENE(n)}]
-    success = {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "bins": {b: success_region(b) for b in BINS},
+    success = {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "bins": {b: success_region(b) for b in RECEPTACLES}, **({"off_right": off_right_cfg()} if REJECT_MODE != "tray" else {}),
                "vel_max": 0.5, "consecutive_steps": 5}
     return {"graph_task_generator": {"definition": {
         "task_type": f"labelloop_qr_sort_case{n}",
         "layout": {"runtime_sample": {"id": "runtime", "targets": {
-            "placements": [{"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in (*BIN_XY, "reject_bin")]}}},
+            "placements": [{"id": k, "target": {"type": "node", "id": k}, "sample": {"type": "inherit"}} for k in RECEPTACLES]}}},
         "component_sections": sections},
         "nodes": [
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
@@ -309,7 +353,9 @@ def main():
         for c in CASES.values():
             c["timeout"] = a.timeout
     check_layout()
-    print(f"bins x {BIN_X}: " + ", ".join(f"{b} y {xy[1]}" for b, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()))
+    print(f"reject mode {REJECT_MODE}; right table edge in root frame: root y = {round(ROOT_LOCAL[1] - TABLE_HALF[1], 4)}")
+    for b, (x, y) in ALL_XY.items():
+        print(f"{b}: local ({x}, {y}) yaw {math.degrees(BIN_YAW[b]):.0f}, root frame corners {bin_corners_root(b)}")
     print(parcel_report())
     d = Path(a.x2real) / "manaenv" / "defination"
     dump(d / "labelloop/task/stage_base.yaml", STAGE_BASE)
