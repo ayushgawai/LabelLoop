@@ -42,24 +42,25 @@ def test_every_zone_is_inside_the_induction_zone_spans_the_centre_and_clear_of_t
 def test_green_mat_covers_the_table_and_bins_and_parcels_sit_on_its_top():
     L, W, T = props.TABLE_MAT["size"]
     assert all(0 < h - m / 2 <= 0.01 for h, m in zip(bt.TABLE_HALF, (L, W))) and bt.SURFACE_Z == bt.TABLE_Z + T  # inset <= 1 cm per side
-    sc, dg = bt.scene(30, bt.CASES[30]), bt.dag(30, bt.CASES[30])
+    sc, dg = bt.scene(36, bt.CASES[36]), bt.dag(36, bt.CASES[36])
     mat = next(o for o in sc["objects"] if o["id"] == "table_mat")
     assert mat["kinematic"] and mat["semantic_tags"] == [] and sc["layout"]["nodes"]["table_mat"]["placement"]["poses"][0]["position"] == [bt.TABLE_C[0], bt.TABLE_C[1], bt.TABLE_Z]
     for b in bt.BINS:
         assert sc["layout"]["nodes"][b]["placement"]["poses"][0]["position"][2] == bt.SURFACE_Z
     ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
-    for b, e in ((b, ev[f"human_adds_{b}"]) for b in bt.CASES[30]["late"]):
+    for b, e in ((b, ev[f"human_adds_{b}"]) for b in bt.CASES[36]["late"]):
         assert abs(e["z"] - bt.SURFACE_Z - bt.spec(b)["size"][2] / 2) < 1e-9
 
 
 def test_success_region_is_each_bins_cavity():
     for b, p in bt.BINS.items():
         L, W, H = p["size"]
+        H += max(props.PARCELS[a]["size"][2] for a in props.ACTIVE) if b == "reject_bin" else 0  # tray: rim + thickest parcel
         assert bt.success_region(b) == [round(L / 2 - bt.WALL, 4), round(W / 2 - bt.WALL, 4), round(H, 4)]
 
 
 def test_layout_lane_bins_far_row_reject_bin_right_side_zone_at_the_centre():
-    (bx, by), (rx, ry), (_, zy) = bt.BIN_XY["bin_blue"], bt.BIN_XY["bin_red"], bt.zone("z94110")
+    (bx, by), (rx, ry), (_, zy) = bt.BIN_XY["bin_blue"], bt.BIN_XY["bin_red"], bt.zone("bhindi")
     assert bx == rx and by < 0 < ry and by == -ry  # one row, centred, blue robot-left, red robot-right
     x, y = bt.REJECT_XY
     assert x == 0 and abs(y + bt.BINS["reject_bin"]["size"][1] / 2 - (bt.TABLE_HALF[1] - bt.EDGE_MARGIN)) < 1e-4
@@ -70,7 +71,7 @@ def test_layout_lane_bins_far_row_reject_bin_right_side_zone_at_the_centre():
 def test_target_follows_the_zip3_of_the_code():
     assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "reject_bin", "z94110": "bin_blue",
                                                     "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue",
-                                                    "bhindi": "bin_blue", "lobar": "bin_red", "miro": "reject_bin"}
+                                                    "bhindi": "bin_blue", "iqbar_a": "bin_red", "miro": "reject_bin"}
     for b in bt.PARCELS:  # unlabelled props are not in TARGET -> reject
         assert bt.TARGET.get(b, "reject_bin") == "reject_bin" or b in bt.ROUTES
 
@@ -84,26 +85,27 @@ def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
         assert list(v) == [f"{b}_{f}" for f in bt.PARCELS[b].get("faces", props.FACES) if max(dims[f]) * 1000 >= max(lw, lh) - 1e-6 and min(dims[f]) * 1000 >= min(lw, lh) - 1e-6]
         assert all(p["labels"] == (vid.rsplit("_", 1)[1],) and p["size"] == bt.PARCELS[b]["size"] for vid, p in v.items())
     assert list(bt.variants("z10001")) == ["z10001_pz", "z10001_nz"]
-    for b in ("bhindi", "lobar", "miro"):  # real flat boxes: label on the big top or bottom face only
+    for b in ("bhindi", "iqbar_a", "miro"):  # real flat boxes: label on the big top or bottom face only
         assert list(bt.variants(b)) == [f"{b}_pz", f"{b}_nz"]
     assert {b: bt.PARCELS[b]["label"] for b in bt.ROUTES} == {"z94110": "small", "z60601": "small", "z95112": "large", "z90210": "large",
-                                                              "z10001": "large", "z90015": "large", "z95014": "large", "bhindi": "large", "lobar": "large", "miro": "large"}
+                                                              "z10001": "large", "z90015": "large", "z95014": "large", "bhindi": "large", "iqbar_a": "large", "miro": "large"}
     assert len(bt.variants("z60601")) == 6 and not props.fits((0.127, 0.064), "large") and props.fits((0.064, 0.127), "small")
     assert bt.variants("wallet") == {"wallet": bt.PARCELS["wallet"]} and bt.PARCELS["wallet"]["labels"] == ()
     assert bt.variants("nolabel") == {"nolabel": None}
 
 
 def test_cases_scene_and_dag_group_variants_per_base_id():
-    c = bt.CASES[30]
-    assert len(c["late"]) == 14 and c["timeout"] == max(c["late"].values()) + 174
-    sc, dg = bt.scene(30, c), bt.dag(30, c)
+    c = bt.CASES[36]
+    assert len(c["late"]) == 7 and c["timeout"] == max(c["late"].values()) + 174
+    assert list(c["late"].values()) == [6.0 + 150 * i for i in range(7)] and list(c["late"]) == list(props.ACTIVE)
+    sc, dg = bt.scene(36, c), bt.dag(36, c)
     names = {o["id"] for o in sc["objects"] if o["id"].startswith("box_")}
     assert names == {f"box_{v}" for b in c["late"] for v in bt.variants(b)}
     parked = [n["placement"]["poses"][0]["position"] for k, n in sc["layout"]["nodes"].items() if k in names]
     assert len({tuple(p) for p in parked}) == len(names)
     ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]
     assert ev["human_adds_z10001"]["object_name"] == ["box_z10001_pz", "box_z10001_nz"] and ev["human_adds_z10001"]["slide_v"] == bt.SLIDE_V
-    assert set(ev["human_adds_z10001"]["object_name"]) <= set(ev["human_adds_z95112"]["avoid"])
+    assert set(ev["human_adds_z10001"]["object_name"]) <= set(ev["human_adds_bhindi"]["avoid"])
     succ = dg["graph_task_generator"]["nodes"][0]["direct_task_generator"]["component_sections"]["termination_component"]["terms"]["success"]
     assert [["box_z10001_pz", "box_z10001_nz"], "reject_bin"] in succ["assignments"]
     assert [["box_wallet"], "reject_bin"] in succ["assignments"]
@@ -134,9 +136,37 @@ def test_label_registry_routes_match_sort_plan_and_code_pattern():
     assert [r["lane"] for r in spares] == ["A"] * 2 + ["B"] * 2 + ["reject"] * 2 and {r["size"] for r in spares} == {"large"}
 
 
-def test_flat_retail_boxes_cases_32_34_have_zones_and_use_the_spare_labels():
-    for n, b, lid, zip5 in ((32, "bhindi", "LL-08", "95126"), (33, "lobar", "LL-11", "90024"), (34, "miro", "LL-14", "02139")):
-        assert bt.CASES[n] == dict(late={b: 6.0}, timeout=150) and b in bt.STREAM and bt.zone(b)
-        assert props.LABEL_OF[b]["label_id"] == lid and props.ROUTES[b] == f"420/{zip5}/001"
-        bt.scene(n, bt.CASES[n]), bt.dag(n, bt.CASES[n])
-        assert bt.spec(b)["size"][2] < min(bt.spec(b)["size"][:2])  # flat: z is the thin side
+def test_active_cases_are_exactly_the_users_seven_parcels_plus_calibration_and_stream():
+    assert set(props.ACTIVE) == {"bhindi", "iqbar_a", "miro", "z10001", "iqbar_b", "garbage", "wallet"}
+    assert set(bt.CASES) == {20, 22, 28, 31, 32, 33, 34, 35, 36}
+    single = {n: next(iter(c["late"])) for n, c in bt.CASES.items() if len(c["late"]) == 1}
+    assert single == {32: "bhindi", 33: "iqbar_a", 34: "miro", 20: "z10001", 35: "iqbar_b", 22: "garbage", 28: "wallet"}
+    assert all(bt.CASES[n] == dict(late={b: 6.0}, timeout=150) for n, b in single.items())
+    assert bt.CASES[31] == dict(late={}, timeout=90) and tuple(bt.STREAM) == props.ACTIVE
+    for n, c in bt.CASES.items():
+        bt.scene(n, c), bt.dag(n, c)
+    for b in props.ACTIVE:  # a drop zone for every item, and every item lies flat (z is the thin side)
+        assert bt.zone(b)
+        assert bt.spec(b)["size"][2] < min(bt.spec(b)["size"][:2]), b
+
+
+def test_every_active_item_has_the_right_label_faces_and_routing():
+    expect = {"bhindi": ("pz", "nz", "bin_blue", "LL-08"), "iqbar_a": ("pz", "nz", "bin_red", "LL-11"), "miro": ("pz", "nz", "reject_bin", "LL-14"),
+              "z10001": ("pz", "nz", "reject_bin", "LL-03")}
+    for b, (f1, f2, tgt, lid) in expect.items():
+        assert list(bt.variants(b)) == [f"{b}_{f1}", f"{b}_{f2}"] and bt.TARGET[b] == tgt and props.LABEL_OF[b]["label_id"] == lid
+    for b in ("iqbar_b", "garbage", "wallet"):  # no label anywhere -> reject
+        assert bt.variants(b) == {b: bt.PARCELS[b]} and bt.PARCELS[b]["labels"] == () and b not in bt.ROUTES and bt.TARGET.get(b, "reject_bin") == "reject_bin"
+    a, c = bt.PARCELS["iqbar_a"], bt.PARCELS["iqbar_b"]
+    assert all(a[k] == c[k] for k in ("size", "mass", "yaw", "color", "tape")) and not hasattr(props, "lobar") and "lobar" not in bt.PARCELS
+
+
+def test_reject_tray_is_low_black_lid_on_the_right_inside_the_table():
+    t = bt.BINS["reject_bin"]
+    assert t["size"] == (13.2 * props.IN, 9.2 * props.IN, 1.0 * props.IN) and t["outside"][0] < 60 and min(t["inside"]) > 220
+    x0, x1, y0, y1 = bt.footprints()["reject_bin"]
+    assert y0 > 0 and -bt.TABLE_HALF[0] <= x0 and x1 <= bt.TABLE_HALF[0] and y1 <= bt.TABLE_HALF[1] - bt.EDGE_MARGIN + 1e-6  # right side, on the table
+    hx, hy, zmax = bt.success_region("reject_bin")  # parcel centre in the footprint and resting within rim + thickest parcel
+    assert abs(hx - (t["size"][0] / 2 - bt.WALL)) < 1e-4 and zmax == round(t["size"][2] + 0.0635, 4)
+    for p in props.ACTIVE:  # every flat parcel's resting centre is inside the region
+        assert bt.WALL + bt.spec(p)["size"][2] / 2 <= zmax

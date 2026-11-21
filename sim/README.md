@@ -1,6 +1,6 @@
 # LabelLoop in X2Real (sim) — research + draft
 
-Status (Windows run, Isaac Sim 6.0.1): the suite is cases 18-34 (layout and cases: see "Cases" below). Cases 1-17 (earlier layouts and their
+Status (Windows run, Isaac Sim 6.0.1): the ACTIVE suite is cases 20, 22, 28, 31-36 (one parcel each + calibration + 7-parcel stream; see "Cases" below). Cases 1-17 (earlier layouts and their
 props: a001..b003 boxes, decoys, table mat, lane mats, floor reject basket) were removed on 2026-11-20; the Phase sections are history and still mention them.
 Text below written before running; **[UNVERIFIED]** tags not mentioned in Phase 3 results are still unverified.
 `X2` = X2Real checkout (`manaenv/` paths are relative to it). Items marked **[UNVERIFIED]** need the Linux box.
@@ -82,16 +82,16 @@ The three real open shoe boxes (lids off), measured in inches, length pointing a
 |---|---|---|---|
 | `bin_blue` | lane A | 14 x 8 x 5 in (356 x 203 x 127 mm) | navy / kraft |
 | `bin_red` | lane B | 14 x 9.5 x 5 in (356 x 241 x 127 mm) | red / kraft |
-| `reject_bin` | reject | 13 x 9 x 4.5 in (330 x 229 x 114 mm) | black / white |
+| `reject_bin` | reject TRAY: the black shoe box's lid upside down, rim 1.0 in, swipe parcels over it | 13.2 x 9.2 x 1.0 in (335 x 234 x 25 mm) | black / white |
 
-## Parcels (`props.py` PARCELS; `nolabel` is still the 60 mm kraft cube)
+## Parcels (`props.py` PARCELS; only `ACTIVE` ones are in cases; `nolabel` is still the 60 mm kraft cube)
 
 | id | role | prop | arrives as (away x across x up) | notes |
 |---|---|---|---|---|
 | `box_z95112` | lane A (blue), QR `420/95112/001` | package 1: Amazon box 9 x 6 x 3.5 in | 229 x 89 x 152 mm, standing on its long edge | kraft, black tape belt, label on top + robot-facing end; mass 0.10-0.20 kg (guess); yaw +-0.1 |
 | `box_z90210` | lane B (red), QR `420/90210/001` | package 2: Amazon box 11 x 8.1 x 4 in | 206 x 279 x 102 mm, flat, long side across | kraft, seam tape along its length, label on top + robot-facing side; 0.15-0.30 kg (guess); **not graspable** |
 | `box_z10001` | unknown ZIP -> black, QR `420/10001/001` | package 3: Amazon padded mailer 10 x 8.5 x 0.5 in | 216 x 254 x 13 mm, flat, long side across | off-white, blue tear band, label on top; 0.05-0.10 kg (guess); rigid in sim; **not graspable** |
-| `box_garbage` | garbage (not a parcel) -> black, no label | package 4: perfume box 6 x 4 x 2 in | 152 x 51 x 102 mm, standing on its long edge | light-blue brushed foil (metallic 0.5, roughness 0.35), grey-bordered name label on one side; 0.25-0.40 kg (guess); yaw +-0.3; the real authenticity QR sticker is not modelled |
+| `box_garbage` | "perfume": no label -> reject tray | package 4: perfume box 6 x 4 x 2 in | 152 x 102 x 51 mm, lying flat, biggest face down | light-blue brushed foil (metallic 0.5, roughness 0.35), grey-bordered name label on top; 0.25-0.40 kg (guess); yaw +-0.3; the real authenticity QR sticker is not modelled |
 
 Sim-only props (nominal sizes, not measured or photographed yet; `props.py`): `z94110` kraft box 3 x 3 x 3 in (lane A, 420/94110/001);
 `z90015` tall kraft box 3 x 5 x 8 in, arrives standing, 3 in across (lane B, 420/90015/001; 76 mm taller than the red bin walls); `z60601` white box
@@ -115,8 +115,8 @@ means they would also have to be turned 90 degrees to fit their bin. `build_task
 
 ## Cases (build_task.py CASES; numbers kept from the old suite so env names and results/ still match)
 Layout, tabletop-local: `bin_blue` and `bin_red` side by side in one row on the far side, centred across the table (blue y -0.13 = robot's left,
-image-left; red y +0.13 = robot's right), pushed to 15 mm from the far edge, x centre `BIN_X` -0.1497. The black `reject_bin` stands on the right side
-of the table, beside the right arm, 1 cm in from the right edge (y 0.4307) at mid-depth (x 0), length along x: rejects are done by the right arm.
+image-left; red y +0.13 = robot's right), pushed to 15 mm from the far edge, x centre `BIN_X` -0.1497. The low black `reject_bin` tray lies on the right side
+of the table, beside the right arm, 1 cm in from the right edge (y 0.4281) at mid-depth (x 0), length along x: rejects are swiped in by the right arm. Success for it: parcel centre inside the footprint, resting, z up to rim + 63.5 mm (thickest parcel).
 A thin kinematic green mat (`props.TABLE_MAT`, 0.685 x 1.11 x 0.003 m, sRGB (46, 178, 150) matte, from the event photo: the real benches are mint/teal
 and WALLX was likely trained on them; `labelloop_table_mat.usda`, no pickable/container tag) covers the whole tabletop; bins (env-frame `pose`
 placement, 180 deg yaw = the table-frame flip) and parcel drops rest on its top, `SURFACE_Z` = `TABLE_Z` + 3 mm. Success regions stay relative to bin origins.
@@ -124,12 +124,12 @@ The induction zone starts empty and a human swipes each parcel in FROM THE LEFT,
 (reach analysis, results/reviews/: with wrist joint 5 limited to +-90 deg an arm only reaches poses facing the body centre or ahead, so parcels at lateral -0.35..-0.15 were reachable for viewing/pushing by the right arm only and small boxes by neither; near the centre both arms reach them): parcels are teleported, resting
 on the mat, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.308..-0.148 = lateral -0.12..+0.04 m) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
 for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
-18 z95112 (lane A) | 19 z90210 (lane B) | 20 z10001 (unknown ZIP, reject) | 21 nolabel | 22 garbage | 24 z94110 (A) | 25 z90015 (B) | 26 z60601 (reject) |
-27 z95014 (A, not graspable) | 28 wallet (reject) | 29 plainbox (reject) | 32 bhindi (A) | 33 lobar (B) | 34 miro (reject): all at 6 s, timeout 150 s.
-32-34 are the real FLAT retail boxes of docs/props (label LL-08 / LL-11 / LL-14 on the top or bottom face only; wider than the gripper lying flat -> two arms; lobar has ~6 mm of x play).
-23 stream: z95112 6 s, z90210 156 s, z10001 306 s, nolabel 456 s, garbage 606 s (timeout 780 s).
-30 mixed stream of all 14 parcels 150 s apart (z95112, z90210, z10001, nolabel, garbage, z94110, z90015, z60601, z95014, wallet, plainbox, bhindi, lobar, miro; 6 s ... 1956 s,
-timeout 2130 s). Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else black. This layout replaced the earlier row layout (bins at y +-0.15,
+ACTIVE cases (`props.ACTIVE`: the parcels the user has; all lie flat, label top/bottom only, random per episode), one parcel each at 6 s, timeout 150 s:
+32 bhindi (LL-08, A blue) | 33 iqbar_a (LL-11, B red; IQBAR box, ~6 mm of x play) | 34 miro (LL-14, reject) | 20 z10001 mailer (LL-03, unknown ZIP, reject) |
+35 iqbar_b (same box, NO label, reject) | 22 garbage = perfume box (no label, reject, lies flat) | 28 wallet (no label, reject).
+31 calibration (no parcels, 90 s). 36 stream of all 7 (in that order: bhindi, iqbar_a, miro, z10001, iqbar_b, garbage, wallet) 150 s apart, 6 s ... 906 s, timeout 1080 s.
+Every drop zone fits `INDUCT_ENV` unchanged (no widening). Cases 18, 19, 21, 23-27, 29, 30 were removed (their props stay in props.py, unused).
+Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else swipe into the low black tray. This layout replaced the earlier row layout (bins at y +-0.15,
 reject bin beside blue, zone in front of the right arm); the "Cases 18-23" section below is history.
 
 ## Unverified (all of it, in short)

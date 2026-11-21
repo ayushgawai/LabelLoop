@@ -1,4 +1,5 @@
-"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort cases 18-34 (31 = empty calibration case).
+"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the active suite: one single-parcel case per prop (20, 22, 28, 32-35),
+the calibration case 31 (empty) and the 7-parcel stream 36.
 
   python sim/qr_sort_task/build_task.py --x2real $X2REAL_ROOT
 
@@ -14,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, SORT_PLAN, TABLE_MAT, WALL, variants
+from props import ACTIVE, BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, SORT_PLAN, TABLE_MAT, WALL, variants
 
 MOD = "manaenv.assets.objects.labelloop_qr_sort"
 SCENE = lambda n: f"labelloop_qr_sort_case{n}_scene"
@@ -30,12 +31,13 @@ to_local = lambda ex, ey: (TABLE_C[0] - ex, TABLE_C[1] - ey)  # noqa: E731 (env 
 # Layout, tabletop-local, the shoe boxes of props.py with their length pointing away from the robot. The two lane bins stand side by side
 # in one row on the FAR side, centred across the table and pushed back to FAR_MARGIN from the far edge so a measured parcel standing
 # lengthwise fits on the table in front of them: blue on the robot's left (y -LANE_Y, image-left), red on its right (y +LANE_Y). The
-# black reject bin stands on the RIGHT side of the table, beside the right arm, EDGE_MARGIN in from the right edge, at mid-depth.
+# LOW black reject TRAY (id reject_bin; the shoe box lid upside down, rim 1 in) lies on the RIGHT side of the table, beside the right arm,
+# EDGE_MARGIN in from the right edge, at mid-depth, so a parcel is swiped over its rim.
 FAR_MARGIN, EDGE_MARGIN, ZONE_GAP = 0.015, 0.01, 0.03  # bins to the far edge; parcel to the table edges; parcel to the bins
 BIN_X = round(-(TABLE_HALF[0] - FAR_MARGIN) + max(b["size"][0] for b in BINS.values()) / 2, 4)
 LANE_Y = 0.13
 BIN_XY = {"bin_blue": (BIN_X, -LANE_Y), "bin_red": (BIN_X, LANE_Y)}
-REJECT_XY = (0.0, round(TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["size"][1] / 2, 4))
+REJECT_XY = (0.0, math.floor((TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["size"][1] / 2) * 1e4) / 1e4)  # floor: never rounds past the margin
 # induction zone (range of the parcel CENTRE), ENV frame (parcels are teleported with env coordinates): a human swipes parcels onto the
 # table from the LEFT (the slide), but the zone ends near the table centre (lateral -0.12..+0.04 m, env y = TABLE_C.y - local y) so
 # BOTH arms can reach it. zone() shrinks it per parcel and keeps the whole parcel, including the swipe's start point SLIDE_FROM
@@ -46,20 +48,16 @@ SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry 
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
 TARGET = {b: SORT_PLAN.get(c.split("/")[1][:3], "reject_bin") for b, c in ROUTES.items()}  # labelled parcel id -> bin from its code's ZIP3
 INSTR = ("Read each parcel's QR label: put ZIP 940, 941, 950 and 951 parcels into the blue bin, ZIP 900-902 into the red bin; "
-         "put anything else in the black bin on the right; return home.")
+         "swipe anything else into the low black tray on the right; return home.")
 # late: parcel asset suffix -> time (s) a human slides it into the induction zone; every parcel is parked off-table until then,
 # so the zone is EMPTY at reset (the harness takes its empty-zone reference). The harness gives each parcel up to 3 pick-and-place
 # tries (~40 s of sim each): 150 s per single parcel, stream parcels 150 s apart.
-STREAM = ("z95112", "z90210", "z10001", "nolabel", "garbage", "z94110", "z90015", "z60601", "z95014", "wallet", "plainbox", "bhindi", "lobar", "miro")
-CASES = {
-    18: dict(late={"z95112": 6.0}, timeout=150), 19: dict(late={"z90210": 6.0}, timeout=150),
-    20: dict(late={"z10001": 6.0}, timeout=150),
-    21: dict(late={"nolabel": 6.0}, timeout=150), 22: dict(late={"garbage": 6.0}, timeout=150),
-    23: dict(late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780),
-    **{n: dict(late={b: 6.0}, timeout=150) for n, b in zip(range(24, 30), ("z94110", "z90015", "z60601", "z95014", "wallet", "plainbox"))},
-    **{n: dict(late={b: 6.0}, timeout=150) for n, b in zip(range(32, 35), ("bhindi", "lobar", "miro"))},  # real flat retail boxes
-    30: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 14 parcels
+STREAM = ACTIVE  # bhindi, iqbar_a, miro, z10001 (mailer), iqbar_b, garbage (perfume), wallet
+CASES = {  # one case per active prop (numbers kept: 32-34 flat boxes, 20 mailer, 22 perfume, 28 wallet), 31 calibration, 36 stream
+    **{n: dict(late={b: 6.0}, timeout=150) for n, b in ((32, "bhindi"), (33, "iqbar_a"), (34, "miro"), (20, "z10001"), (35, "iqbar_b"),
+                                                      (22, "garbage"), (28, "wallet"))},
     31: dict(late={}, timeout=90),  # CALIBRATION (harness calib_test: true): no parcels, no events, no success term - time-out only
+    36: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 7 parcels
 }
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
@@ -109,7 +107,7 @@ def zone(b):
     ex, ey = sorted(TABLE_C[0] - v for v in lx), sorted(TABLE_C[1] - v for v in ly)  # -> env (the map flips the axes)
     x = [max(INDUCT_ENV["x"][0], ex[0]), min(INDUCT_ENV["x"][1], ex[1])]
     y = [max(INDUCT_ENV["y"][0], ey[0]), min(INDUCT_ENV["y"][1], ey[1])]
-    # >= 4 mm (was 10): LOBAR (267 mm long, lengthwise) leaves only ~6 mm of x play in front of the bins
+    # >= 4 mm (was 10): IQBAR (267 mm long, lengthwise) leaves only ~6 mm of x play in front of the bins
     assert x[1] - x[0] >= 0.004 and y[1] - y[0] >= 0.01, f"no room to drop {b} in front of the bins: x {x}, y {y}"
     if x == INDUCT_ENV["x"] and y == INDUCT_ENV["y"]:
         return [INDUCT_ENV["x"], INDUCT_ENV["y"]]
@@ -142,9 +140,9 @@ def parcel_report():
             warn.append(f"NOT GRASPABLE: narrowest side {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
         elif min(sx, sy) > GRIPPER_OPEN - 0.01:
             warn.append(f"tight grasp: {min(sx, sy) * 1000:.0f} mm, gripper opens {GRIPPER_OPEN * 1000:.1f} mm")
-        if sx > L - 2 * WALL or sy > W - 2 * WALL:
+        if tgt != "reject_bin" and (sx > L - 2 * WALL or sy > W - 2 * WALL):  # tray: swiped in, only the centre must land inside
             warn.append(f"footprint {sx * 1000:.0f} x {sy * 1000:.0f} mm does not fit {tgt} ({(L - 2 * WALL) * 1000:.0f} x {(W - 2 * WALL) * 1000:.0f})")
-        if sz > H:
+        if tgt != "reject_bin" and sz > H:
             warn.append(f"{(sz - H) * 1000:.0f} mm taller than the {tgt} walls")
         lines.append(f"  {b}: {sx * 1000:.0f} x {sy * 1000:.0f} x {sz * 1000:.0f} mm -> {tgt}, centre zone env x {zone(b)[0]} y {zone(b)[1]}"
                      + (f"  WARN: {'; '.join(warn)}" if warn else ""))
@@ -152,8 +150,12 @@ def parcel_report():
 
 
 def success_region(b):
-    """[half x, half y, z max] of the cavity, relative to the bin origin (centre of its underside): parcel centre inside = landed."""
+    """[half x, half y, z max] of the cavity, relative to the bin origin (centre of its underside): parcel centre inside = landed.
+    The low reject tray: footprint only, z up to rim + the thickest active parcel (a flat parcel resting on its floor has its centre
+    WALL + thickness / 2 up, above the 1 in rim)."""
     L, W, H = BINS[b]["size"]
+    if b == "reject_bin":
+        H += max(PARCELS[p]["size"][2] for p in ACTIVE)
     return [round(L / 2 - WALL, 4), round(W / 2 - WALL, 4), round(H, 4)]
 
 
@@ -184,7 +186,7 @@ def scene(n, c):
             {"id": "parked", "position": [0.5 + 0.5 * (i % 8), 3.0 + 0.5 * (i // 8), -5.0], "orientation": [0, 0, 0, 1]}]}}
     return {
         "definition": {"scene_type": SCENE(n), "metadata": {"name": f"labelloop_qr_sort_case{n}", "source": "labelloop",
-                       "semantic_goal": "Sort QR-labelled parcels into the bin named by the code (A=blue, B=red, else black)"}},
+                       "semantic_goal": "Sort QR-labelled parcels into the bin named by the code (A=blue, B=red, else the black reject tray)"}},
         "render_settings": {"gen_method": 0, "tags": "green_booth"},
         "background": BG, "objects": objs,
         "layout": {"surfaces": {"tabletop": {"type": "ref", "ref": "background.tabletop"}}, "nodes": nodes, "groups": {}},
