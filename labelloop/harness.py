@@ -30,13 +30,17 @@ class Harness:
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]
         box = scene.roi_box(front, cfg)
-        codes = [(t, p) for t, p in locate(front) if scene.inside(p, box)]
-        if not codes:  # small QR missed on this frame: retry on the ROI crop at 2x
+        mats = scene.mats(front, cfg)
+        if before in ("INSPECT", "HANDOVER"):  # parcel in hand: a label counts anywhere but in a bin (a labelled parcel lying in one)
+            bins = [*mats.values(), scene.roi_box(front, cfg, "reject_bin_roi") if "reject_bin_roi" in cfg else None]
+            codes = [(t, p) for t, p in locate(front) if not any(scene.inside(p, b) for b in bins)]
+        else:
+            codes = [(t, p) for t, p in locate(front) if scene.inside(p, box)]
+        if not codes and before not in ("INSPECT", "HANDOVER"):  # small QR missed on this frame: retry on the ROI crop at 2x
             crop = cv2.resize(front[box[1]:box[3], box[0]:box[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, (box[0] + x / 2, box[1] + y / 2)) for t, (x, y) in locate(crop)]
         wrist = {t for t, _ in decode({k: v for k, v in images.items() if k != "front"})}
         confirmed = self.confirmer.update({t for t, _ in codes} | wrist)
-        mats = scene.mats(front, cfg)
         kmats = scene.kraft_in_mats(front, mats, cfg)
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
         if before == "IDLE":  # arms are home: keep the reference current whenever the zone has been empty a while

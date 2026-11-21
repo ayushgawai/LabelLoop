@@ -17,28 +17,30 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_places=0):
-    return {"kind": "parcel", "code": code, "fail_places": fail_places}
+def parcel(code, fail_places=0, hidden=0, big=False):
+    """hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
+    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0}
 
 
-def nolabel():
-    return {"kind": "nolabel", "code": None, "fail_places": 0}
+def nolabel(big=False):
+    return {**parcel(None, big=big), "kind": "nolabel"}
 
 
 def garbage():
-    return {"kind": "garbage", "code": None, "fail_places": 0}
+    return {**parcel(None), "kind": "garbage"}
 
 
 class FakeScene:
     """Fake WALLX world. `queue` objects arrive in the induction zone one at a time (a hand is visible for the first
     call), after the zone has been empty `gap` calls. apply(instruction) obeys PUSH ("onto the blue mat") / PLACE
-    ("into the blue bin") and REJECT ("into the black bin") on the 2nd consecutive call; the first fail_places PLACE
-    attempts of an object do nothing."""
+    ("into the blue bin ... right arm") / LIFT2 ("both arms and put it into the blue bin") and REJECT / LIFT2 ("black bin")
+    on the 2nd consecutive call; the first fail_places PLACE/LIFT2 attempts of an object do nothing. INSPECT ("turn it")
+    and HANDOVER ("hand the") only move the label into view; big objects are drawn large."""
 
     def __init__(self, queue, gap=6):
         self.queue, self.gap, self.waited = list(queue), gap, 0
         self.zone, self.hand, self.at, self.log = None, False, {}, []  # at: id(obj) -> mat colour | "reject"
-        self.kind, self.n, self.grip = None, 0, 1.0
+        self.kind, self.n, self.grip, self.text = None, 0, 1.0, None
 
     def on(self, where):
         return [o for o in self.log if self.at[id(o)] == where]
@@ -61,10 +63,14 @@ class FakeScene:
         o = self.zone
         if o:
             x, y = ZONE
-            front[y - 60:y + 60, x - 60:x + 60] = RED if o["kind"] == "garbage" else KRAFT
-            if o["code"]:
+            h = 110 if o["big"] else 60  # big: ~30% of the zone, shifted so it stays inside it
+            x, y = x + (h > 60) * 60, y + (h > 60) * 60
+            front[y - h:y + h, x - h:x + h] = RED if o["kind"] == "garbage" else KRAFT
+            if o["code"] and not o["hidden"]:
                 front[y - 35:y + 35, x - 35:x + 35] = qr_image(o["code"])
         wrist = {k: np.full((480, 640, 3), 128, np.uint8) for k in ("left_wrist", "right_wrist")}
+        if o and o["hidden"] and self.kind == "INSPECT" and o["inspects"] >= o["hidden"]:  # the left arm turned the label up
+            wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
         ee = {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0]}
         return ({"front": front, **wrist},
                 {"left_ee": {**ee, "gripper": 0.2}, "right_ee": {**ee, "gripper": self.grip}})
@@ -72,14 +78,17 @@ class FakeScene:
     def apply(self, instruction):
         self.hand = False
         t = (instruction or "").lower()
-        kind = "REJECT" if "black bin" in t else "PUSH" if "push" in t else "PLACE" if " bin" in t else None
-        self.n = self.n + 1 if kind and kind == self.kind else 1
-        self.kind = kind
-        o = self.zone
-        if o and kind and self.n >= 2:
-            o["places"] = o.get("places", 0) + (kind == "PLACE" and self.n == 2)  # one attempt per PLACE run
-            if kind != "PLACE" or o["places"] > o["fail_places"]:
-                self.at[id(o)] = "reject" if kind == "REJECT" else "blue" if "blue" in t else "red"
+        kind = ("LIFT2" if "both arms and put" in t else "INSPECT" if "turn it" in t else "HANDOVER" if "hand the" in t
+                else "REJECT" if "black bin" in t else "PUSH" if "push" in t else "PLACE" if " bin" in t else None)
+        self.n = self.n + 1 if kind and t == self.text else 1
+        self.kind, self.text, o = kind, t, self.zone
+        if o and kind == "INSPECT" and self.n == 1:  # each try has its own wording: a new INSPECT run
+            o["inspects"] += 1
+        if o and kind in ("PUSH", "PLACE", "REJECT", "LIFT2") and self.n >= 2:
+            lifts = kind in ("PLACE", "LIFT2") and "black" not in t
+            o["places"] = o.get("places", 0) + (lifts and self.n == 2)  # one attempt per run
+            if not lifts or o["places"] > o["fail_places"]:
+                self.at[id(o)] = "reject" if "black" in t else "blue" if "blue" in t else "red"
                 self.zone = None
         if self.zone is None and self.queue and not kind:
             self.waited += 1

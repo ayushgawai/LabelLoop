@@ -1,6 +1,7 @@
-# Lane sorter v3: a human slides parcels one at a time into the induction zone; we read the QR (GS1 AI 420 = ship-to ZIP),
-# route by ZIP3 like a sortation computer, and pick-and-place the parcel into its lane bin (or the black reject bin).
-# Pushing was dropped: WALLX zero-shot never pushed in 0/20 sim episodes (results/phase6_lane_sweep1.md). CALIBRATE in sim / on the robot.
+# Lane sorter v4: parcels are swiped onto the table from the left in front of the left arm. The LEFT arm + the head camera find
+# and read the QR label (the arm picks the parcel up and turns it until a camera reads it); we route by ZIP3 like a sortation
+# computer; the RIGHT arm puts it in its lane bin (handover left -> right) or in the black reject bin (no label / garbage / unknown
+# ZIP). A BIG parcel is lifted and placed by BOTH arms. CALIBRATE everything marked in sim / on the robot.
 
 code_pattern: '^420/(\d{5})/\d{3}$'   # group 1 = ZIP5
 sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> black reject bin
@@ -13,13 +14,14 @@ max_parcels: null         # null = endless stream; N = DONE after N parcels (sim
 qr_confirm_frames: 2      # same value must decode in N consecutive calls
 stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
 settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
-scan_max_calls: 6         # kraft object, no confirmed decode after this many SCAN calls -> no-label reject
+scan_max_calls: 6         # kraft object, no confirmed decode after this many SCAN calls -> INSPECT (left arm turns it)
 home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
 scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
-max_calls: {PUSH: 12, PLACE: 20, REJECT: 20}
-tries: {PUSH: 0, PLACE: 3, REJECT: 3}   # attempts per parcel (0 = action disabled); WALLX scores ~20-30%/attempt, retries carry it
+max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
+tries: {PUSH: 0, INSPECT: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+                          # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
 # kraft / zone values: calibrated on 1280x720 and 640x480 sim head frames of the old props (tests/data). Bin ranges: first guesses
@@ -33,23 +35,34 @@ scene:
                                          # boxes are kraft inside (photo H 17-18, S 120-140)
   mat_min_area: 0.004
   mat_gain: 0.0015        # kraft area (image fraction) that must appear inside a bin's bbox to count as landed there
-  induction_roi: [0.46, 0.48, 0.84, 0.92]   # x0, y0, x1, y1 fractions (sim cases 18-23: drop spot in front of the right gripper, below the bin row, left of its home pose)
-  reject_bin_roi: [0.725, 0.15, 0.88, 0.40]   # x0, y0, x1, y1 fractions of the head image; sim cases 18-23 black bin, calibrate on the real table
+  induction_roi: [0.46, 0.48, 0.84, 0.92]   # CALIBRATE for scene v2 (left-side induction). x0, y0, x1, y1 fractions of the head image
+  reject_bin_roi: [0.725, 0.15, 0.88, 0.40]   # CALIBRATE for scene v2 (black bin at the right arm). x0, y0, x1, y1 fractions
   reject_gain: 0.015      # sim: a cube in the bin changes ~4% (noise-free render); fraction of the reject-bin box changed vs the snapshot taken when the object arrived = something landed in it
   presence_thr: 30        # blurred gray abs-diff vs the empty-zone reference
   presence_min: 0.01      # fraction of the ROI that differs = something is there
+  big_presence: 0.25      # CALIBRATE: zone presence fraction >= this at SCAN = parcel too big for one gripper -> both arms
   kraft_min: 0.002        # fraction of the ROI that is kraft = a parcel (else garbage)
   ref_refresh_calls: 5    # IDLE sees an empty zone this many calls -> refresh the reference
 
-# Wording, one sentence per call, as WALLX was trained. {mat} -> blue|red, {obj} -> "block" (kraft) | "object".
-# "put the block into the blue bin" sorted 2/2 zero-shot (results/phase4_case1_wording.md); no location phrases.
+# Wording, one sentence per call, as WALLX was trained; no arm selector, so the arm roles are in the words. {mat} -> blue|red|black,
+# {obj} -> "block" (kraft) | "object". INSPECT cycles through its variants, one per try.
 instruction_variant: 0
 instructions:
   PUSH:
     - "push the {obj} onto the {mat} mat"
+  INSPECT:
+    - "pick up the {obj} with the left arm and turn it to show the label"
+    - "pick up the {obj} with the left arm and turn it over"
+    - "pick up the {obj} with the left arm and turn it around to find the label"
+  INSPECT_BIG:
+    - "lift the {obj} with both arms and turn it over"
+  HANDOVER:
+    - "hand the {obj} from the left arm to the right arm"
   PLACE:
-    - "put the {obj} into the {mat} bin"
+    - "put the {obj} into the {mat} bin with the right arm"
   REJECT:
-    - "put the {obj} into the black bin"
+    - "put the {obj} into the black bin with the right arm"
+  LIFT2:
+    - "pick up the {obj} with both arms and put it into the {mat} bin"
   HOME:
     - "put both arms back to the home position"
