@@ -36,9 +36,11 @@ LANE_Y = 0.13
 BIN_XY = {"bin_blue": (BIN_X, -LANE_Y), "bin_red": (BIN_X, LANE_Y)}
 REJECT_XY = (0.0, round(TABLE_HALF[1] - EDGE_MARGIN - BINS["reject_bin"]["size"][1] / 2, 4))
 # induction zone (range of the parcel CENTRE), ENV frame (parcels are teleported with env coordinates): a human swipes parcels onto the
-# table from the LEFT, in front of the LEFT arm (lateral -0.35..-0.15 m, env y = TABLE_C.y - local y), which detects and handles them.
-# zone() shrinks it per parcel.
-INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.118, 0.082]}
+# table from the LEFT, in front of the LEFT arm (lateral -0.25..0.0 m, env y = TABLE_C.y - local y), which detects and handles them.
+# zone() shrinks it per parcel and keeps the whole parcel, including the swipe's start point SLIDE_FROM further left, right of
+# LEFT_GRIPPER_Y: the left gripper's home pose (preview 1: parcels swiped to lateral -0.35 slid into it).
+INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.2682, -0.0182]}
+LEFT_GRIPPER_Y, SLIDE_FROM = -0.27, 0.08  # tabletop-local y of the left gripper's inner edge; swipe start offset (disturb's 0.08 m)
 SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry point to the sampled spot; m/s toward the robot's right (env -y) given to a parcel as it is swiped in (disturb slide_v)
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
 SORT_PLAN = {"950": "bin_blue", "951": "bin_blue", "940": "bin_blue", "941": "bin_blue",
@@ -102,7 +104,7 @@ def zone(b):
     fp = footprints()
     near_bins = max(fp[b][1] for b in BIN_XY)  # tabletop-local x of the lane bins' near edge
     lx = (near_bins + ZONE_GAP + hx, TABLE_HALF[0] - EDGE_MARGIN - hx)
-    ly = (-TABLE_HALF[1] + EDGE_MARGIN + hy, min(TABLE_HALF[1] - EDGE_MARGIN, fp["reject_bin"][2] - ZONE_GAP) - hy)
+    ly = (max(-TABLE_HALF[1] + EDGE_MARGIN, LEFT_GRIPPER_Y + SLIDE_FROM) + hy, min(TABLE_HALF[1] - EDGE_MARGIN, fp["reject_bin"][2] - ZONE_GAP) - hy)
     ex, ey = sorted(TABLE_C[0] - v for v in lx), sorted(TABLE_C[1] - v for v in ly)  # -> env (the map flips the axes)
     x = [max(INDUCT_ENV["x"][0], ex[0]), min(INDUCT_ENV["x"][1], ex[1])]
     y = [max(INDUCT_ENV["y"][0], ey[0]), min(INDUCT_ENV["y"][1], ey[1])]

@@ -31,12 +31,12 @@ def test_layout_passes_and_every_parcel_arrives_clear_of_bins_and_on_the_table()
                 assert abs(px) <= bt.TABLE_HALF[0] - bt.EDGE_MARGIN + 1e-6 and abs(py) <= bt.TABLE_HALF[1] - bt.EDGE_MARGIN + 1e-6
 
 
-def test_cubes_keep_the_original_zone_and_measured_parcels_get_their_own():
-    for b in {b for c in bt.CASES.values() for b in c["late"]} - set(bt.PARCELS):  # still 60 mm cubes
-        assert bt.zone(b) == [bt.INDUCT_ENV["x"], bt.INDUCT_ENV["y"]]
-    for b in bt.PARCELS:
+def test_every_zone_is_inside_the_induction_zone_and_clear_of_the_left_gripper():
+    for b in {b for c in bt.CASES.values() for b in c["late"]}:
         (x0, x1), (y0, y1) = bt.zone(b)
         assert bt.INDUCT_ENV["x"][0] <= x0 < x1 <= bt.INDUCT_ENV["x"][1] and bt.INDUCT_ENV["y"][0] <= y0 < y1 <= bt.INDUCT_ENV["y"][1]
+        left_edge = bt.to_local(0, y1)[1] - bt.SLIDE_FROM - bt.half_extent(b)[1]  # swipe start, robot's left side of the parcel
+        assert left_edge >= bt.LEFT_GRIPPER_Y - 1e-4, b
 
 
 def test_success_region_is_each_bins_cavity():
@@ -50,7 +50,7 @@ def test_layout_lane_bins_far_row_reject_bin_right_side_zone_on_the_left():
     assert bx == rx and by < 0 < ry and by == -ry  # one row, centred, blue robot-left, red robot-right
     x, y = bt.REJECT_XY
     assert x == 0 and abs(y + bt.BINS["reject_bin"]["size"][1] / 2 - (bt.TABLE_HALF[1] - bt.EDGE_MARGIN)) < 1e-4
-    assert all(bt.to_local(0, ey)[1] < 0 for ey in zy)  # induction zone is on the robot's left
+    assert all(bt.to_local(0, ey)[1] <= 0 for ey in zy)  # induction zone is on the robot's left half
 
 
 def test_target_follows_the_zip3_of_the_code():
