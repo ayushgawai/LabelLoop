@@ -1,11 +1,15 @@
-"""Local trial dashboard server (stdlib only): python -m labelloop.dashboard.server [--root runs/trials] [--port 8095].
+"""Local trial dashboard server (stdlib only): python -m labelloop.dashboard.server [--root runs/trials] [--agent runs/agent]
+[--reports results/agent] [--port 8095].
 
 Reads the folders written by labelloop.robots.trial_recorder and serves the one-file page (index.html) plus a tiny JSON API:
   /                               the dashboard page
   /api/trials                     list (newest first)
-  /api/trials/<id>                {meta, rows, summary}
+  /api/trials/<id>[?rows=0]       {meta, rows, summary, frames: {camera: [row indices]}} (rows=0: without the rows)
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
+  /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
+  /api/story                      every trial + trial-agent run in time order (labelloop.dashboard.story)
+  /api/agent/<ts>                 one agent run: journal, report text, progress notes
 """
 import argparse
 import json
@@ -61,7 +65,8 @@ def list_trials(root):
         if not (d.is_dir() and TRIAL_ID_RE.match(d.name)):
             continue
         meta, summary = _read_json(d / "meta.json") or {}, _read_json(d / "summary.json")
-        rows = read_rows(d)
+        need = summary is None or any(summary.get(k) is None for k in ("calls", "parcels", "duration_s"))
+        rows = read_rows(d) if need else []  # a finished trial's summary has it all: no re-reading long trials on every poll
         parcels = (summary or {}).get("parcels")
         if parcels is None and rows:
             h = rows[-1].get("harness")
@@ -89,6 +94,16 @@ def _indexed_frames(trial_dir, camera):
     return sorted(pairs)
 
 
+def frame_index(trial_dir):
+    """{camera: sorted row indices that have a frame} of a trial (frames/<index>_<camera>.jpg; front_overlay = what WALLX saw)."""
+    out = {}
+    for p in (Path(trial_dir) / "frames").glob("*.jpg"):
+        head, _, cam = p.stem.partition("_")
+        if head.isdigit() and CAMERA_RE.match(cam):
+            out.setdefault(cam, []).append(int(head))
+    return {c: sorted(v) for c, v in sorted(out.items())}
+
+
 def frame_path(trial_dir, index, camera):
     """The frame of `camera` recorded at the nearest earlier index (else the earliest one); None if the camera has none."""
     pairs = _indexed_frames(trial_dir, camera)
@@ -100,6 +115,8 @@ def frame_path(trial_dir, index, camera):
 
 class Handler(BaseHTTPRequestHandler):
     root = "runs/trials"
+    agent_root = "runs/agent"
+    reports_root = "results/agent"
     server_version = "LabelLoopDashboard/1.0"
     protocol_version = "HTTP/1.1"
 
@@ -136,6 +153,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(INDEX_HTML, "text/html; charset=utf-8")
             if parts[0] == "api" and len(parts) >= 2 and parts[1] == "trials":
                 return self._trials(parts[2:], parse_qs(url.query))
+            if parts[0] == "api" and parts[1:] == ["story"]:
+                from labelloop.dashboard import story
+                return self._json(story.build(self.root, self.agent_root, self.reports_root))
+            if parts[0] == "api" and len(parts) == 3 and parts[1] == "agent" and TRIAL_ID_RE.match(parts[2]):
+                from labelloop.dashboard import story
+                d = story.agent_detail(parts[2], self.agent_root, self.reports_root)
+                return self._json(d) if d else self._json({"error": "no such agent run"}, 404)
             self._json({"error": "not found"}, 404)
         except Exception as e:  # a bad request never takes the dashboard down
             self._json({"error": type(e).__name__}, 500)
@@ -150,15 +174,20 @@ class Handler(BaseHTTPRequestHandler):
         d = Path(self.root) / tid
         if not d.is_dir():
             return self._json({"error": "no such trial"}, 404)
-        if len(rest) == 1:
-            return self._json({"meta": _read_json(d / "meta.json") or {}, "rows": read_rows(d),
-                               "summary": _read_json(d / "summary.json")})
+        if len(rest) == 1:  # ?rows=0: meta + summary + frame index only (the page's periodic refresh of a long trial)
+            out = {"meta": _read_json(d / "meta.json") or {}, "summary": _read_json(d / "summary.json"), "frames": frame_index(d)}
+            if query.get("rows", ["1"])[0] != "0":
+                out["rows"] = read_rows(d)
+            return self._json(out)
         if len(rest) == 2 and rest[1] == "rows":
             try:
                 after = int(query.get("after", ["-1"])[0])
             except (TypeError, ValueError):
                 after = -1
             return self._json([r for r in read_rows(d) if row_index(r) > after])
+        if len(rest) == 2 and rest[1] == "joints":
+            from labelloop.dashboard import kinematics  # (late: numpy + the arm model only when a page asks for joints)
+            return self._json(kinematics.trial_joints(d, read_rows(d)))
         if len(rest) == 4 and rest[1] == "frame":
             camera = rest[3]
             if not CAMERA_RE.match(camera):
@@ -174,9 +203,13 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
 
-def make_server(root="runs/trials", host="127.0.0.1", port=8095):
-    """ThreadingHTTPServer bound to (host, port) serving `root` (port 0 = any free port)."""
-    handler = type("BoundHandler", (Handler,), {"root": str(root)})
+def make_server(root="runs/trials", host="127.0.0.1", port=8095, agent_root=None, reports_root=None):
+    """ThreadingHTTPServer bound to (host, port) serving `root` (port 0 = any free port). Agent runs default to <root>/../agent, their
+    reports to <root>/../../results/agent (runs/trials -> runs/agent, results/agent)."""
+    root = Path(root)
+    agent_root = Path(agent_root) if agent_root else root.parent / "agent"
+    reports_root = Path(reports_root) if reports_root else root.parent.parent / "results" / "agent"
+    handler = type("BoundHandler", (Handler,), {"root": str(root), "agent_root": str(agent_root), "reports_root": str(reports_root)})
     return ThreadingHTTPServer((host, port), handler)
 
 
@@ -184,10 +217,12 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="python -m labelloop.dashboard.server", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", default="runs/trials", help="trial recordings (one folder per trial)")
+    p.add_argument("--agent", default=None, help="trial-agent runs (default <root>/../agent)")
+    p.add_argument("--reports", default=None, help="trial-agent reports REPORT_<ts>.md (default <root>/../../results/agent)")
     p.add_argument("--port", type=int, default=8095)
     p.add_argument("--host", default="127.0.0.1")
     a = p.parse_args(argv)
-    server = make_server(a.root, a.host, a.port)
+    server = make_server(a.root, a.host, a.port, a.agent, a.reports)
     print(f"Dashboard at http://{a.host}:{server.server_address[1]} (trials in {a.root})", flush=True)
     try:
         server.serve_forever()

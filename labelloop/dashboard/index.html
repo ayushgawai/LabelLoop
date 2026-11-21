@@ -4,12 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LabelLoop × WALLX</title>
+<link rel="icon" href="data:,">
 <style>
   :root{
     --ink:#23282e; --ink2:#5b6570; --paper:#fdfcf6; --rule:rgba(47,111,208,.10);
-    --blue:#2f6fd0; --red:#c0392b; --green:#2e8b57; --amber:#c98a1b; --violet:#7c6ce0;
+    --blue:#2f6fd0; --red:#c0392b; --green:#2e8b57; --amber:#c98a1b; --violet:#7c6ce0; --orange:#e67e22;
   }
   *{box-sizing:border-box}
+  [hidden]{display:none !important}
   html,body{margin:0;min-height:100%}
   body{
     font:14px/1.35 ui-rounded,"Segoe UI",system-ui,-apple-system,sans-serif;
@@ -41,27 +43,63 @@
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
   main{position:relative;z-index:1;display:grid;gap:14px;padding:14px 22px 60px 78px;
     grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
-    grid-template-areas:"table pose" "table perf" "cams log" "time log"}
+    grid-template-areas:"table pose" "table perf" "cams log" "time log" "story story"}
   #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf}
-  #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log}
+  #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log} #storyCard{grid-area:story}
+  .story{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto;padding:2px 4px 2px 0}
+  .st{border:1.3px solid rgba(35,40,46,.35);border-radius:10px 7px 11px 6px / 7px 11px 6px 10px;padding:6px 9px;background:rgba(255,255,255,.72)}
+  .st.agent{border-color:var(--violet);background:rgba(124,108,224,.05)}
+  .st.cur{box-shadow:0 0 0 2.5px rgba(47,111,208,.35)}
+  .stHead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12.5px}
+  .stHead .when{font-variant-numeric:tabular-nums;font-weight:700}
+  .stHead .grow{flex:1}
+  .stHead button{padding:1px 8px;font-size:11.5px}
+  .stHead button:disabled{opacity:.4;cursor:default}
+  .kind{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:0 6px;border-radius:8px;border:1px solid}
+  .kind.trial{color:var(--blue)} .kind.agent{color:var(--violet)}
+  .verdict{font-size:11px;font-weight:700;padding:0 7px;border-radius:9px;color:#fff;background:#8a94a0}
+  .verdict.ok{background:var(--green)} .verdict.failed,.verdict.mixed{background:var(--red)}
+  .verdict.hold{background:var(--orange)} .verdict.live{background:var(--blue)}
+  .stMeta{font-size:11.5px;color:var(--ink2);margin:3px 0;word-break:break-word}
+  .stMeta q{color:var(--ink);font-style:italic}
+  .stSub{margin:6px 0 0 10px;padding-left:9px;border-left:2px dotted rgba(124,108,224,.55);display:flex;flex-direction:column;gap:6px}
+  pre.report{white-space:pre-wrap;font:11.5px/1.45 ui-monospace,Consolas,monospace;background:#fffdf3;
+    border:1px dashed rgba(35,40,46,.35);border-radius:8px;padding:8px;max-height:380px;overflow:auto;margin:6px 0 0}
+  .tl.sm{height:20px;border-radius:6px;overflow:visible} .tl.sm .tlSeg{font-size:9px}
+  .tlFlag{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:var(--red);z-index:2}
+  .tlFlag::before{content:"";position:absolute;top:-6px;left:-4px;border:5px solid transparent;border-top:6px solid var(--red)}
   .card{background:rgba(255,255,255,.62);border:1.6px solid var(--ink);
     border-radius:14px 9px 16px 8px / 9px 16px 8px 14px;padding:9px 11px 11px;min-width:0}
   .cardTitle{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
-  #tableSvg{width:100%;height:auto;display:block}
-  .armGlow{filter:drop-shadow(0 0 2px rgba(35,40,46,.55))}
+  .view{width:100%;height:auto;display:block}
+  .viewTag{font-size:10.5px;color:var(--ink2);letter-spacing:1px;text-transform:uppercase;margin:4px 0 0 2px}
+  .armGlow{filter:drop-shadow(0 0 1.2px rgba(47,111,208,.9)) drop-shadow(0 0 2.4px rgba(47,111,208,.45))}
+  .armGlow.right{filter:drop-shadow(0 0 1.2px rgba(192,57,43,.9)) drop-shadow(0 0 2.4px rgba(192,57,43,.45))}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--ink2);margin-top:6px}
+  .legend i{display:inline-block;width:14px;height:0;vertical-align:middle;margin-right:4px;border-top:2.5px solid var(--ink)}
+  .legend i.lim{border-color:var(--orange)} .legend i.fail{border-top:2px dashed #9aa3ab}
+  .legend i.pred{border-top:2px dotted var(--green)}
   .muted{color:var(--ink2);font-size:12px}
   .armRow{display:grid;grid-template-columns:36px 1fr 64px;gap:6px;align-items:center;margin:5px 0}
   .armName{font-weight:700;font-size:12px}
   .armName.left{color:var(--blue)} .armName.right{color:var(--red)}
   .vals{display:grid;grid-template-columns:repeat(4,1fr);gap:2px 6px;font-size:11.5px;font-variant-numeric:tabular-nums}
   .vals i{color:var(--ink2);font-style:normal;font-size:10px}
+  .vals .lim{color:var(--orange);font-weight:700}
+  .vals .bad{color:#9aa3ab;text-decoration:line-through}
   .spark{width:64px;height:18px}
   .perfTop{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-bottom:4px}
   .kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;
     border-bottom:1px dotted rgba(35,40,46,.22);padding:1px 0}
   .kv b{font-variant-numeric:tabular-nums;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cams{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .cams{display:block}
+  .camPair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  .cams2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .cams figure{margin:0}
+  .camPair img{aspect-ratio:16/9 !important;object-fit:contain !important}
+  #ovFig.exact img{border-color:var(--violet);box-shadow:0 0 0 2px rgba(124,108,224,.35)}
+  .camNote{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:12px;
+    color:var(--ink2);border:1.4px dashed rgba(35,40,46,.4);border-radius:10px 6px 11px 7px / 7px 11px 6px 10px;background:rgba(255,255,255,.5)}
   .cams img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1.4px solid var(--ink);
     border-radius:10px 6px 11px 7px / 7px 11px 6px 10px;background:#0f1214;display:block}
   .cams figcaption{font-size:10.5px;color:var(--ink2);text-align:center;margin-top:2px}
@@ -70,12 +108,19 @@
   .tlSeg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
     font-size:9.5px;color:#10151a;overflow:hidden;white-space:nowrap;border-right:1px solid rgba(255,255,255,.6)}
   .tlTick{position:absolute;top:0;height:6px;width:1px;background:rgba(35,40,46,.55)}
+  .tlTicks{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  .perfSub{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);margin:9px 0 3px}
+  .chart{width:100%;height:auto;display:block}
   .tlHead{position:absolute;top:0;bottom:0;left:0;width:2px;background:var(--red);
     box-shadow:0 0 4px rgba(192,57,43,.7)}
   .log{max-height:380px;overflow:auto;font-size:12px;font-variant-numeric:tabular-nums}
   .logRow{padding:2px 4px;border-radius:6px;border-left:3px solid transparent;word-break:break-word}
   .logRow.hi{background:#fff6d8;border-left-color:var(--amber)}
   .lt{color:var(--ink2);margin-right:7px;font-size:11px}
+  @media (max-width:900px){
+    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
+    header{padding:10px 12px 8px 16px} body::before{display:none}
+  }
 </style>
 </head>
 <body>
@@ -92,11 +137,20 @@
 </header>
 <main>
   <section class="card" id="tableCard">
-    <div class="cardTitle">table · top view (cm)</div>
-    <svg id="tableSvg" role="img" aria-label="top-down table view">
-      <g id="static"></g>
-      <g id="dyn"></g>
+    <div class="cardTitle">arms · joint chains from IK (cm)</div>
+    <div class="viewTag">top view · x-y</div>
+    <svg id="topSvg" class="view" role="img" aria-label="top view of the table and both arms">
+      <g id="topStatic"></g><g id="topDyn"></g>
     </svg>
+    <div class="viewTag">side view · y-z (seen from behind the robot)</div>
+    <svg id="sideSvg" class="view" role="img" aria-label="side view of both arms">
+      <g id="sideStatic"></g><g id="sideDyn"></g>
+    </svg>
+    <div class="legend">
+      <span><i></i>link · ● joint (deg)</span><span><i class="lim"></i>within 5° of a limit</span>
+      <span><i class="fail"></i>IK failed</span><span><i class="pred"></i>WALLX predicted fingertip path</span>
+      <span id="ikNote"></span><span id="workMs" title="moving average of the JS work per animation frame"></span>
+    </div>
   </section>
   <section class="card" id="poseCard">
     <div class="cardTitle">pose</div>
@@ -107,7 +161,7 @@
     <div id="perf"><div class="muted">waiting…</div></div>
   </section>
   <section class="card" id="camCard">
-    <div class="cardTitle">cameras</div>
+    <div class="cardTitle">cameras · raw front vs what WALLX saw</div>
     <div class="cams" id="cams"></div>
   </section>
   <section class="card" id="timeCard">
@@ -118,6 +172,10 @@
     <div class="cardTitle">log</div>
     <div class="log" id="log"><div class="muted">nothing yet</div></div>
   </section>
+  <section class="card" id="storyCard">
+    <div class="cardTitle">story · every trial and trial-agent run, in time order</div>
+    <div class="story" id="story"><div class="muted">loading…</div></div>
+  </section>
 </main>
 <script>
 (function () {
@@ -126,55 +184,61 @@
   /* ------------------------------------------------------------------ tunables */
   const CFG = {
     TABLE: { w: 111, h: 68.5 },          // cm; origin near-left, x right, y away from the robot
-    PAD: 9,                              // cm margin in the drawing
-    BINS: {                              // x/y = near-left corner in table cm
-      blue:  { x: 30, y: 38.5, w: 20, h: 30 },
-      red:   { x: 62, y: 38.5, w: 20, h: 30 },
-      black: { x: 87, y: 19.0, w: 22, h: 30 }
+    PAD: 9, TOP_BOTTOM: 25,              // cm margins of the top view (the arm bases sit behind the near edge)
+    ROOT_NEAR_X: 0.184,                  // m: robot-root x of the table's near edge (sim layout; CALIBRATE on the real bench)
+    Z: { top: 52, bottom: -6 },          // cm above the table shown in the side view
+    BINS: {                              // x/y = near-left corner in table cm, h = wall height (cm)
+      blue:  { x: 30, y: 38.5, w: 20, d: 30, h: 12.7 },
+      red:   { x: 62, y: 38.5, w: 20, d: 30, h: 12.7 },
+      black: { x: 87, y: 19.0, w: 22, d: 30, h: 10 }
     },
-    ARM_HOME: { left: [30, 12], right: [81, 12] },   // cm
-    BASES:    { left: [20, 0],  right: [91, 0] },    // arm bases on the near edge, cm
-    AXIS: { x: { from: 1, sign: -1, scale: 100, offset: 0 },    // table_x = -ee_y   (m -> cm)
-            y: { from: 0, sign:  1, scale: 100, offset: 0 } },  // table_y =  ee_x
+    ARM_COL: { left: '#2f6fd0', right: '#c0392b' },
+    LIMIT: '#e67e22', FAIL: '#9aa3ab', PRED: '#2e8b57',
+    GRIP_HALF_M: 0.04875, FINGER_M: 0.045, // half opening at gripper 1 (97.5 mm), drawn finger length
+    FRAME: { arm_y: 0.263, arm_z: 0.0, table_z: -0.015 },   // replaced by the /joints payload
+    HOME_EE: [0.1185, 0, 0.181],         // EE at rest in the arm frame (fallback drawing without joints)
     CAMERAS: ['front', 'left_wrist', 'right_wrist'],
-    MOVE_CM_S: 6,        // ee speed above which the arm glows / leaves a trail
+    MOVE_M_S: 0.03,      // fingertip speed above which the arm glows / leaves a trail
     CASE_S: 480,         // the event case clock
-    POLL_MS: 300
+    POLL_MS: 300, LIST_MS: 2000, JOINTS_MS: 1500, STORY_MS: 10000
   };
+  const ARMS = ['left_ee', 'right_ee'];
 
   const S = {
-    trials: [], id: null, meta: null, summary: null, rows: [],
+    trials: [], id: null, meta: null, summary: null, rows: [], frames: {}, joints: null, jAt: 0, jBusy: false, jFail: false,
     follow: true, playing: false, speed: 1, cursor: 0, after: -1,
-    pose: null, prev: { left: null, right: null }, trail: { left: [], right: [] },
+    pose: null, geo: null, prevTip: { left_ee: null, right_ee: null }, trail: { left_ee: [], right_ee: [] },
     hist: { left: { z: [], g: [] }, right: { z: [], g: [] } },
-    shownFrame: -1, shownRow: -1, logHi: -1, busy: false, summaryAt: 0,
+    shownFrame: -1, logHi: -1, logIndex: [], busy: false, summaryAt: 0, story: [], storySig: '', storyShown: false,
+    stats: null, perfKey: '', listAt: 0, tlDirty: false, tlAt: 0,
     lastPaint: 0, lastSlow: 0
   };
 
   const $ = (id) => document.getElementById(id);
   const n1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const lerp = (a, b, t) => a + (b - a) * t;
+  const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const mm = (v) => (v * 1000).toFixed(0);
   const deg = (v) => (v * 180 / Math.PI).toFixed(1);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const side = (arm) => arm.slice(0, -3);
 
   /* ------------------------------------------------------------------ geometry */
-  function tv(p) { return [p[0], CFG.TABLE.h - p[1]]; }          // table cm -> svg cm
+  // robot root (m, +x forward, +y left, +z up) -> svg cm. Both views share the horizontal axis (table x = across the table).
+  function toTop(p) { return [CFG.TABLE.w / 2 - p[1] * 100, CFG.TABLE.h - (p[0] - CFG.ROOT_NEAR_X) * 100]; }
+  function toSide(p) { return [CFG.TABLE.w / 2 - p[1] * 100, CFG.Z.top - (p[2] - CFG.FRAME.table_z) * 100]; }
+  function tv(p) { return [p[0], CFG.TABLE.h - p[1]]; }          // table cm -> top-view svg cm
 
-  function eeToTable(pos) {
-    const X = CFG.AXIS.x, Y = CFG.AXIS.y;
-    return [X.sign * X.scale * pos[X.from] + X.offset,
-            Y.sign * Y.scale * pos[Y.from] + Y.offset];
-  }
-
-  const svg = $('tableSvg');
-  svg.setAttribute('viewBox',
-    (-CFG.PAD) + ' ' + (-CFG.PAD) + ' ' + (CFG.TABLE.w + 2 * CFG.PAD) + ' ' + (CFG.TABLE.h + 2 * CFG.PAD));
+  const topSvg = $('topSvg'), sideSvg = $('sideSvg');
+  const VB_X = -CFG.PAD, VB_W = CFG.TABLE.w + 2 * CFG.PAD;
+  topSvg.setAttribute('viewBox', VB_X + ' ' + (-CFG.PAD) + ' ' + VB_W + ' ' + (CFG.TABLE.h + CFG.PAD + CFG.TOP_BOTTOM));
+  sideSvg.setAttribute('viewBox', VB_X + ' 0 ' + VB_W + ' ' + (CFG.Z.top - CFG.Z.bottom));
 
   function buildStatic() {
-    const T = CFG.TABLE, g = [];
+    const T = CFG.TABLE, g = [], s = [];
+    const col = { blue: '#2f6fd0', red: '#c0392b', black: '#2b2b2b' };
     g.push('<rect x="0" y="0" width="' + T.w + '" height="' + T.h +
       '" rx="1.4" fill="#f4f8f1" stroke="#23282e" stroke-width="0.55"/>');
     for (let x = 10; x < T.w; x += 10)
@@ -182,85 +246,174 @@
     for (let y = 10; y < T.h; y += 10)
       g.push('<line x1="0" y1="' + (T.h - y) + '" x2="' + T.w + '" y2="' + (T.h - y) +
         '" stroke="#dbe7d6" stroke-width="0.22"/>');
-    const col = { blue: '#2f6fd0', red: '#c0392b', black: '#2b2b2b' };
     Object.keys(CFG.BINS).forEach(function (k) {
-      const b = CFG.BINS[k], y = T.h - b.y - b.h;
-      g.push('<rect x="' + b.x + '" y="' + n1(y) + '" width="' + b.w + '" height="' + b.h +
+      const b = CFG.BINS[k], y = T.h - b.y - b.d;
+      g.push('<rect x="' + b.x + '" y="' + n1(y) + '" width="' + b.w + '" height="' + b.d +
         '" rx="1.1" fill="' + col[k] + '" fill-opacity="0.13" stroke="' + col[k] +
         '" stroke-width="0.45" stroke-dasharray="2 1.1"/>');
-      g.push('<text x="' + n1(b.x + b.w / 2) + '" y="' + n1(y + b.h - 1.8) +
+      g.push('<text x="' + n1(b.x + b.w / 2) + '" y="' + n1(y + b.d - 1.8) +
         '" text-anchor="middle" font-size="2.6" fill="' + col[k] + '">' + k + '</text>');
+      // side view: the bin as its wall height over its span across the table
+      const z0 = CFG.Z.top, z1 = CFG.Z.top - b.h;
+      s.push('<rect x="' + b.x + '" y="' + n1(z1) + '" width="' + b.w + '" height="' + n1(b.h) +
+        '" fill="' + col[k] + '" fill-opacity="0.10" stroke="' + col[k] + '" stroke-width="0.4" stroke-dasharray="2 1.1"/>');
+      s.push('<text x="' + n1(b.x + b.w / 2) + '" y="' + n1(z1 - 1.2) + '" text-anchor="middle" font-size="2.3" fill="' +
+        col[k] + '">' + k + '</text>');
+      void z0;
     });
-    g.push('<text x="' + n1(T.w / 2) + '" y="' + n1(T.h + 4.8) +
-      '" text-anchor="middle" font-size="2.6" fill="#5b6570">robot side</text>');
-    ['left', 'right'].forEach(function (a) {
-      const h = tv(CFG.ARM_HOME[a]);
-      g.push('<path d="M' + n1(h[0] - 1.2) + ' ' + n1(h[1]) + 'H' + n1(h[0] + 1.2) +
-        'M' + n1(h[0]) + ' ' + n1(h[1] - 1.2) + 'V' + n1(h[1] + 1.2) +
-        '" stroke="#8a94a0" stroke-width="0.3"/>');
+    g.push('<text x="' + n1(T.w / 2) + '" y="' + n1(T.h + 4.2) +
+      '" text-anchor="middle" font-size="2.4" fill="#5b6570">near edge · robot side</text>');
+    ARMS.forEach(function (arm) {
+      const b = toTop([0, (arm === 'left_ee' ? 1 : -1) * CFG.FRAME.arm_y, 0]);
+      g.push('<circle cx="' + n1(b[0]) + '" cy="' + n1(b[1]) + '" r="2.2" fill="none" stroke="#23282e" stroke-width="0.4" opacity="0.6"/>');
+      g.push('<text x="' + n1(b[0]) + '" y="' + n1(b[1] + 5.2) + '" text-anchor="middle" font-size="2.3" fill="' +
+        CFG.ARM_COL[side(arm)] + '">' + side(arm) + ' arm</text>');
     });
-    ['left', 'right'].forEach(function (a) {
-      const b = tv(CFG.BASES[a]);
-      g.push('<circle cx="' + n1(b[0]) + '" cy="' + n1(b[1]) + '" r="1.5" fill="#23282e" opacity="0.65"/>');
-    });
-    $('static').innerHTML = g.join('');
+    // side view: table surface + 10 cm height grid
+    for (let z = 10; z < CFG.Z.top; z += 10)
+      s.push('<line x1="' + VB_X + '" y1="' + (CFG.Z.top - z) + '" x2="' + (VB_X + VB_W) + '" y2="' + (CFG.Z.top - z) +
+        '" stroke="#dbe7d6" stroke-width="0.22"/><text x="' + n1(VB_X + 0.8) + '" y="' + n1(CFG.Z.top - z - 0.6) +
+        '" font-size="2" fill="#8a94a0">' + z + '</text>');
+    s.push('<rect x="0" y="' + CFG.Z.top + '" width="' + T.w + '" height="2.2" fill="#dfe9da" stroke="#23282e" stroke-width="0.45"/>');
+    s.push('<text x="' + n1(T.w / 2) + '" y="' + n1(CFG.Z.top + 5.2) + '" text-anchor="middle" font-size="2.3" fill="#5b6570">table</text>');
+    $('topStatic').innerHTML = g.join('');
+    $('sideStatic').innerHTML = s.join('');
   }
 
-  /* ------------------------------------------------------------------ scene paint */
-  function paintScene(pose, row) {
-    const now = performance.now(), T = CFG.TABLE, out = [];
-    ['left', 'right'].forEach(function (arm) {
-      const a = pose[arm + '_ee'];
-      if (!a) return;
-      const ep = tv(eeToTable(a.p)), bp = tv(CFG.BASES[arm]);
-      const ex = ep[0], ey = ep[1], bx = bp[0], by = bp[1];
-
-      const pv = S.prev[arm];
-      const spd = pv ? Math.hypot(ex - pv.x, ey - pv.y) / Math.max(0.016, (now - pv.t) / 1000) : 0;
-      S.prev[arm] = { x: ex, y: ey, t: now };
-      const moving = spd > CFG.MOVE_CM_S;
-
-      const tr = S.trail[arm];
-      if (!tr.length || Math.hypot(ex - tr[tr.length - 1].x, ey - tr[tr.length - 1].y) > 0.2)
-        tr.push({ x: ex, y: ey, t: now });
-      while (tr.length && now - tr[0].t > 1400) tr.shift();
-      for (let i = 1; i < tr.length; i++)
-        out.push('<line x1="' + n1(tr[i - 1].x) + '" y1="' + n1(tr[i - 1].y) + '" x2="' + n1(tr[i].x) +
-          '" y2="' + n1(tr[i].y) + '" stroke="#2f8f9d" stroke-width="0.8" stroke-linecap="round" stroke-opacity="' +
-          (i / tr.length * 0.4).toFixed(2) + '"/>');
-
-      const acts = row && row.actions && row.actions[arm + '_ee'];
-      if (acts && Array.isArray(acts.position) && acts.position.length > 1) {
-        const pts = acts.position.map(function (p) { return tv(eeToTable(p)); });
-        out.push('<polyline points="' + pts.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(' ') +
-          '" fill="none" stroke="#2e8b57" stroke-width="0.38" stroke-dasharray="1.5 1.1" stroke-linejoin="round" opacity="0.85"/>');
-      }
-
-      const z = clamp(a.p[2] || 0, 0, 0.5);
-      out.push('<ellipse cx="' + n1(ex) + '" cy="' + n1(ey) + '" rx="' + n1(1.9 + z * 7) +
-        '" ry="' + n1(1.0 + z * 3.4) + '" fill="#23282e" opacity="' +
-        (0.16 - Math.min(0.11, z * 0.35)).toFixed(2) + '"/>');
-
-      out.push('<line x1="' + n1(bx) + '" y1="' + n1(by) + '" x2="' + n1(ex) + '" y2="' + n1(ey) +
-        '" stroke="' + (moving ? '#23282e' : '#4a5560') + '" stroke-width="' + (moving ? 0.95 : 0.6) +
-        '" stroke-linecap="round"' + (moving ? ' class="armGlow"' : '') + '/>');
-
-      const dx = ex - bx, dy = ey - by, d = Math.hypot(dx, dy) || 1;
-      const ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
-      const half = 0.45 + 3.0 * clamp(a.gripper || 0, 0, 1);
-      const tx = ex + ux * 3.1, ty = ey + uy * 3.1;
-      out.push('<path d="M' + n1(tx + nx * half) + ' ' + n1(ty + ny * half) + 'L' + n1(ex) + ' ' + n1(ey) +
-        'L' + n1(tx - nx * half) + ' ' + n1(ty - ny * half) +
-        '" fill="none" stroke="#23282e" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"/>');
-
-      const zx = T.w + 4.5 + (arm === 'left' ? 0 : 2.8);
-      const zh = clamp((a.p[2] || 0) / 0.4, 0, 1) * T.h;
-      out.push('<rect x="' + n1(zx) + '" y="' + n1(T.h - zh) + '" width="1.7" height="' + n1(zh) +
-        '" rx="0.6" fill="' + (arm === 'left' ? '#2f6fd0' : '#c0392b') + '" opacity="0.5"/>');
-      out.push('<line x1="' + n1(zx - 0.4) + '" y1="' + T.h + '" x2="' + n1(zx + 2.1) +
-        '" y2="' + T.h + '" stroke="#8a94a0" stroke-width="0.3"/>');
+  /* ------------------------------------------------------------------ arm geometry per frame */
+  function geoAt(cursor) {
+    const J = S.joints;
+    if (!J || !J.length) return null;
+    const i = clamp(Math.floor(cursor), 0, J.length - 1), j = Math.min(J.length - 1, i + 1), f = clamp(cursor - i, 0, 1);
+    const out = {};
+    ARMS.forEach(function (arm) {
+      const a = J[i] && J[i][arm], b = (J[j] && J[j][arm]) || a;
+      if (!a) { out[arm] = null; return; }
+      out[arm] = {
+        pts: a.points.map(function (p, k) { return lerp3(p, b.points[k], f); }),
+        base: a.base, tool: lerp3(a.tool, b.tool, f), jaw: lerp3(a.jaw, b.jaw, f), grip: lerp(a.gripper, b.gripper, f),
+        q: a.q.map(function (v, k) { return lerp(v, b.q[k], f); }),
+        near: f < 0.5 ? a.near : b.near, ok: f < 0.5 ? a.ok : b.ok, err: a.err
+      };
     });
-    $('dyn').innerHTML = out.join('');
+    return out;
+  }
+
+  function smoothGeo(cur, next, dt) {
+    if (!next) return null;
+    if (!cur) return next;
+    const k = 1 - Math.exp(-dt * 14), out = {};
+    ARMS.forEach(function (arm) {
+      const a = cur[arm], b = next[arm];
+      if (!b) { out[arm] = null; return; }
+      if (!a) { out[arm] = b; return; }
+      out[arm] = {
+        pts: b.pts.map(function (p, n) { return lerp3(a.pts[n], p, k); }),
+        base: b.base, tool: lerp3(a.tool, b.tool, k), jaw: lerp3(a.jaw, b.jaw, k), grip: lerp(a.grip, b.grip, k),
+        q: b.q.map(function (v, n) { return lerp(a.q[n], v, k); }), near: b.near, ok: b.ok, err: b.err
+      };
+    });
+    return out;
+  }
+
+  function isFallback(g) { return !!g && ARMS.some(function (a) { return g[a] && g[a].fallback; }); }
+
+  function fallbackGeo(pose) {  // no joints yet: base -> EE from the home-relative state (grey, dashed)
+    if (!pose) return null;
+    const out = {};
+    ARMS.forEach(function (arm) {
+      const a = pose[arm];
+      if (!a) { out[arm] = null; return; }
+      const sg = arm === 'left_ee' ? 1 : -1, H = CFG.HOME_EE;
+      const ee = [H[0] + a.p[0], sg * CFG.FRAME.arm_y + H[1] + a.p[1], CFG.FRAME.arm_z + H[2] + a.p[2]];
+      out[arm] = { fallback: true, pts: [ee], base: [0, sg * CFG.FRAME.arm_y, CFG.FRAME.arm_z], grip: a.gripper };
+    });
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ arm drawing */
+  function chainSvg(g, arm, proj, glow, labels) {
+    const out = [], sd = side(arm), ok = g.ok !== false && !g.fallback;
+    const col = ok ? CFG.ARM_COL[sd] : CFG.FAIL, dash = ok ? '' : ' stroke-dasharray="1.4 1"';
+    const P = [g.base].concat(g.pts).map(proj);
+    out.push('<polyline points="' + P.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(' ') +
+      '" fill="none" stroke="' + col + '" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"' + dash +
+      (glow ? ' class="armGlow ' + sd + '"' : '') + '/>');
+    out.push('<circle cx="' + n1(P[0][0]) + '" cy="' + n1(P[0][1]) + '" r="1.3" fill="' + col + '"/>');
+    if (!g.fallback) {
+      const tip = g.pts[6], half = CFG.GRIP_HALF_M * clamp(g.grip, 0, 1), L = CFG.FINGER_M;
+      const fing = [1, -1].map(function (s) {
+        const ft = [0, 1, 2].map(function (n) { return tip[n] + s * half * g.jaw[n]; });
+        const fr = [0, 1, 2].map(function (n) { return ft[n] - L * g.tool[n]; });
+        return [proj(fr), proj(ft)];
+      });
+      out.push('<path d="M' + n1(fing[0][0][0]) + ' ' + n1(fing[0][0][1]) + 'L' + n1(fing[1][0][0]) + ' ' + n1(fing[1][0][1]) +
+        'M' + n1(fing[0][0][0]) + ' ' + n1(fing[0][0][1]) + 'L' + n1(fing[0][1][0]) + ' ' + n1(fing[0][1][1]) +
+        'M' + n1(fing[1][0][0]) + ' ' + n1(fing[1][0][1]) + 'L' + n1(fing[1][1][0]) + ' ' + n1(fing[1][1][1]) +
+        '" fill="none" stroke="' + col + '" stroke-width="0.6" stroke-linecap="round"' + dash + '/>');
+      const groups = [];  // joints drawn on top of each other (e.g. q1-q4 at rest) share one label line
+      for (let k = 0; k < 6; k++) {
+        const p = P[k + 1], lim = ok && g.near && g.near[k], gr = groups[groups.length - 1];
+        out.push('<circle cx="' + n1(p[0]) + '" cy="' + n1(p[1]) + '" r="' + (lim ? 1.05 : 0.85) + '" fill="' +
+          (lim ? CFG.LIMIT : '#fff') + '" stroke="' + (lim ? CFG.LIMIT : col) + '" stroke-width="0.4"/>');
+        if (gr && Math.hypot(p[0] - gr.p[0], p[1] - gr.p[1]) < 2.6) gr.ks.push(k);
+        else groups.push({ p: p, ks: [k] });
+      }
+      if (labels) {
+        const left = sd === 'left';
+        groups.forEach(function (gr) {
+          out.push('<text x="' + n1(gr.p[0] + (left ? -1.4 : 1.4)) + '" y="' + n1(gr.p[1] + 0.6) + '" text-anchor="' +
+            (left ? 'end' : 'start') + '" font-size="1.75">' + gr.ks.map(function (k) {
+              const lim = ok && g.near && g.near[k];
+              return '<tspan fill="' + (lim ? CFG.LIMIT : ok ? '#4a5560' : CFG.FAIL) + '">q' + (k + 1) + ' ' +
+                Math.round(g.q[k] * 180 / Math.PI) + '°</tspan>';
+            }).join(' ') + '</text>');
+        });
+      }
+    } else {
+      const e = P[1];
+      out.push('<text x="' + n1(e[0]) + '" y="' + n1(e[1] - 1.6) + '" text-anchor="middle" font-size="1.9" fill="' + CFG.FAIL + '">no joints</text>');
+    }
+    return out.join('');
+  }
+
+  function predSvg(path, tip, proj) {
+    if (!path || path.length < 1) return '';
+    const pts = (tip ? [tip] : []).concat(path).map(proj);
+    return '<polyline points="' + pts.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(' ') +
+      '" fill="none" stroke="' + CFG.PRED + '" stroke-width="0.5" stroke-dasharray="0.15 0.9" stroke-linecap="round" opacity="0.95"/>' +
+      '<circle cx="' + n1(pts[pts.length - 1][0]) + '" cy="' + n1(pts[pts.length - 1][1]) + '" r="0.7" fill="none" stroke="' +
+      CFG.PRED + '" stroke-width="0.35"/>';
+  }
+
+  function paintArms(geo, jrow, dt) {
+    const now = performance.now(), top = [], sideOut = [];
+    ARMS.forEach(function (arm) {
+      const g = geo && geo[arm];
+      if (!g) return;
+      const tip = g.fallback ? g.pts[0] : g.pts[6];
+      const pv = S.prevTip[arm];
+      const spd = pv ? Math.hypot(tip[0] - pv[0], tip[1] - pv[1], tip[2] - pv[2]) / Math.max(dt, 0.016) : 0;
+      S.prevTip[arm] = tip;
+      const glow = spd > CFG.MOVE_M_S;
+      const tr = S.trail[arm], tp = toTop(tip);
+      if (!tr.length || Math.hypot(tp[0] - tr[tr.length - 1].x, tp[1] - tr[tr.length - 1].y) > 0.25) tr.push({ x: tp[0], y: tp[1], t: now });
+      while (tr.length && now - tr[0].t > 1600) tr.shift();
+      for (let i = 1; i < tr.length; i++)
+        top.push('<line x1="' + n1(tr[i - 1].x) + '" y1="' + n1(tr[i - 1].y) + '" x2="' + n1(tr[i].x) + '" y2="' + n1(tr[i].y) +
+          '" stroke="' + CFG.ARM_COL[side(arm)] + '" stroke-width="0.7" stroke-linecap="round" stroke-opacity="' +
+          (i / tr.length * 0.35).toFixed(2) + '"/>');
+      const z = clamp(tip[2] - CFG.FRAME.table_z, 0, 0.5);
+      top.push('<ellipse cx="' + n1(tp[0]) + '" cy="' + n1(tp[1]) + '" rx="' + n1(1.6 + z * 7) + '" ry="' + n1(0.9 + z * 3.4) +
+        '" fill="#23282e" opacity="' + (0.15 - Math.min(0.1, z * 0.3)).toFixed(2) + '"/>');
+      const pred = jrow && jrow.pred && jrow.pred[arm];
+      top.push(predSvg(pred, tip, toTop));
+      sideOut.push(predSvg(pred, tip, toSide));
+      top.push(chainSvg(g, arm, toTop, glow, true));
+      sideOut.push(chainSvg(g, arm, toSide, glow, true));
+    });
+    $('topDyn').innerHTML = top.join('');
+    $('sideDyn').innerHTML = sideOut.join('');
   }
 
   /* ------------------------------------------------------------------ rows / poses */
@@ -279,9 +432,9 @@
     const st = A || B;
     if (!st) return null;
     const out = {};
-    ['left_ee', 'right_ee'].forEach(function (k) {
+    ARMS.forEach(function (k) {
       const a = (A && A[k]) || st[k], b = (B && B[k]) || a;
-      if (!a || !b || !a.position || !b.position) return;
+      if (!a || !b || !Array.isArray(a.position) || !Array.isArray(b.position)) return;
       const ar = a.rotation_rpy || [0, 0, 0], br = b.rotation_rpy || [0, 0, 0];
       out[k] = {
         p: [0, 1, 2].map(function (n) { return lerp(a.position[n], b.position[n], f); }),
@@ -319,25 +472,33 @@
       '" fill="none" stroke="#5b6570" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round"/>';
   }
 
-  function renderPoseVals(pose) {
+  function renderPoseVals(pose, geo) {
     let html = '';
     ['left', 'right'].forEach(function (arm) {
-      const a = pose[arm + '_ee'];
+      const a = pose && pose[arm + '_ee'];
       if (!a) return;
+      const g = geo && geo[arm + '_ee'];
       const h = S.hist[arm];
       h.z.push(a.p[2]); if (h.z.length > 40) h.z.shift();
       h.g.push(a.gripper); if (h.g.length > 40) h.g.shift();
+      let qs = '';
+      if (g && !g.fallback) {
+        qs = g.q.map(function (v, k) {
+          const cls = g.ok === false ? 'bad' : (g.near && g.near[k] ? 'lim' : '');
+          return '<span class="' + cls + '"><i>q' + (k + 1) + '</i> ' + deg(v) + '°</span>';
+        }).join('') + '<span><i>ik</i> ' + (g.ok === false ? 'fail' : 'ok') + '</span><span></span>';
+      }
       html += '<div class="armRow">' +
         '<div class="armName ' + arm + '">' + arm + '</div>' +
         '<div class="vals">' +
-          '<span><i>x</i> ' + mm(a.p[0]) + '</span>' +
-          '<span><i>y</i> ' + mm(a.p[1]) + '</span>' +
-          '<span><i>z</i> ' + mm(a.p[2]) + '</span>' +
-          '<span><i>grip</i> ' + Math.round(clamp(a.gripper, 0, 1) * 100) + '%</span>' +
+          '<span><i>Δx</i> ' + mm(a.p[0]) + '</span>' +
+          '<span><i>Δy</i> ' + mm(a.p[1]) + '</span>' +
+          '<span><i>Δz</i> ' + mm(a.p[2]) + '</span>' +
+          '<span><i>grip</i> ' + Math.round(clamp(a.gripper / 1.526, 0, 1) * 100) + '%</span>' +
           '<span><i>r</i> ' + deg(a.rpy[0]) + '</span>' +
           '<span><i>p</i> ' + deg(a.rpy[1]) + '</span>' +
           '<span><i>yaw</i> ' + deg(a.rpy[2]) + '</span>' +
-          '<span></span>' +
+          '<span></span>' + qs +
         '</div>' +
         '<svg class="spark" viewBox="0 0 60 18" preserveAspectRatio="none">' + spark(h.z) + '</svg>' +
       '</div>';
@@ -383,17 +544,80 @@
     return (S.summary && S.summary.duration_s) || 0;
   }
 
+  /* trial stats, accumulated as rows arrive (never recomputed over every row per frame) */
+  function resetStats() { S.stats = { n: 0, wallx: 0, lat: [], perState: {}, lastT: null, lastState: null, ver: 0, sorted: null }; }
+
+  function addStats(rows) {
+    const st = S.stats;
+    rows.forEach(function (r) {
+      const state = (r.harness && r.harness.state) || String(r.source || '—').toUpperCase();
+      const t = typeof r.t === 'number' ? r.t : null;
+      if (st.lastT != null && t != null) st.perState[st.lastState] = (st.perState[st.lastState] || 0) + Math.max(0, t - st.lastT);
+      if (t != null) st.lastT = t;
+      st.lastState = state;
+      st.n++;
+      if (r.source === 'wallx') st.wallx++;
+      if (typeof r.latency_ms === 'number') st.lat.push(r.latency_ms);
+    });
+    st.sorted = null;
+    st.ver++;
+  }
+
+  function latStats() {
+    const st = S.stats;
+    if (!st.sorted) st.sorted = st.lat.slice().sort(function (a, b) { return a - b; });
+    const v = st.sorted;
+    if (!v.length) return { mean: null, p95: null };
+    return { mean: v.reduce(function (a, x) { return a + x; }, 0) / v.length, p95: v[Math.min(v.length - 1, Math.ceil(v.length * 0.95) - 1)] };
+  }
+
+  function fmtS(s) { return s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + 'm ' + String(Math.round(s % 60)).padStart(2, '0') + 's'; }
+
+  function subgoalChart() {  // seconds per harness state (sub-goal), longest first
+    const ps = S.stats.perState;
+    const keys = Object.keys(ps).filter(function (k) { return ps[k] > 0; }).sort(function (a, b) { return ps[b] - ps[a]; }).slice(0, 7);
+    if (!keys.length) return '<div class="muted">no timing yet</div>';
+    const max = ps[keys[0]], rh = 7;
+    let s = '<svg class="chart" viewBox="0 0 100 ' + keys.length * rh + '">';
+    keys.forEach(function (k, i) {
+      const w = ps[k] / max * 56, y = i * rh;
+      s += '<text x="0" y="' + (y + 5) + '" font-size="4.1" fill="#5b6570">' + esc(k) + '</text>' +
+        '<rect x="22" y="' + (y + 1.2) + '" width="' + w.toFixed(1) + '" height="4.6" rx="1" fill="' + (STATE_COLORS[k] || '#9aa6b2') + '"/>' +
+        '<text x="' + (23.5 + w).toFixed(1) + '" y="' + (y + 5) + '" font-size="3.9" fill="#23282e">' + fmtS(ps[k]) + '</text>';
+    });
+    return s + '</svg>';
+  }
+
+  function successChart() {  // every trial attempt once: recorded trials + agent trials that have no recording, in time order
+    const items = [];
+    (S.story || []).forEach(function (it) {
+      if (it.kind === 'trial') items.push({ id: it.id, v: it.verdict });
+      else (it.trials || []).forEach(function (t) { if (!t.replay) items.push({ id: it.id + ' · trial ' + t.trial, v: t.verdict }); });
+    });
+    if (!items.length) return '<div class="muted">no trials yet</div>';
+    const isJudged = function (v) { return !!v && !/^(live|none|no verdict)$/.test(v); };
+    const judged = items.filter(function (x) { return isJudged(x.v); }), ok = judged.filter(function (x) { return x.v === 'ok'; }).length;
+    const last = items.slice(-40), bw = 100 / Math.max(last.length, 14);
+    let s = '<svg class="chart" viewBox="0 0 100 16" preserveAspectRatio="none">';
+    last.forEach(function (x, i) {
+      const col = x.v === 'ok' ? '#2e8b57' : x.v === 'hold' ? '#e67e22' : isJudged(x.v) ? '#c0392b' : '#b9c3cd';
+      const hgt = x.v === 'ok' ? 15 : isJudged(x.v) ? 9 : 4;
+      s += '<rect x="' + (i * bw + bw * 0.11).toFixed(2) + '" y="' + (16 - hgt) + '" width="' + (bw * 0.78).toFixed(2) + '" height="' + hgt +
+        '" rx="0.6" fill="' + col + '"><title>' + esc(x.id + ' · ' + (x.v || 'none')) + '</title></rect>';
+    });
+    return '<div class="kv"><span>success across trials</span><b>' + ok + ' / ' + judged.length + ' judged' +
+      (judged.length ? ' (' + Math.round(ok / judged.length * 100) + ' %)' : '') + '</b></div>' + s + '</svg>';
+  }
+
   function renderPerf(row) {
-    const rows = S.rows;
-    const wallx = rows.filter(function (r) { return r.source === 'wallx'; }).length;
-    const lat = rows.map(function (r) { return typeof r.latency_ms === 'number' ? r.latency_ms : null; })
-      .filter(function (v) { return v != null; }).sort(function (a, b) { return a - b; });
-    const mean = lat.length ? lat.reduce(function (s, v) { return s + v; }, 0) / lat.length : null;
-    const p95 = lat.length ? lat[Math.min(lat.length - 1, Math.ceil(lat.length * 0.95) - 1)] : null;
     const spent = spentS();
+    const h = (row && row.harness) || {};
+    const key = [S.id, S.stats.ver, Math.round(spent), h.parcels, h.lane, S.storySig.length, S.summary && S.summary.parcels].join('|');
+    if (key === S.perfKey) return;  // nothing changed: no DOM work
+    S.perfKey = key;
+    const L = latStats(), mean = L.mean, p95 = L.p95, wallx = S.stats.wallx, rows = { length: S.stats.n };
     const frac = clamp(spent / CFG.CASE_S, 0, 1);
     const C = 2 * Math.PI * 17;
-    const h = (row && row.harness) || {};
     const parcels = h.parcels != null ? h.parcels
       : (S.summary && S.summary.parcels != null ? S.summary.parcels : '—');
     $('perf').innerHTML =
@@ -417,37 +641,63 @@
       '<div class="kv"><span>parcels</span><b>' + esc(parcels) + '</b></div>' +
       '<div class="kv"><span>lane</span><b>' + esc(h.lane || '—') + '</b></div>' +
       '<div class="kv"><span>goal</span><b>' +
-        esc(((S.meta && S.meta.goal) || (row && row.goal) || '—')).slice(0, 42) + '</b></div>';
+        esc(((S.meta && S.meta.goal) || (row && row.goal) || '—')).slice(0, 42) + '</b></div>' +
+      '<div class="perfSub">time per sub-goal</div>' + subgoalChart() +
+      '<div class="perfSub">all trials</div>' + successChart();
   }
 
   /* ------------------------------------------------------------------ cameras */
+  function nearestEarlier(list, idx) {  // binary search in sorted row indices
+    if (!list || !list.length) return null;
+    let lo = 0, hi = list.length - 1, ans = null;
+    while (lo <= hi) {
+      const m = (lo + hi) >> 1;
+      if (list[m] <= idx) { ans = list[m]; lo = m + 1; } else hi = m - 1;
+    }
+    return ans;
+  }
+
+  function setSrc(img, src) { if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; } }
+
   function renderCams(idx) {
     const wrap = $('cams');
     if (!wrap.dataset.built) {
-      wrap.innerHTML = CFG.CAMERAS.map(function (c) {
-        return '<figure><img id="cam_' + c + '" alt="' + c + '"><figcaption>' +
-          c.replace('_', ' ') + '</figcaption></figure>';
-      }).join('');
+      const fig = function (c, cap) { return '<figure><img id="cam_' + c + '" alt="' + c + '"><figcaption>' + cap + '</figcaption></figure>'; };
+      wrap.innerHTML = '<div class="camPair">' + fig('front', 'front · raw') +
+        '<figure id="ovFig"><img id="cam_front_overlay" alt="the front image as WALLX saw it">' +
+        '<div class="camNote" id="ovNote" hidden></div><figcaption id="ovCap">what WALLX saw</figcaption></figure></div>' +
+        '<div class="cams2">' + fig('left_wrist', 'left wrist') + fig('right_wrist', 'right wrist') + '</div>';
       wrap.dataset.built = '1';
-      CFG.CAMERAS.forEach(function (c) {
+      CFG.CAMERAS.concat(['front_overlay']).forEach(function (c) {
         const img = $('cam_' + c);
         img.addEventListener('error', function () { img.style.opacity = '0.18'; });
         img.addEventListener('load', function () { img.style.opacity = '1'; });
       });
     }
     if (!S.id) return;
-    CFG.CAMERAS.forEach(function (c) {
-      const img = $('cam_' + c);
-      const src = '/api/trials/' + encodeURIComponent(S.id) + '/frame/' + idx + '/' + c;
-      if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; }
-    });
+    const base = '/api/trials/' + encodeURIComponent(S.id) + '/frame/';
+    CFG.CAMERAS.forEach(function (c) { setSrc($('cam_' + c), base + idx + '/' + c); });
+    const ov = S.frames && S.frames.front_overlay, k = nearestEarlier(ov, idx);
+    const img = $('cam_front_overlay'), note = $('ovNote');
+    img.hidden = k == null;
+    note.hidden = k != null;
+    $('ovFig').classList.toggle('exact', k === idx);
+    if (k == null) {
+      note.textContent = ov && ov.length ? 'no masked frame sent to WALLX yet at this row'
+        : 'no overlay recorded in this trial: WALLX saw the raw front image';
+      $('ovCap').textContent = 'what WALLX saw';
+    } else {
+      setSrc(img, base + k + '/front_overlay');
+      $('ovCap').textContent = 'what WALLX saw · row ' + k + (idx > k ? ' (' + (idx - k) + ' row' + (idx - k > 1 ? 's' : '') + ' ago)' : '');
+    }
   }
 
   /* ------------------------------------------------------------------ timeline */
   const STATE_COLORS = {
     IDLE: '#b9c3cd', SCAN: '#5b8def', LOOK: '#7c6ce0', SPIN: '#e0a13a', SHOW: '#2e8b57',
     SHOWSET: '#48a37a', SLIDE: '#c98a1b', SWIPE: '#c0392b', HOME: '#8a94a0', DONE: '#2e8b57',
-    CALIB: '#8e44ad'
+    CALIB: '#8e44ad', PLACE: '#2f6fd0', REJECT: '#555b61', LIFT2: '#1f7a8c', INSPECT: '#9b59b6',
+    CENTER: '#d35400', HOLD: '#e74c3c', STAND: '#16a085', PICK: '#27ae60', VERIFY: '#7f8c8d'
   };
 
   function rebuildTimeline() {
@@ -467,60 +717,189 @@
         '%;width:' + ((s.to - s.from + 1) / n * 100).toFixed(2) + '%;background:' +
         (STATE_COLORS[s.state] || '#9aa6b2') + '"><span>' + esc(s.state) + '</span></div>';
     });
+    const ticks = [], flags = [];  // one SVG path each, however many rows: transitions as short ticks, flags as red marks
     rows.forEach(function (r, i) {
       const h = r.harness || {};
-      if (h.transitions && h.transitions.length)
-        html += '<div class="tlTick" style="left:' + (i / n * 100).toFixed(2) + '%"></div>';
+      if (h.transitions && h.transitions.length) ticks.push('M' + (i + 0.5) + ' 0V0.22');
+      if (h.flags && h.flags.length) flags.push('M' + (i + 0.5) + ' 0V1');
     });
+    html += '<svg class="tlTicks" viewBox="0 0 ' + n + ' 1" preserveAspectRatio="none">' +
+      '<path d="' + ticks.join('') + '" stroke="rgba(35,40,46,.6)" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+      '<path d="' + flags.join('') + '" stroke="#c0392b" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>';
     html += '<div class="tlHead" id="tlHead"></div></div>';
     tl.innerHTML = html;
+    S.tlDirty = false;
+    S.tlAt = performance.now();
   }
 
   /* ------------------------------------------------------------------ log */
-  function rebuildLog() {
-    const entries = [];
-    S.rows.forEach(function (r, i) {
-      const h = r.harness || {};
-      const prev = i ? ((S.rows[i - 1].harness || {}).state) : null;
-      const bits = [];
-      if (h.state && h.state !== prev) bits.push('→ ' + h.state);
-      if (h.transitions && h.transitions.length) bits.push('transition ' + JSON.stringify(h.transitions));
-      if (h.flags && h.flags.length) bits.push('flag ' + JSON.stringify(h.flags));
-      if (h.codes && h.codes.length)
-        bits.push('code ' + h.codes.map(function (c) { return String(c && c[0]); }).join(' '));
-      if (r.error) bits.push('error ' + r.error);
-      if (!bits.length) return;
-      entries.push({ i: i, t: r.t, text: bits.join(' · ') });
-    });
-    const el = $('log');
-    if (!entries.length) { el.innerHTML = '<div class="muted">nothing yet</div>'; return; }
-    el.innerHTML = entries.map(function (e, k) {
-      const ts = e.t ? new Date(e.t * 1000).toLocaleTimeString() : '';
-      return '<div class="logRow" id="logrow_' + k + '"><span class="lt">' + ts + '</span>' + esc(e.text) + '</div>';
-    }).join('');
+  function logText(i) {
+    const r = S.rows[i], h = r.harness || {};
+    const prev = i ? ((S.rows[i - 1].harness || {}).state) : null;
+    const bits = [];
+    if (h.state && h.state !== prev) bits.push('→ ' + h.state);
+    if (h.transitions && h.transitions.length) bits.push('transition ' + JSON.stringify(h.transitions));
+    if (h.flags && h.flags.length) bits.push('flag ' + JSON.stringify(h.flags));
+    if (h.codes && h.codes.length)
+      bits.push('code ' + h.codes.map(function (c) { return String(c && c[0]); }).join(' '));
+    if (r.error) bits.push('error ' + r.error);
+    return bits.join(' · ');
+  }
+
+  function appendLog(from) {  // from 0 = rebuild; else only the rows that just arrived are added (no per-row DOM rebuild)
+    const el = $('log'), html = [];
+    if (from === 0) { S.logIndex = []; S.logHi = -1; el.innerHTML = ''; }
+    for (let i = from; i < S.rows.length; i++) {
+      const text = logText(i);
+      if (!text) continue;
+      const t = S.rows[i].t, k = S.logIndex.length;
+      S.logIndex.push(i);
+      html.push('<div class="logRow" id="logrow_' + k + '"><span class="lt">' + (t ? new Date(t * 1000).toLocaleTimeString() : '') +
+        '</span>' + esc(text) + '</div>');
+    }
+    if (html.length) {
+      const ph = el.querySelector('.muted');
+      if (ph) ph.remove();
+      el.insertAdjacentHTML('beforeend', html.join(''));
+    } else if (!S.logIndex.length) el.innerHTML = '<div class="muted">nothing yet</div>';
   }
 
   function highlightLog(i) {
-    const rows = $('log').children;
-    let hi = -1;
-    for (let k = 0; k < rows.length; k++) {
-      if (!S.logEntries) break;
+    let hi = -1, lo = 0, up = S.logIndex.length - 1;  // binary search: the last log entry at or before row i
+    while (lo <= up) {
+      const m = (lo + up) >> 1;
+      if (S.logIndex[m] <= i) { hi = m; lo = m + 1; } else up = m - 1;
     }
-    hi = S.logHi;
-    if (!S.logIndex) return;
-    hi = -1;
-    for (let k = 0; k < S.logIndex.length; k++) if (S.logIndex[k] <= i) hi = k;
     if (hi === S.logHi) return;
     if (S.logHi >= 0 && $('logrow_' + S.logHi)) $('logrow_' + S.logHi).classList.remove('hi');
     if (hi >= 0 && $('logrow_' + hi)) {
-      $('logrow_' + hi).classList.add('hi');
-      if (S.follow) {
-        const el = $('log');
-        const r = $('logrow_' + hi);
-        el.scrollTop = Math.max(0, r.offsetTop - el.clientHeight / 2);
-      }
+      const r = $('logrow_' + hi);
+      r.classList.add('hi');
+      const el = $('log');
+      el.scrollTop = Math.max(0, r.offsetTop - el.offsetTop - el.clientHeight / 2);
     }
     S.logHi = hi;
+  }
+
+  /* ------------------------------------------------------------------ story */
+  function when(epoch) {
+    return epoch ? new Date(epoch * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  }
+
+  function verdictPill(v) { return '<span class="verdict ' + esc(String(v).split('/')[0]) + '">' + esc(v) + '</span>'; }
+
+  function storyBar(blocks, flags) {  // sub-goal timeline: blocks sized by seconds (rows when no time), flags as red markers
+    if (!blocks || !blocks.length) return '';
+    const useS = blocks.every(function (b) { return typeof b.s === 'number'; }) && blocks.some(function (b) { return b.s > 0; });
+    const w = blocks.map(function (b) { return useS ? Math.max(b.s, 0) : (b.to - b.from + 1); });
+    const tot = w.reduce(function (a, v) { return a + v; }, 0) || 1;
+    let x = 0, html = '<div class="tl sm">';
+    const pos = blocks.map(function (b, k) {
+      const bw = w[k] / tot * 100, p = [x, bw];
+      html += '<div class="tlSeg" title="' + esc(b.state) + (typeof b.s === 'number' ? ' · ' + b.s + ' s' : '') + '" style="left:' +
+        x.toFixed(2) + '%;width:' + bw.toFixed(2) + '%;background:' + (STATE_COLORS[b.state] || '#9aa6b2') + '"><span>' +
+        (bw > 7 ? esc(b.state) : '') + '</span></div>';
+      x += bw;
+      return p;
+    });
+    (flags || []).forEach(function (f) {
+      const k = blocks.findIndex(function (b) { return b.from <= f.i && f.i <= b.to; });
+      if (k < 0) return;
+      const b = blocks[k], mx = pos[k][0] + (f.i - b.from + 0.5) / (b.to - b.from + 1) * pos[k][1];
+      html += '<div class="tlFlag" style="left:' + mx.toFixed(2) + '%" title="' + esc(f.flag) + ' (row ' + f.i + ')"></div>';
+    });
+    return html + '</div>';
+  }
+
+  function wordingText(w) {
+    if (Array.isArray(w)) return w.map(function (s) { return '<q>' + esc(s) + '</q>'; }).join(' → ');
+    if (w && typeof w === 'object')
+      return Object.keys(w).map(function (k) { return k + ' <q>' + esc([].concat(w[k]).join(' | ')) + '</q>'; }).join(' · ');
+    return '';
+  }
+
+  function storyTrial(it) {
+    const meta = [];
+    if (it.wording && it.wording.length) meta.push('wording ' + wordingText(it.wording));
+    meta.push('overlay ' + esc(it.overlay || 'none') + (it.stage ? ' · staged' : ''));
+    if (it.codes && it.codes.length) meta.push('read ' + esc(it.codes.join(', ')));
+    if (it.agent) meta.push('agent run ' + esc(it.agent) + ' · trial ' + esc(it.agent_trial));
+    return '<div class="st" data-id="' + esc(it.id) + '"><div class="stHead"><span class="when">' + when(it.epoch) + '</span>' +
+      '<span class="kind trial">trial</span><span>' + esc(it.id) + '</span>' + verdictPill(it.verdict) +
+      '<span>' + (it.duration_s != null ? Math.round(it.duration_s) + ' s' : '—') + '</span>' +
+      '<span>' + (it.retries || 0) + ' retr' + (it.retries === 1 ? 'y' : 'ies') + '</span>' +
+      '<span class="muted">' + (it.wallx_calls || 0) + ' WALLX / ' + (it.calls || 0) + ' calls</span><span class="grow"></span>' +
+      '<button data-replay="' + esc(it.id) + '">replay ▶</button></div>' +
+      '<div class="stMeta">' + meta.join(' · ') + '</div>' + storyBar(it.blocks, it.flags) + '</div>';
+  }
+
+  function storyAgent(it) {
+    const subs = (it.trials || []).map(function (t) {
+      return '<div><div class="stHead"><span>trial ' + esc(t.trial) + '</span>' + verdictPill(t.verdict || 'none') +
+        '<span>' + (t.seconds_to_verdict != null ? Math.round(t.seconds_to_verdict) + ' s' : '—') + '</span>' +
+        '<span>' + (t.retries || 0) + ' retries</span><span class="muted">overlay ' + esc(t.overlay || 'none') +
+        (t.stage ? ' · staged' : '') + '</span><span class="grow"></span>' +
+        (t.replay ? '<button data-replay="' + esc(t.replay) + '">replay ▶</button>'
+                  : '<button disabled title="no recorded trial matches this run">no recording</button>') + '</div>' +
+        '<div class="stMeta">' + (t.note ? esc(t.note) + ' · ' : '') + wordingText(t.wording) + '</div>' +
+        storyBar(t.blocks, t.flags) + '</div>';
+    }).join('');
+    return '<div class="st agent" data-agent="' + esc(it.id) + '"><div class="stHead"><span class="when">' + when(it.epoch) + '</span>' +
+      '<span class="kind agent">agent run</span><span>' + esc(it.title || it.id) + '</span>' + verdictPill(it.verdict) +
+      '<span class="grow"></span>' + (it.report ? '<button data-report="' + esc(it.id) + '">report</button>' : '') + '</div>' +
+      (subs ? '<div class="stSub">' + subs + '</div>' : '') + '<pre class="report" hidden></pre></div>';
+  }
+
+  function renderStory() {
+    const el = $('story'), atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+    el.innerHTML = S.story.length ? S.story.map(function (it) { return it.kind === 'agent' ? storyAgent(it) : storyTrial(it); }).join('')
+      : '<div class="muted">no trials or agent runs yet</div>';
+    if (atEnd || !S.storyShown) el.scrollTop = el.scrollHeight;  // newest at the bottom: keep following it
+    S.storyShown = true;
+    markStory();
+  }
+
+  function markStory() {
+    Array.prototype.forEach.call($('story').querySelectorAll('.st[data-id]'), function (n) {
+      n.classList.toggle('cur', n.dataset.id === S.id);
+    });
+  }
+
+  async function loadStory() {
+    try {
+      const d = await api('/api/story');
+      const sig = JSON.stringify(d);
+      if (sig === S.storySig) return;   // nothing changed: no DOM rebuild
+      S.storySig = sig;
+      S.story = d;
+      renderStory();
+    } catch (e) { /* next refresh retries */ }
+  }
+
+  async function replay(id) {
+    setPlaying(false);
+    S.follow = false;
+    const sel = $('trialPicker');
+    if (!Array.prototype.some.call(sel.options, function (o) { return o.value === id; })) await refreshTrials();
+    await loadTrial(id);
+    sel.value = id;
+    S.cursor = 0;
+    updateScrub();
+    setPlaying(true);
+    $('tableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function toggleReport(btn) {
+    const pre = btn.closest('.st').querySelector('pre.report');
+    if (!pre.hidden) { pre.hidden = true; return; }
+    if (!pre.dataset.loaded) {
+      try {
+        const d = await api('/api/agent/' + encodeURIComponent(btn.dataset.report));
+        pre.textContent = d.report || JSON.stringify(d.journal, null, 1);
+        pre.dataset.loaded = '1';
+      } catch (e) { pre.textContent = 'report unavailable'; }
+    }
+    pre.hidden = false;
   }
 
   /* ------------------------------------------------------------------ data */
@@ -528,6 +907,31 @@
     const r = await fetch(path, { cache: 'no-store' });
     if (!r.ok) throw new Error(path + ' -> ' + r.status);
     return r.json();
+  }
+
+  async function loadJoints(force) {
+    if (!S.id || S.jBusy) return;
+    const now = performance.now();
+    if (!force && (now - S.jAt < CFG.JOINTS_MS || (S.joints && S.joints.length >= S.rows.length))) return;
+    S.jBusy = true;
+    S.jAt = now;
+    const id = S.id;
+    try {
+      const d = await api('/api/trials/' + encodeURIComponent(id) + '/joints');
+      if (id === S.id) {
+        S.joints = d.joints || [];
+        S.jFail = false;
+        if (d.frame) CFG.FRAME = d.frame;
+        const bad = S.joints.reduce(function (n, e) {
+          return n + ARMS.filter(function (a) { return e[a] && !e[a].ok; }).length;
+        }, 0);
+        $('ikNote').textContent = bad ? (bad + ' arm poses without an IK solution') : '';
+      }
+    } catch (e) {
+      S.jFail = true;   // drawn from the raw state (grey) until the next try
+    } finally {
+      S.jBusy = false;
+    }
   }
 
   function updateScrub() {
@@ -551,33 +955,41 @@
     S.id = id;
     S.after = -1;
     S.rows = [];
+    S.joints = null;
     S.pose = null;
+    S.geo = null;
     S.summary = null;
-    S.prev = { left: null, right: null };
-    S.trail = { left: [], right: [] };
+    S.prevTip = { left_ee: null, right_ee: null };
+    S.trail = { left_ee: [], right_ee: [] };
     S.hist = { left: { z: [], g: [] }, right: { z: [], g: [] } };
     S.shownFrame = -1;
     S.logHi = -1;
     S.logIndex = [];
-    S.logEntries = null;
     const d = await api('/api/trials/' + encodeURIComponent(id));
     S.meta = d.meta || {};
     S.summary = d.summary || null;
+    S.frames = d.frames || {};
     S.rows = d.rows || [];
+    resetStats();
+    addStats(S.rows);
+    S.perfKey = '';
     const last = S.rows[S.rows.length - 1];
     S.after = last ? (Number.isFinite(last.index) ? last.index : S.rows.length - 1) : -1;
     S.cursor = Math.max(0, S.rows.length - 1);
     updateScrub();
     rebuildTimeline();
-    rebuildLog();
+    appendLog(0);
     renderSlow(true);
+    loadJoints(true);
+    markStory();
   }
 
   async function poll() {
     if (S.busy) return;
     S.busy = true;
     try {
-      if (S.follow) {
+      if (S.follow && Date.now() - S.listAt > CFG.LIST_MS) {  // a new trial started? (the list is not re-read on every 300 ms poll)
+        S.listAt = Date.now();
         const list = await api('/api/trials');
         S.trials = list;
         const newest = list.length ? list[0].id : null;
@@ -590,20 +1002,24 @@
       if (!S.id) return;
       const add = await api('/api/trials/' + encodeURIComponent(S.id) + '/rows?after=' + S.after);
       if (add.length) {
-        S.rows = S.rows.concat(add);
+        const from = S.rows.length;
+        Array.prototype.push.apply(S.rows, add);  // append in place: no copy of a long trial per poll
+        addStats(add);
         const last = add[add.length - 1];
         S.after = Number.isFinite(last.index) ? last.index : S.after + add.length;
         updateScrub();
-        rebuildTimeline();
-        rebuildLog();
+        S.tlDirty = true;   // rebuilt at most once a second (renderSlow)
+        appendLog(from);
         renderSlow(true);
       }
+      loadJoints(false);
       if (S.follow) S.cursor = Math.max(0, S.rows.length - 1);
       if (Date.now() - S.summaryAt > 2000) {
         S.summaryAt = Date.now();
-        const d = await api('/api/trials/' + encodeURIComponent(S.id));
+        const d = await api('/api/trials/' + encodeURIComponent(S.id) + '?rows=0');   // no rows: cheap on long trials
         S.summary = d.summary || null;
         S.meta = d.meta || S.meta;
+        S.frames = d.frames || S.frames;
       }
     } catch (e) {
       /* server not up yet / trial rotated under us: the next poll retries */
@@ -619,15 +1035,15 @@
     S.lastSlow = now;
     const i = clamp(Math.round(S.cursor), 0, Math.max(0, S.rows.length - 1));
     const row = S.rows[i] || null;
-    if (S.pose) renderPoseVals(S.pose);
+    if (S.pose) renderPoseVals(S.pose, S.geo);
     renderChips(row);
     renderPerf(row);
     if (row) {
       const idx = Number.isFinite(row.index) ? row.index : i;
       if (idx !== S.shownFrame) { S.shownFrame = idx; renderCams(idx); }
     }
-    if (row !== S.shownRow) { S.shownRow = row; }
-    if (S.logIndex && S.logIndex.length) highlightLog(i);
+    if (S.logIndex.length) highlightLog(i);
+    if (S.tlDirty && now - (S.tlAt || 0) > 1000) rebuildTimeline();
   }
 
   /* ------------------------------------------------------------------ loop */
@@ -644,6 +1060,7 @@
   }
 
   function loop(now) {
+    const w0 = performance.now();
     const dt = Math.min(0.15, (now - (S.lastPaint || now)) / 1000);
     S.lastPaint = now;
     if (S.follow && S.rows.length) S.cursor = S.rows.length - 1;
@@ -653,11 +1070,19 @@
       updateScrub();
     }
     S.pose = smoothPose(S.pose, poseAt(S.cursor), dt);
-    if (S.pose) paintScene(S.pose, rowAt(S.cursor));
+    const target = geoAt(Math.min(S.cursor, S.joints ? S.joints.length - 1 : 0)) || fallbackGeo(S.pose);
+    S.geo = (!target || isFallback(target)) ? target : smoothGeo(isFallback(S.geo) ? null : S.geo, target, dt);
+    if (S.geo) {
+      const ji = S.joints && S.joints.length ? clamp(Math.round(S.cursor), 0, S.joints.length - 1) : -1;
+      paintArms(S.geo, ji >= 0 ? S.joints[ji] : null, dt);
+    }
     const head = $('tlHead');
     if (head && S.rows.length > 1)
       head.style.left = (S.cursor / (S.rows.length - 1) * 100).toFixed(2) + '%';
     renderSlow(false);
+    const w = performance.now() - w0;  // this frame's JS work (independent of how often the browser paints)
+    S.workMs = S.workMs == null ? w : S.workMs * 0.95 + w * 0.05;
+    if (now - (S.workAt || 0) > 1000) { S.workAt = now; $('workMs').textContent = 'render ' + S.workMs.toFixed(1) + ' ms/frame'; }
     requestAnimationFrame(loop);
   }
 
@@ -702,10 +1127,18 @@
     document.addEventListener('keydown', function (e) {
       if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); $('playBtn').click(); }
     });
+
+    $('story').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      if (b.dataset.replay) replay(b.dataset.replay).catch(function () { /* trial gone: keep the view */ });
+      else if (b.dataset.report) toggleReport(b);
+    });
   }
 
   /* ------------------------------------------------------------------ boot */
   async function init() {
+    resetStats();
     buildStatic();
     buildChips();
     wireControls();
@@ -715,6 +1148,8 @@
       if (S.trials.length) await loadTrial(S.trials[0].id);
     } catch (e) { /* ignore */ }
     setInterval(poll, CFG.POLL_MS);
+    loadStory();
+    setInterval(loadStory, CFG.STORY_MS);
   }
 
   init();
