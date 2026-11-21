@@ -36,7 +36,17 @@ Scene (head camera looks down from behind the robot, image top = far side of the
   instruction "flip the box over" made WALLX grab the red bin and drag it onto the table. Word every instruction so the target
   is unambiguous: the parcel is the small flat retail box lying on the green table (e.g. a Bhindi Masala food box), never a bin.
 - Parcels carry a QR label 420/<ZIP5>/<seq>; ZIP3 940/941/950/951 -> blue, 900-902 -> red, else / no label -> black.
-  Current parcel: Bhindi Masala box, label 420/95126/001 -> BLUE bin.
+  Current test parcel: a flat food carton, label 420/95126/001 -> BLUE bin (for your eyes only; keep wording generic).
+
+What we learned so far (do not repeat these):
+- Trial 2 (old wording "flip the box over"): WALLX grabbed the RED bin and dragged it onto the table.
+- Agent trial 1 (PLACE "Put the small flat ... parcel on the green table into the open blue bin."): the label was read and routed
+  correctly, but WALLX reached across with the RIGHT arm, grabbed the BLUE BIN and tipped it; the parcel (front left, by the left
+  gripper) was never touched. WALLX is strongly drawn to the shoe-box bins. So every template MUST name the acting arm ({arm}) and
+  the parcel's position ({where}), describe the parcel as the small flat package lying on the green table, and mention the bin
+  only as the destination. Try e.g. "use the {arm} arm to pick up the small flat package lying at the {where} of the green table,
+  then drop it into the {mat} bin". Splitting into two sub-goals is not available; one instruction per action.
+- WORDING MUST BE GENERIC: the judged cases use unknown parcels, so never use a product name (no "Bhindi Masala").
 
 How a trial works: run_trial starts our relay + harness, then a robot session. The harness reads the label from the head camera,
 picks a sub-goal and sends WALLX one short instruction at a time from the wording templates (set_wording). Templates may use
