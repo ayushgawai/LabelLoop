@@ -1,0 +1,91 @@
+             "rotation_rpy": [[0.0270, -0.5094, -0.3716], [0.0272,
+ -0.5090, -0.3710]],
+             "gripper": [0.1188, 0.1186]
+         }
+     }
+ }
+2.RTC
+RTC is used to connect consecutive predictions. While the robot is still executing the frames
+issued in the previous cycle, the next prediction should continue from those frames to
+prevent the two trajectories from diverging at the transition point.
+
+The desktop leader- follower setup of quanta_x1_pro follows the loop below. The interval
+between adjacent frames is 33.7 ms. Each cycle sends only 6 frames (approximately 0.2
+seconds) before requesting a new prediction with updated images and states.
+
+1. Do not include use_rtc, inference_delay, or prev_action_chunk in the request,
+as there is no previous trajectory at this stage.
+
+2. After receiving actions, execute frames with indices 0 to 5. The left and right arms
+execute the same indices simultaneously. Keep the full 32-frame sequence.
+
+3.After all 6 frames have been sent, send the next request. This request must include the
+following three fields:
+
+            1.​ Set use_rtc to true.
+            2.​ Set inference_delay to the number of frames that will continue executing
+                  at the beginning of this cycle. Use an integer value: 1, 2, 3, or 4. For the
+                  desktop leader- follower setup, use 4. Setting it to 5 or 6 will return
+                rtc_delay_exceeds_training. Note that 6 is the number of frames sent
+                per cycle, not the value for this field.
+            3.​ Generate prev_action_chunk by modifying the previous cycle’s actions.
+                  The structure remains the same: both arms must contain position,
+                  rotation_rpy, and gripper, with at least 2 frames included.
+
+4. From the new actions, send 6 frames starting from index 0, then repeat Step 3. Each
+prev_action_chunk must always be generated from the most recently received
+actions.
+
+Modify prev_action_chunk as above.
+
+If the previous left gripper state is:
+
+
+
+
+  None‎
+
+
+
+
+  [0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, ...]
+
+     0        1         2        3        4       5        6        7
+The first 6 frames have already been sent, corresponding to 0.10 to 0.15. When
+included in the next request, retain frame 0 and append the frames after index 6:
+
+
+
+
+  None‎
+
+
+
+
+  [0.10, 0.16, 0.17, ...]
+
+
+The service discards the received frame 0, so 0.10 must remain in the array.
+
+The frames appended at the beginning of the new prediction should be the unexecuted
+frames from 0.16 onward. Slice position and rotation_rpy using the same indices.
+Do not include rtc_mode. A successful response still only contains embodiment and
+actions.
+
+Below, the first frame from Section 1 and the next frame from Step 3 are combined. Replace
+the images and states with the real-time measurements from the current step.
+
+
+
+
+  Python‎
+
+
+  import base64
+  from pathlib import Path
+
+
+  import msgpack
+  import msgpack_numpy
+  import websockets.sync.client
+

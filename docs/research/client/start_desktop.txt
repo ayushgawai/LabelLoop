@@ -1,0 +1,28 @@
+infer_session.py
+__pycache__
+session_env.sh
+start_desktop.py
+start_desktop.sh
+start_ex001.py
+start_ex001.sh
+start_ex002.py
+start_ex002.sh
+#!/usr/bin/env python3
+"""DESKTOP one-command inference: infer node + C++ dispatcher + INIT/START.
+
+    python3 x2robot_client/scripts/start_desktop.py --model-address 10.131.20.192:8000
+
+Default inferParams = wallx_2606_ex001_g_rtc; pass the WebUI model config with
+--infer-params '{...}' (or @file.json).  Ctrl-C: STOP -> CLOSE -> stop stack.
+See infer_session.py for all options.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from infer_session import run  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(run("DESKTOP"))

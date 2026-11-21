@@ -1,0 +1,15 @@
+/opt/xr/bot/x2robot_client/share/x2robot_client/:
+config
+hook
+package.bash
+package.dsv
+package.ps1
+package.sh
+package.xml
+package.zsh
+scripts
+
+/opt/xr/bot/x2robot_client/share/x2robot_client/config:
+ex002
+/opt/xr/bot/x2robot_client/lib/python3.12/site-packages/x2robot_client/configs/desktop_sharpa_training_time_rtc.yaml
+/opt/xr/bot/x2robot_client/share/x2robot_client/config/ex002/infer_params.json

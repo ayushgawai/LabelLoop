@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""DESKTOP one-command inference: infer node + C++ dispatcher + INIT/START.
+
+    python3 x2robot_client/scripts/start_desktop.py --model-address 10.131.20.192:8000
+
+Default inferParams = wallx_2606_ex001_g_rtc; pass the WebUI model config with
+--infer-params '{...}' (or @file.json).  Ctrl-C: STOP -> CLOSE -> stop stack.
+See infer_session.py for all options.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from infer_session import run  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(run("DESKTOP"))
+=====
+/opt/xr/bot/x2robot_client/lib/python3.12/site-packages/x2robot_client:
+adaptive_rtc.py
+application_mode.py
+arm_state_extras.py
+ar_stream
+b7_ack_readback.py
+b7_command_source.py
+b7_delay_budget.py
+b7_deployment_options.py
+b7_dispatch_result.py
+b7_execution_ledger.py
+b7_history_bridge.py
+b7_infer_runtime.py
+b7_kinematics.py
+b7_progress_watchdog.py
+b7_reference_profile.py
+b7_request_validation.py
+b7_ros_supervisor.py
+b7_rtc_contract.py
+b7_supervisor.py
+b7_sync_policy.py
+b7_trial_guard.py
+b7_workspace_geometry.py
+camera_manager_cx001.py
+camera_manager_cx002.py
+cb_history_client.py
+cb_history.py
+cb_motion_axis.py
+configs
+cpp_parallel_image_source.py
+cx001_client.py
+cx002_client_async.py
+cx002_client.py
+deployment_trace.py
+desktop_client_ar_stream.py
+desktop_client_b7_rtc.py
+desktop_client_b7_sync.py
+desktop_client_PCAsync.py
+desktop_client.py
+desktop_client_rtc_async.py
+desktop_joint_control.py
+desktop_sharpa_client_PCAsync.py
+desktop_sharpa_client.py
+desktop_sharpa_client_rtc_async.py
+desktop_tianji_sharpa_client_rtc_async.py
+desktop_wuji_client_PCAsync.py
+desktop_wuji_client.py
+desktop_wuji_client_rtc_async.py
+dexterous_hand_support.py
+dispatcher_env.py
+dispatcher_handshake.py
+dispatcher_model_cmd.py
+ee_safety.py
+error_codes.py
+error_registry.py
+ex001_client_PCAsync.py
+ex001_client.py
+ex001_client_rtc_async.py
+ex001_dispatch_safety.py
+ex001_orin_client_rtc.py
+ex001_runtime.py
+ex001_state_align.py
+ex001_state.py
+ex001_velocity_chassis.py
+ex002_client_common.py
+ex002_client_PCAsync.py
+ex002_client.py
+ex002_client_rtc_async.py
+ex002_dispatch.py
+ex002_io.py
+ex002_preflight.py
+ex002_profile.py
+ex002_runtime.py
+ex002_script_runtime.py
+ex002_state.py
+file_logging.py
+gripper_command.py
+image_encoding.py
+image_wire.py
+induction_state.py
+inference_client.py
+initialization_rollback.py
+__init__.py
+interp_multiplier.py
+interpolate_multiplier_bridge.py
+latency_stats.py
+model_endpoint.py
+model_output_decode.py
+_monitor.py
+native_dense_freeze.py
+native_full_grid.py
+nav_acceptance.py
+navigation_mode.py
+navigation_stop.py
+obs_align_buffer.py
+orin_native_camera.py
+passive_arm_interface.py
+public_api_codec.py
+__pycache__
+realtime_thread.py
+_rlt_state.py
+robot_client_base_async.py
+robot_client_base.py
+robot_io.py
+ros_publisher.py
+rtc_delay_percentile.py
+rtc_end_pose_polynomial_interpolation.py
+rtc_idle_gc.py
+rtc_thread_switch.py
+runtime_profile.py
+state_consistency_record.py
+strict_json.py
+sync_cpp_dispatch_mixin.py
+sync_cpp_dispatch.py
+takeover_guard.py
+tcp_send_diagnostics.py
+utils.py
+wuji_robot_support.py
+zero_arm.py
+
+/opt/xr/bot/x2robot_client/lib/python3.12/site-packages/x2robot_client/configs:
+desktop_sharpa_training_time_rtc.yaml
+__init__.py
+__pycache__
+=====
+# Single source of truth for Desktop Sharpa training-time RTC runtime knobs.
+# Used by start_desktop_sharpa.py always, and by x2robot_infer only when the node
+# is started with --override (otherwise the WebUI payload is used verbatim).
+# Values match start_desktop_sharpa.sh training_time_rtc defaults.
+#
+# control_mode / robot_mode are intentionally omitted — WebUI and CLI own them.
+
+instruction: "unbox the fan."
+camera_capture_hz: 20
+camera_history_k: 1
+action_horizon: 30
+control_dt: 0.005
+interpolate_multiplier: 10
+async_params:
+  algorithm: rtc
+  rtc_mode: training_time
+  execute_horizon: 20
+  num_flow_steps: 10
+  max_inference_delay: 10
+{
+  "control_dt": 0.005,
+  "action_horizon": 40,
+  "interpolate_multiplier": 5,
+  "async_params": {
+    "algorithm": "training_time_rtc",
+    "rtc_mode": "training_time",
+    "output_schema": "ex002_fcmd_chassis_v1",
+    "execute_horizon": 20,
+    "initial_delay_estimate": 7,
+    "max_inference_delay": 10,
+    "rtc_cap_enable": false,
+    "image_wire_format": "jpeg",
+    "hil_min_interpolate_multiplier": 1,
+    "hil_max_interpolate_multiplier": 20
+  }
+}
