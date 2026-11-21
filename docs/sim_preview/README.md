@@ -14,6 +14,9 @@ t = 11 s, just after a parcel has been swiped in from the left. One QR label is 
 | [25](case25.jpg) | Tall box 127 x 76 x 203 mm, QR 420/90015 | red bin |
 | [26](case26.jpg) | White retail box 127 x 64 x 89 mm, QR 420/60601 | black bin (unknown ZIP) |
 | [27](case27.jpg) | Large box 254 x 305 x 152 mm, QR 420/95014 | blue bin, too wide for one gripper |
+| [28](case28.jpg) | Wallet 114 x 89 x 19 mm, no label | black bin |
+| [29](case29.jpg) | Plain box 152 x 76 x 102 mm, no label | black bin |
 
-Known issues in these frames, both fixed since: in 19 and 25 the parcel slides into the left gripper (the drop zone is now
-clear of it), and the parcels still show the old plain QR label (the realistic shipping label from `docs/labels/` is next).
+Parcels land centre-left, clear of the left gripper. These frames still show the plain QR label: the realistic shipping
+label from `docs/labels/` is in the sim since the next rebuild. Big parcels (19, 27) are lifted with both arms; normal parcels
+are found by the left arm + head camera and handed to the right arm, which puts them in the bin.
