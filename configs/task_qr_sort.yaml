@@ -192,8 +192,8 @@ profiles:
     head_intrinsics: {fx: 686.2093862815885, fy: 692.0388349514564, cx: 640, cy: 360, w: 1280, h: 720}
     wrist_mount: {cam_off: [0.074088, 0, 0.097993], cam_tilt: 0.43633}   # wrist camera in the EE frame (URDF)
   real:
-    bin_rois: {blue: [0.18, 0.09, 0.41, 0.53], red: [0.45, 0.08, 0.67, 0.52], black: [0.78, 0.43, 1.0, 1.0]}   # measured on the real head image 2026-11-21 (runs/event_images/20261121_112046/5_front.jpg)
-    induction_roi: [0.13, 0.54, 0.77, 0.99]   # real free table area: below the bin row, between the grippers, left of the black bin
+    bin_rois: {blue: [0.29, 0.06, 0.49, 0.47], red: [0.52, 0.06, 0.75, 0.47], black: [0.79, 0.45, 1.0, 1.0]}   # real head image after the bins were pushed to the far edge (runs/event_images/20261121_114511/0_front.jpg)
+    induction_roi: [0.02, 0.48, 0.78, 1.0]   # real free table area: below the bin row, left of the black bin (place parcels in the open middle, not under a gripper)
     whole_table: false   # real table geometry not calibrated yet: use the induction ROI (whole free table area below) instead of the projected tabletop
     # From results/event/merged_calibration.yaml + intrinsics.yaml. INFERRED CONVENTION (flag: unverified on the robot): M_X_to_head maps points of
     # X's arm-base frame to the head; ONLY the opposite reading "head origin in the arm frame = translation, head axes = rotation columns" gives a sane layout (left arm
