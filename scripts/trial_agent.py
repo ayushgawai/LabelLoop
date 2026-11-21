@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV = {k: v.strip().strip('"').strip("'") for k, v in (l.strip().split("=", 1) for l in open(ROOT / ".env") if "=" in l and not l.lstrip().startswith("#"))}
 PY = str(ROOT / ".venv/bin/python")
 GOAL = "Read each parcel label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else to the black bin."
-KEYS = ("PLACE", "REJECT", "INSPECT", "CENTER", "HOME", "LIFT2")
-FIELDS = {"mat", "arm", "where", "obj"}
+KEYS = ("PLACE", "REJECT", "INSPECT", "CENTER", "HOME", "LIFT2", "STAND", "PICK", "PICK_STANDING")
+FIELDS = {"mat", "arm", "where", "obj", "fix", "fix_side", "lift", "lift_side"}
 CLIENT = ("source /opt/xr/bot/x2robot_client/share/x2robot_client/scripts/session_env.sh >/dev/null 2>&1; timeout -s INT {sec} python3 "
           "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address 192.168.1.157:8001 --instruction {instr} "
           "--robot-mode end_pose --infer-type sync --embodiment teletwin_desktop/gripper-g --image-wire-format base64 --attach --home-on-stop")
@@ -53,7 +53,13 @@ What we learned so far (do not repeat these):
 - Agent run 2 (13:16): trial 1 raw image + long arm/position PLACE wording: WALLX worked on the parcel but could not lift the wide
   black box; trial 2 (overlay "parcel", same wording): WALLX lifted the BLACK bin into the red bin. The harness now latches HOLD by
   itself when a non-target bin moves (flag "bin_moved"); that ends the trial, so reset the scene (human) before the next one.
-- NEXT TESTS, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
+- Agent run 3 (13:33): the organisers' verbatim PLACE phrase, raw image: WALLX tipped the RED (target) bin. Every wording so far
+  ends with WALLX grabbing a bin. NEW HARD RULE (run_trial stage=true): the harness splits delivery into WALLX sub-goals and edits
+  the head image WALLX sees: wide parcel -> STAND (all bins painted out; one arm steadies, the other tips the box onto its 38 mm
+  edge; success = footprint shrinks 40 %) -> PICK "pick up the box" / "pick up the standing box from the top with the {arm} arm"
+  (all bins painted out) -> PLACE (only the target bin visible). Wording keys STAND, PICK, PICK_STANDING, PLACE. TEST stage=true
+  FIRST (default wording), then tune STAND / PICK_STANDING wording. Report per sub-goal which worked.
+- OLDER TEST PLAN, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
   raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
   (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.
 - PARCEL SIZES (mm, L x W x H) vs the 97.5 mm gripper opening: Miro black box 216 x 165 x 38, Bhindi food carton 165 x 102 x 38,
@@ -99,8 +105,9 @@ TOOLS = [
     {"type": "function", "name": "run_trial", "description": "Run one full harness trial on the robot (relay + robot session). Returns a summary and a head-camera montage.",
      "parameters": {"type": "object", "properties": {"seconds": {"type": "integer", "description": "session length, 60-300"},
                                                      "note": {"type": "string", "description": "what you are testing"},
-                                                     "overlay": {"type": "string", "enum": ["none", "parcel", "mask", "grid"], "description": "visual prompt on the image WALLX sees"}},
-                    "required": ["seconds", "note", "overlay"], "additionalProperties": False}},
+                                                     "overlay": {"type": "string", "enum": ["none", "parcel", "mask", "grid"], "description": "visual prompt on the image WALLX sees"},
+                                                     "stage": {"type": "boolean", "description": "staged delivery with hard bin hiding (see rules)"}},
+                    "required": ["seconds", "note", "overlay", "stage"], "additionalProperties": False}},
     {"type": "function", "name": "wallx_direct", "description": "Send ONE raw instruction straight to WALLX (no harness) for a short robot session, e.g. to reset the table. Returns before/after frames.",
      "parameters": {"type": "object", "properties": {"instruction": {"type": "string"}, "seconds": {"type": "integer", "description": "20-90"}},
                     "required": ["instruction", "seconds"], "additionalProperties": False}},
@@ -182,12 +189,12 @@ class Agent:
         (self.dir / "wording.json").write_text(json.dumps(self.wording, indent=1))
         return "wording now: " + json.dumps(self.wording), None
 
-    def run_trial(self, seconds, note, overlay="none"):
+    def run_trial(self, seconds, note, overlay="none", stage=False):
         self.n += 1
         log = self.dir / f"t{self.n}.jsonl"
-        out, files = self.session(["--overlay", overlay] if overlay != "none" else [], GOAL, max(60, min(300, seconds)), log)
+        out, files = self.session((["--overlay", overlay] if overlay != "none" else []) + (["--stage"] if stage else []), GOAL, max(60, min(300, seconds)), log)
         s = summarize(log)
-        s.update(trial=self.n, note=note, overlay=overlay, wording=self.wording, client=out)
+        s.update(trial=self.n, note=note, overlay=overlay, stage=stage, wording=self.wording, client=out)
         self.journal.append({k: s[k] for k in ("trial", "note", "overlay", "wording", "verdict", "seconds_to_verdict", "retries")})
         return json.dumps(s), self.montage(files, f"t{self.n}.jpg")
 

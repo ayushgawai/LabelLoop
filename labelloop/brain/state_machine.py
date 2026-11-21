@@ -19,6 +19,7 @@ from labelloop.brain.instructions import instruction
 #   first). There is no colour shortcut: every object gets the full search. A big parcel searches too (SHOW refuses it when too wide, then SPIN pushes it).
 # route: PLACE (lane arm: A left, B right) | REJECT (right arm) | LIFT2 (big, both arms); with handover: true a HANDOVER precedes
 #   PLACE / REJECT. A code routes immediately, even mid-INSPECT. A bad code -> REJECT.
+# event_fast_stage: route via STAND (if wide) -> PICK -> PLACE. PLACE retries start at PICK with all bins hidden again.
 # PLACE/REJECT/LIFT2 -> HOME -> VERIFY -> IDLE (parcel counted) | retry the plan | IDLE after the last try (failure logged)
 # Budget: estimated REAL seconds per CASE (every call: WALLX ~wallx_call_s, scripted / hold / IDLE ~scripted_call_s); a search try or WALLX step
 #   needs its cost + deliver_reserve + home to fit, else route (budget).
@@ -29,8 +30,8 @@ from labelloop.brain.instructions import instruction
 #   edge, each entry re-fitting it (swipe.max_strokes); HOME -> VERIFY (the zone is empty) as for the other actions. reject_mode tray: REJECT puts it in the black bin.
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
-COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE", "CENTER")  # tries counted per parcel
-WALLX = ACTIONS + ("INSPECT", "HANDOVER", "CENTER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
+COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW", "SWIPE", "CENTER", "STAND", "PICK")  # tries counted per parcel
+WALLX = ACTIONS + ("INSPECT", "HANDOVER", "CENTER", "STAND", "PICK")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
 SCRIPTED = ("SWIPE", "SLIDE", "SHOW", "SHOWSET", "SPIN", "LOOK")
@@ -62,6 +63,7 @@ class StateMachine:
         self.where = None  # event_fast: "front left" ... (harness where_words), for {where}
         self.near = None  # event_fast: the arm nearest the detected object ("left" / "right"), for CENTER's wording
         self.landed = False  # event_fast: the action's success check held
+        self.standing, self.stand_start = False, None
         self.looked = self.showed = False  # LOOK / SHOW done
         self.faces, self.flat = {"top"}, self.cfg.get("show", {}).get("flat_default", True)  # label faces observed (top: seen at SCAN); flat parcel = only top / bottom carry a label
 
@@ -80,9 +82,15 @@ class StateMachine:
         s = self.state
         if s in WALLX + ("HOME",):
             key = "INSPECT_BIG" if s == "INSPECT" and self.big else s
+            if s == "PICK" and self.standing:
+                key = "PICK_STANDING"
             arm = self.near if s == "CENTER" and self.near else self._arm()  # CENTER: the arm nearest the object
+            roles = {}
+            if s == "STAND":
+                fix = "right" if arm == "left" else "left"
+                roles = {"fix": fix, "fix_side": fix, "lift": arm, "lift_side": arm}
             return instruction(key, self.cfg, self.tries.get("INSPECT", 1) - 1 if s == "INSPECT" else 0,
-                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm, where=self.where or "middle")
+                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm, where=self.where or "middle", **roles)
 
     def _arm(self):  # the arm that puts the parcel in its bin: the lane's (handover: false) or the receiving right arm
         return "right" if self.cfg.get("handover") else self.cfg["arms"].get(self.lane or "reject", "right")
@@ -130,21 +138,45 @@ class StateMachine:
         if g is None or ev["presence"] < self.cfg["scene"]["presence_min"]:
             return False
         lo, op = self.cfg["grasp"]["empty_below"], self.cfg["show"]["grip_open"] * 0.9
+        failure = self._grasp_phase(g, lo, op)
+        if failure:
+            self.flags.append("grasp:" + failure)
+        return bool(failure)
+
+    def _grasp_phase(self, g, lo, op):
         if self.gp == 0:
             self.gp = int(g >= op)
         elif g < lo:
-            self.flags.append("grasp:missed")
-            return True
+            return "missed"
         elif self.gp == 1:
             self.gp = 1 if g >= op else 2
         elif g >= op:
-            self.flags.append("grasp:dropped")
-            return True
-        return False
+            return "dropped"
+
+    def _picked(self, ev):
+        g = ev.get("grip", {}).get(self._arm())
+        if g is None:
+            self.ok = 0
+        else:
+            cfg = self.cfg["stage_grasp"]
+            failure = self._grasp_phase(g, cfg["empty_below"], cfg["open_at"])
+            if failure:
+                self.gp = int(failure == "dropped")
+            self.ok = self.ok + 1 if self.gp == 2 else 0
+        return self.ok >= 2 or ev.get("spot_cleared", False)
+
+    @property
+    def staged(self):
+        return self.cfg.get("event_fast") and self.cfg.get("event_fast_stage")
 
     def _next_action(self):  # retry the plan only while EVERY step of it has tries left (HANDOVER too) and time for a delivery remains
-        ok = all(self.tries.get(a, 0) < self.cfg["tries"].get(a, 1 << 30) for a in self.plan)
+        limits = self.cfg["tries"]
+        ok = all(self.tries.get(a, 0) < limits.get(a, limits["PLACE"] if a == "PICK" else 1 << 30) for a in self.plan)
         return self.plan[0] if ok and self.remaining() >= self.cfg["budget"]["deliver_reserve_s"] else None
+
+    def _retry_delivery(self):
+        nxt = self._next_action()
+        self._go(nxt or "HOME", "retry" if nxt else ("out of tries" if self.remaining() >= self.cfg["budget"]["deliver_reserve_s"] else "budget"))
 
     def _search_next(self):  # the current label-search step is exhausted: the next enabled one if it is affordable, else reject
         c, sp, lk = self.cfg, self.cfg.get("spin", {}), self.cfg.get("look", {})
@@ -181,6 +213,11 @@ class StateMachine:
         self.lane, self.code, self.reason, self.obj = lane, code, reason, obj
         if reason == "unread":
             self.flags.append("unread:faces=%s" % sorted(self.faces))
+        if self.staged:
+            self.plan = ["PICK", "PLACE"]
+            self.stand_start = self.box_area if self.wide and self.cfg["tries"].get("STAND", 0) else None
+            self._go("STAND" if self.stand_start else "PICK", reason)
+            return
         floor = not lane and self.cfg.get("reject_mode", "tray") == "floor_right"
         last = "LIFT2" if self.big and not floor else "PLACE" if lane else "SWIPE" if floor else "REJECT"
         self.plan = [last] if floor or self.big or not self.cfg.get("handover") else ["HANDOVER", last]
@@ -231,6 +268,7 @@ class StateMachine:
         self.transitions, self.flags = [], []
         self.near, self.calls = ev.get("near"), self.calls + 1
         self.where = ev.get("where") or self.where  # event_fast: last known parcel place in words, for {where}
+        self.wide, self.box_area = ev.get("wide", False), ev.get("box_area")
         self.spent += self._cost(s)
         over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
         f, codes = ev["presence"], sorted(c for c in ev["codes"] if c not in self.sorted)
@@ -311,14 +349,31 @@ class StateMachine:
         elif cfg.get("event_fast") and s in WALLX and self._bin_moved(ev):  # WALLX grabbed a bin: latch HOLD, no retry / HOME until a human resets
             self.flags.append("bin_moved")
             self._go("HOLD", "bin_moved")
+        elif s == "STAND":
+            shrunk = self.box_area is not None and 0 < self.box_area <= self.stand_start * 0.60
+            self.ok = self.ok + 1 if shrunk else 0
+            if self.ok >= 2:
+                self.standing = True
+                self._go("PICK", "standing")
+            elif self.calls >= cfg["max_calls"][s] or over:
+                if self.remaining() < cfg["budget"]["deliver_reserve_s"]:
+                    self._go("HOME", "budget")
+                elif self.tries[s] < cfg["tries"][s]:
+                    self._go(s, "retry")
+                else:
+                    self._go("HOME", "stand failed")
+        elif s == "PICK":
+            if self._picked(ev):
+                self._go("PLACE", "picked")
+            elif self.calls >= cfg["max_calls"].get("PICK", cfg["max_calls"]["PLACE"]) or over:
+                self._retry_delivery()
         elif s in ACTIONS and cfg.get("event_fast"):  # verified DURING the calls; a retry goes straight back to the action, HOME only to end the parcel
             self.ok = self.ok + 1 if self._success(ev) else 0
             if self.ok >= cfg["ok_calls"]:
                 self.landed = True
                 self._go("HOME", "outcome ok")
-            elif self.calls >= cfg["max_calls"][s] or over or self._bad_grasp(ev):
-                nxt = self._next_action()
-                self._go(nxt or "HOME", "retry" if nxt else ("out of tries" if self.remaining() >= cfg["budget"]["deliver_reserve_s"] else "budget"))
+            elif self.calls >= cfg["max_calls"][s] or over or (not self.staged and self._bad_grasp(ev)):
+                self._retry_delivery()
         elif s == "HOME" and cfg.get("event_fast"):
             if self.calls >= cfg["home_calls"]:
                 if not self.landed:

@@ -7,7 +7,7 @@ import numpy as np
 
 from labelloop import look
 from labelloop.brain.state_machine import StateMachine
-from labelloop.perception import scene
+from labelloop.perception import scene, table_grid
 from labelloop.perception.qr import Confirmer, decode, locate
 from labelloop.perception import label_ocr
 from labelloop.wallx_client import home_response, move_response
@@ -79,6 +79,7 @@ class Harness:
         self.ref_cfg = False  # the reference is the configured empty-table image (not the live first frame)
         self._empty = False  # the loaded empty-table JPEG resized to the frame (False = not read yet, None = unreadable)
         self.obj_box, self.near = None, None  # event_fast: object on the table with no readable label; the arm nearest it
+        self.pick_spot = None
         self.code_px = None  # front-camera position of the last accepted head code (kept while the label is occluded)
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
         self.last_log = None  # the fields passed to runlog.write at the end of step() (the relay records them)
@@ -161,7 +162,18 @@ class Harness:
               "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0}  # no feasible push: the try is skipped
         if self.cfg.get("event_fast"):  # the object on the table (label readable or not) / a parcel already there at the start / the arm nearest it
             ev.update(present=present, obj=self.obj_box is not None, near=self.near, where=self.where_words(front, cfg, codes))
+        if self.sm.staged and self.obj_box is not None and before in ("SCAN", "CENTER", "INSPECT", "STAND"):
+            x0, y0, x1, y1 = self.obj_box
+            ev["box_area"] = (x1 - x0) * (y1 - y0)
+            if before != "STAND":
+                ev["wide"] = self._wide_parcel(front, self.obj_box)
+        if before == "PICK" and self.pick_spot is not None:
+            spot, initial = self.pick_spot
+            now = self._spot_presence(front, cfg, spot)
+            ev["spot_cleared"] = initial > cfg["presence_min"] and now <= initial * (1 - self.cfg["stage_grasp"]["spot_drop"])
         instr = self.sm.step(ev)
+        if self.sm.state == "PICK" and self.sm.calls == 0:
+            self.pick_spot = (self.obj_box, self._spot_presence(front, cfg, self.obj_box)) if self.obj_box is not None else None
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
         if self.sm.state == "SHOW" and self.sm.calls == 0:  # grasp-and-show: nothing to grasp -> the next search step at once
@@ -207,6 +219,38 @@ class Harness:
                          "spin": self.spin_info, "slide": self.slide_info, "swipe": self.swipe_info, "show": self.show_info}
         self.log(**self.last_log)
         return instr
+
+    def _spot_presence(self, front, cfg, spot):
+        x0, y0, x1, y1 = spot
+        changed = scene.changed_mask(front, self.ref, cfg)
+        return np.count_nonzero(changed[y0:y1, x0:x1]) / ((x1 - x0) * (y1 - y0))
+
+    def _wide_parcel(self, front, box):
+        x0, y0, x1, y1 = box
+        quad = table_grid.find_table_quad(front)
+        if quad is not None:
+            profile = self.cfg["profiles"][self.cfg.get("profile", "sim")]
+            try:
+                grid = table_grid.TableGrid(quad, **profile.get("table_grid", {}))
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    x, y = grid.to_table([x0, x1, x1, x0], [y0, y0, y1, y1])
+                corners = np.column_stack((x, y)).astype(np.float32)
+                if np.isfinite(corners).all():
+                    side = min(cv2.minAreaRect(corners)[1])
+                    if side > 0:
+                        return side > self.cfg["grasp"]["grip_max"]
+            except (cv2.error, np.linalg.LinAlgError):
+                pass
+        h, w = front.shape[:2]
+        return min((x1 - x0) * 1280 / w, (y1 - y0) * 720 / h) > 130
+
+    @property
+    def mask_bins(self):
+        if self.sm.staged and self.state_name in ("STAND", "PICK", "PLACE"):
+            bins = set(self.cfg["scene"]["bin_rois"])
+            if self.state_name == "PLACE":
+                bins.discard(self.cfg["lanes"].get(self.sm.lane, "black"))
+            return bins
 
     def where_words(self, front, cfg, codes):
         """The parcel's place on the free table in words for WALLX ("left", "front right", "back middle", ...): its head label, else the object box; None if unseen."""

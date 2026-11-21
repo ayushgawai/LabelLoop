@@ -67,12 +67,15 @@ class Relay:
         self.overlay_mode = overlay_mode
 
     def _overlay_front(self, harness, req, frame_index):
-        if not harness or self.overlay_mode == "none":
+        mask_bins = getattr(harness, "mask_bins", None)
+        if not harness or (self.overlay_mode == "none" and mask_bins is None):
             return req
         try:
             img = decode_jpeg_b64(req["observation"]["images"]["front"])
             parcel, target, bins, roi = harness.prompt_boxes(img.shape)
-            out = overlay.draw(img, self.overlay_mode, parcel=parcel, target=target, bins=bins, roi=roi)
+            if mask_bins is not None and mask_bins == bins.keys():
+                target = None
+            out = overlay.draw(img, self.overlay_mode, parcel=parcel, target=target, bins=bins, roi=roi, mask_bins=mask_bins)
             ok, buf = cv2.imencode(".jpg", cv2.cvtColor(out, cv2.COLOR_RGB2BGR), [int(cv2.IMWRITE_JPEG_QUALITY), 85])
             if ok:
                 req = dict(req)
@@ -86,9 +89,10 @@ class Relay:
                         self.recorder.extra_frame(frame_index, "front_overlay", buf.tobytes())
                     except Exception:
                         pass
+                return req
         except Exception:
-            return req
-        return req
+            pass
+        return req if mask_bins is None else None  # required stage mask failed: hold instead of forwarding the raw bins
 
     async def handle_hold(self, downstream, cap=30):
         """Camera-capture mode: every request gets a hold reply (arms stay put), no WALLX, no harness; the first `cap` requests are saved."""
@@ -153,20 +157,23 @@ class Relay:
                     images = {k: decode_jpeg_b64(v) for k, v in req["observation"]["images"].items()}
                     instruction = await asyncio.to_thread(harness.step, images, state)
                 scripted = harness.scripted_reply(req["embodiment"], state) if harness else None
+                forward = self._overlay_front(harness, req, i) if scripted is None and instruction is not None else req
                 reply, source, latency_ms, err = None, None, None, None
                 if scripted is not None:
                     reply, source = scripted, "scripted"
                     await downstream.send(pack(reply))
-                elif instruction is None:  # harness says hold still: don't spend a WALLX call
+                elif instruction is None or forward is None:
+                    if forward is None:
+                        fresh, err = True, "stage_mask_failed"
                     reply, source = hold_response(req["embodiment"], state), "hold"
                     await downstream.send(pack(reply))
                 else:
                     source = "wallx"
+                    req = forward
                     if harness and (fresh or harness.subgoal_changed):
                         req["reset_history"] = True
                     fresh = False if harness else fresh
                     req["instruction"] = instruction  # whole original request forwarded, extras preserved
-                    req = self._overlay_front(harness, req, i)
                     t1, err = time.monotonic(), None
                     try:
                         reply = await asyncio.to_thread(wallx.infer, req)
@@ -208,6 +215,7 @@ async def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
+    p.add_argument("--stage", action=argparse.BooleanOptionalAction, default=False, help="event_fast staged delivery with per-stage bin masking (hard rule: WALLX cannot see the bins it must not grab)")
     p.add_argument("--passthrough", action="store_true", help="forward with the client's instruction, no harness")
     p.add_argument("--task", default="configs/task_qr_sort.yaml")
     p.add_argument("--log", default="runs/event.jsonl")
@@ -228,6 +236,7 @@ async def main():
         from labelloop.eval.runlog import RunLog
         from labelloop.harness import Harness
         task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
+        task["event_fast_stage"] = a.stage  # STAND (wide) -> PICK (all bins hidden) -> PLACE (only the target bin visible)
         if a.wording:  # JSON {state: template or [templates]} overriding the WALLX instruction wording (scripts/trial_agent.py)
             task["wording"] = json.loads(Path(a.wording).read_text() or "{}")
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731

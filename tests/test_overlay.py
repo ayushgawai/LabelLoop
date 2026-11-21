@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import base64
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -149,3 +150,45 @@ def test_overlay_none_keeps_forwarded_front_image_identical(env):
     raw = base64.b64decode(req()["observation"]["images"]["front"])
     forwarded = base64.b64decode(stub.requests[0]["observation"]["images"]["front"])
     assert forwarded == raw
+
+
+@pytest.mark.parametrize(("hidden", "red_visible", "black_visible"), [
+    ({"red", "black"}, False, False),
+    ({"red"}, False, True),
+])
+def test_relay_applies_stage_mask_to_front_only(hidden, red_visible, black_visible):
+    h = FakeHarness("pick up the box")
+    h.mask_bins = hidden
+    bins = {"red": (48, 48, 112, 112), "black": (160, 48, 224, 112)}
+    h.prompt_boxes = lambda _: (None, bins["black"], bins, None)
+    relay = event_server.Relay(None, {})
+    request = req()
+    images = request["observation"]["images"]
+    images["front"] = encode_jpeg_b64(_rect())
+    forwarded = relay._overlay_front(h, request, 0)["observation"]["images"]
+    img = event_server.decode_jpeg_b64(forwarded["front"])
+    for pixel, visible in ((img[80, 80], red_visible), (img[80, 192], black_visible)):
+        assert tuple(map(int, pixel)) == pytest.approx((10, 20, 30) if visible else overlay.TABLE_GREEN, abs=3)
+    assert forwarded["left_wrist"] == images["left_wrist"]
+    assert forwarded["right_wrist"] == images["right_wrist"]
+    assert event_server.decode_jpeg_b64(images["front"])[55, 55] == pytest.approx((10, 20, 30), abs=2)
+
+
+def test_relay_holds_if_required_stage_mask_cannot_be_encoded(monkeypatch):
+    h = FakeHarness("pick up the box")
+    h.mask_bins = {"red", "black"}
+    request = req()
+    replies = []
+
+    class Downstream:
+        async def __aiter__(self):
+            yield pack(request)
+
+        async def send(self, frame):
+            replies.append(unpack(frame))
+
+    upstream = SimpleNamespace(connect=lambda: None, close=lambda: None, metadata={})
+    monkeypatch.setattr(cv2, "imencode", lambda *args: (False, None))
+    relay = event_server.Relay(None, {}, make_harness=lambda: h, make_client=lambda: upstream)
+    asyncio.run(relay.handle_wallx(Downstream()))
+    assert replies[-1]["actions"]["left_ee"]["position"][-1] == STATE["left_ee"]["position"]

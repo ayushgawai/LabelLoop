@@ -401,3 +401,111 @@ def test_target_bin_moved_without_landing_latches_hold():  # agent run 3: WALLX 
     for _ in range(3):
         sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0.0, "red": 0.85, "black": 0.65}})
     assert sm.state == "HOLD"
+
+
+def staged_sm(zip_code=CODE, parcel=None, **overrides):
+    m = StateMachine(apply_profile({**FAST, "event_fast_stage": True, **overrides}), lambda: 0)
+    m.step(ON)
+    m.step({**ON, "codes": {zip_code}, **(parcel or {})})
+    return m
+
+
+def test_staged_pick_confirms_only_the_lane_gripper():
+    m = staged_sm()
+    assert m.state == "PICK" and m.instruction() == "pick up the box"
+    for left, right in ((0, .8), (0, .2), (.8, 0), (0, 0), (.2, 0), (.8, 0), (.2, 0)):
+        assert m.step({**ON, "grip": {"left": left, "right": right}}) == "pick up the box"
+    assert m.step({**ON, "grip": {"left": .2}}) == "put the box into the blue bin"
+    assert m.state == "PLACE"
+    m.step(LANDED)
+    assert m.state == "HOME"
+
+
+def test_staged_pick_timeout_retries_then_homes():
+    m = staged_sm(max_calls={**CFG["max_calls"], "PICK": 1})
+    m.step(ON)
+    assert m.state == "PICK" and m.tries["PICK"] == 2
+    m.step(ON)
+    assert m.state == "HOME"
+
+
+def test_staged_place_timeout_restarts_pick():
+    m = staged_sm()
+    m.step({**ON, "spot_cleared": True})
+    for _ in range(m.cfg["max_calls"]["PLACE"]):
+        m.step(ON)
+    assert m.state == "PICK" and m.tries["PICK"] == 2
+
+
+def test_staged_pick_uses_presence_at_the_original_parcel_spot(monkeypatch):
+    monkeypatch.setattr("labelloop.harness.locate", lambda _: [(CODE, (80, 65))])
+    h = Harness({**FAST, "event_fast_stage": True, "zip_ocr": False, "tries": {**CFG["tries"], "STAND": 0}})
+    for _ in range(4):
+        instr = h.step(frames(head_frame()), STATE)
+    assert h.state_name == "PICK" and instr == "pick up the box"
+    assert h.mask_bins == {"blue", "red", "black"}
+    assert h.step(frames(head_frame()), STATE) == "pick up the box"
+    # Another object away from the pickup spot keeps the overall table presence high.
+    assert h.step(frames(head_frame(box=(0.61, 0.56, 0.70, 0.88))), STATE) == "put the box into the blue bin"
+    assert h.mask_bins == {"red", "black"} and h.subgoal_changed
+
+
+@pytest.mark.parametrize(("code", "lift", "fix"), [
+    (CODE, "left", "right"),
+    ("420/90012/001", "right", "left"),
+])
+def test_stand_confirms_shrunk_footprint_then_picks_from_top(code, lift, fix):
+    m = staged_sm(code, parcel={"wide": True, "box_area": 1000})
+    assert m.state == "STAND"
+    assert m.instruction() == (f"use the {fix} arm to hold the {fix} side of the box still and "
+                               f"use the {lift} arm to push the {lift} side up until the box stands on its long thin edge")
+    for area in (600, None, 601, 600):
+        m.step({**ON, "box_area": area})
+        assert m.state == "STAND"
+    assert m.step({**ON, "box_area": 600}) == f"pick up the standing box from the top with the {lift} arm"
+    assert m.state == "PICK"
+    assert " into the " in m.step({**ON, "spot_cleared": True})
+    assert m.state == "PLACE"
+
+
+def test_stand_retries_once_then_homes_without_pick():
+    m = staged_sm(parcel={"wide": True, "box_area": 1000}, max_calls={**CFG["max_calls"], "STAND": 2})
+    for area in (800, 600):
+        m.step({**ON, "box_area": area})
+    assert m.state == "STAND" and m.tries["STAND"] == 2
+    for area in (600, 800):
+        m.step({**ON, "box_area": area})
+    assert m.state == "HOME" and "PICK" not in m.tries
+
+
+@pytest.mark.parametrize(("mat", "parcel", "expected"), [
+    (None, (281, 130), "PICK"),
+    (None, (281, 131), "STAND"),
+    ((0, 100, 1280, 720), (165, 115), "STAND"),  # 115 px projects to more than 9.75 cm
+    ((0, -850, 1280, 720), (420, 140), "PICK"),  # the fitted mat extends offscreen
+])
+def test_harness_stand_uses_table_grid_or_pixel_fallback(monkeypatch, mat, parcel, expected):
+    front = np.full((720, 1280, 3), MAT, dtype=np.uint8)
+    x, y = 340, 380
+    w, h = parcel
+    front[y:y + h, x:x + w] = LBL
+    quad = None
+    if mat is not None:
+        x0, y0, x1, y1 = mat
+        quad = np.array([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], dtype=float)
+    monkeypatch.setattr("labelloop.perception.table_grid.find_table_quad", lambda _: quad)
+    monkeypatch.setattr("labelloop.perception.scene.object_box", lambda *_: (x, y, x + w, y + h))
+    monkeypatch.setattr("labelloop.harness.locate", lambda _: [(CODE, (x + 10, y + 10))])
+    harness = Harness({**FAST, "event_fast_stage": True, "zip_ocr": False})
+    for _ in range(4):
+        harness.step(frames(front), STATE)
+    assert harness.state_name == expected
+    assert harness.mask_bins == {"blue", "red", "black"}
+
+
+@pytest.mark.parametrize("name", ["real_head_qr.jpg", "real_head_miro.jpg"])
+def test_recorded_wide_parcel_is_detected(name):
+    front = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / name)), cv2.COLOR_BGR2RGB)
+    harness = Harness({**FAST, "event_fast_stage": True})
+    box = scene.object_box(front, None, harness.cfg["scene"])
+    assert box is not None and harness._wide_parcel(front, box)

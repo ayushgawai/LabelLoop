@@ -40,8 +40,8 @@ def _draw_rect(img, box, color, thickness):
     cv2.rectangle(img, (x0, y0), (x1, y1), color, thickness)
 
 
-def draw(img_rgb, mode, parcel=None, target=None, bins=None, roi=None, cells=(8, 5)) -> np.ndarray:
-    if mode == "none":
+def draw(img_rgb, mode, parcel=None, target=None, bins=None, roi=None, cells=(8, 5), mask_bins=None) -> np.ndarray:
+    if mode == "none" and mask_bins is None:
         return img_rgb
     out = img_rgb.copy()
     h, w = out.shape[:2]
@@ -49,12 +49,16 @@ def draw(img_rgb, mode, parcel=None, target=None, bins=None, roi=None, cells=(8,
     target = _clip_box(target, w, h)
     bins = bins or {}
 
-    if mode == "mask":
+    if mode == "mask" or mask_bins is not None:
         for name, box in bins.items():
             b = _clip_box(box, w, h)
-            if b is not None and (target is None or tuple(b) != tuple(target)) and name != "target":
+            hide = name in mask_bins if mask_bins is not None else b != target and name != "target"
+            if b is not None and hide:
                 x0, y0, x1, y1 = b
                 out[y0:y1 + 1, x0:x1 + 1] = TABLE_GREEN
+
+    if mode == "none":
+        return out
 
     if parcel is not None:
         _draw_rect(out, _pad_box(parcel, 12, w, h), MAGENTA, 6)
