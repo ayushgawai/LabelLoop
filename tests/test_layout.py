@@ -44,7 +44,7 @@ def test_green_mat_covers_the_table_and_bins_and_parcels_sit_on_its_top():
     assert all(0 < h - m / 2 <= 0.01 for h, m in zip(bt.TABLE_HALF, (L, W))) and bt.SURFACE_Z == bt.TABLE_Z + T  # inset <= 1 cm per side
     sc, dg = bt.scene(30, bt.CASES[30]), bt.dag(30, bt.CASES[30])
     mat = next(o for o in sc["objects"] if o["id"] == "table_mat")
-    assert mat["kinematic"] and mat["semantic_tags"] == [] and sc["layout"]["nodes"]["table_mat"]["placement"]["surface"] == "tabletop"
+    assert mat["kinematic"] and mat["semantic_tags"] == [] and sc["layout"]["nodes"]["table_mat"]["placement"]["poses"][0]["position"] == [bt.TABLE_C[0], bt.TABLE_C[1], bt.TABLE_Z]
     for b in bt.BINS:
         assert sc["layout"]["nodes"][b]["placement"]["poses"][0]["position"][2] == bt.SURFACE_Z
     ev = dg["graph_task_generator"]["definition"]["component_sections"]["event_component"]["terms"]

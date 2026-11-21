@@ -174,8 +174,9 @@ def scene(n, c):
     objs += [obj(i, f"labelloop_{i}", ["container"], kinematic=True) for i in (*BIN_XY, "reject_bin")]
     objs.append(obj("table_mat", "labelloop_table_mat", [], kinematic=True))  # no pickable/container tag
     nodes = {i: on_table(i, *xy) for i, xy in {**BIN_XY, "reject_bin": REJECT_XY}.items()}
-    nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "surface", "surface": "tabletop",
-                          "ranges": {"x": [-0.001, 0.001], "y": [-0.001, 0.001]}, "orientation": [0, 0, 0, 1]}}  # centred on the tabletop
+    # explicit pose (origin = underside centre, on the bare tabletop): the layout solver can't pack a table-sized surface object
+    nodes["table_mat"] = {"object": "table_mat", "placement": {"type": "pose", "poses": [
+        {"id": "on_table", "position": [TABLE_C[0], TABLE_C[1], TABLE_Z], "orientation": [0, 0, 0, 1]}]}}
     for i, v in enumerate(vs):  # parked far below the table until the human event fires (distinct spots)
         nodes[f"box_{v}"] = {"object": f"box_{v}", "placement": {"type": "pose", "poses": [
             {"id": "parked", "position": [0.5 + 0.5 * (i % 8), 3.0 + 0.5 * (i // 8), -5.0], "orientation": [0, 0, 0, 1]}]}}
