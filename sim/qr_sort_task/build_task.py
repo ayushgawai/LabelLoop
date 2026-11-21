@@ -88,7 +88,7 @@ STREAM = ACTIVE  # bhindi, iqbar_a, miro, z10001 (mailer), iqbar_b, garbage (per
 CASES = {  # one case per active prop (numbers kept: 32-34 flat boxes, 20 mailer, 22 perfume, 28 wallet), 31 calibration, 36 stream
     **{n: dict(late={b: 6.0}, timeout=150) for n, b in ((32, "bhindi"), (33, "iqbar_a"), (34, "miro"), (20, "z10001"), (35, "iqbar_b"),
                                                       (22, "garbage"), (28, "wallet"))},
-    **{40 + i: dict(late={b: 6.0}, timeout=150, anywhere=True, prefill=True) for i, b in enumerate(ACTIVE)},  # POSITION tests, ACTIVE order
+    **{40 + i: dict(late={b: 6.0}, timeout=480, anywhere=True, prefill=True) for i, b in enumerate(ACTIVE)},  # POSITION tests, ACTIVE order; 480 s: room for retries
     47: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174, anywhere=True, prefill=True),
     31: dict(late={}, timeout=90),  # CALIBRATION (harness calib_test: true): no parcels, no events, no success term - time-out only
     36: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 7 parcels

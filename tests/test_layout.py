@@ -355,7 +355,7 @@ def test_anywhere_areas_improved_with_the_bins_on_the_far_row():
 
 
 def test_position_cases_40_to_47():
-    assert all(bt.CASES[40 + i] == dict(late={b: 6.0}, timeout=150, anywhere=True, prefill=True) for i, b in enumerate(props.ACTIVE))
+    assert all(bt.CASES[40 + i] == dict(late={b: 6.0}, timeout=480, anywhere=True, prefill=True) for i, b in enumerate(props.ACTIVE))
     s = bt.CASES[47]
     assert list(s["late"]) == list(props.ACTIVE) and list(s["late"].values()) == [6.0 + 150 * i for i in range(7)] and s["anywhere"] and s["prefill"]
     for n in range(40, 48):

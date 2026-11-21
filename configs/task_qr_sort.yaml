@@ -26,7 +26,7 @@ calib: {tip_h: 0.10, hold_calls: 4, move_calls: 2, pitches_deg: [90, 85, 80, 75,
 max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
 # Counts are MODEL CALLS (~2.1 s of motion each; WALLX takes ~9 s/call on top); the case budget is in ESTIMATED REAL SECONDS.
-budget: {case_s: 480, deliver_reserve_s: 130, wallx_call_s: 11.0, scripted_call_s: 2.2, sim_case_s: null}   # per CASE / episode (every call counts, IDLE holds too); sim_case_s = the sim episode length when shorter (the sim batch sets it)
+budget: {case_s: 1500, deliver_reserve_s: 130, wallx_call_s: 11.0, scripted_call_s: 2.2, sim_case_s: null}   # case_s 1500 for sim training (event rule: 480); per CASE / episode (every call counts, IDLE holds too); sim_case_s = the sim episode length when shorter (the sim batch sets it)
 qr_confirm_frames: 2      # same value must decode in N consecutive calls
 stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
 settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
@@ -125,7 +125,7 @@ look:                     # scripted no-contact look-around (SCAN -> LOOK): the 
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
 max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
-tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 3, REJECT: 3, LIFT2: 3, SWIPE: 6}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 5, REJECT: 3, LIFT2: 5, SWIPE: 6}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
                           # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
