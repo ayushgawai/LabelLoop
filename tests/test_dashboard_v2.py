@@ -1,7 +1,9 @@
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -171,3 +173,33 @@ def test_frame_index_overlay_frames_and_rows_free_detail(served):
     k = f["front_overlay"][0]
     with urllib.request.urlopen(url + "/api/trials/%s/frame/%d/front_overlay" % (TID, k + 1), timeout=10) as r:  # nearest earlier
         assert r.status == 200 and r.headers["Content-Type"] == "image/jpeg" and r.read()[:2] == b"\xff\xd8"
+
+
+def test_trial_list_reads_rows_only_of_live_trials(tmp_path, monkeypatch):
+    from labelloop.dashboard import server
+    make_trial(tmp_path, "20261121_130500", n=30, frames=False)  # finished: summary.json has calls / parcels / duration
+    live = make_trial(tmp_path, "20261121_132000", n=30, frames=False)
+    (live / "summary.json").unlink()
+    seen = []
+    real = server.read_rows
+    monkeypatch.setattr(server, "read_rows", lambda d: seen.append(Path(d).name) or real(d))
+    out = {t["id"]: t for t in server.list_trials(tmp_path)}
+    assert seen == ["20261121_132000"]
+    assert out["20261121_132000"]["live"] and out["20261121_132000"]["calls"] == 30 and out["20261121_130500"]["calls"] == 30
+
+
+def test_long_trial_stays_fast(served):
+    root, start = served
+    make_trial(root, TID, n=600, frames=False)
+    url = start()
+    t = time.monotonic()
+    code, p = get_json(url + "/api/trials/%s/joints" % TID)
+    first = time.monotonic() - t
+    assert code == 200 and p["rows"] == 600 and all(e[a]["ok"] for e in p["joints"] for a in K.ARMS)
+    t = time.monotonic()
+    assert get_json(url + "/api/trials/%s/joints" % TID)[0] == 200
+    assert first < 20 and time.monotonic() - t < 3  # warm-started IK once, then the cache
+    with urllib.request.urlopen(url + "/api/trials/%s?rows=0" % TID, timeout=10) as r:
+        assert len(r.read()) < 4000  # the page's periodic refresh does not pull 600 rows
+    code, items = get_json(url + "/api/story")
+    assert code == 200 and items[0]["rows"] == 600

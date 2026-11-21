@@ -108,6 +108,9 @@
   .tlSeg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
     font-size:9.5px;color:#10151a;overflow:hidden;white-space:nowrap;border-right:1px solid rgba(255,255,255,.6)}
   .tlTick{position:absolute;top:0;height:6px;width:1px;background:rgba(35,40,46,.55)}
+  .tlTicks{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  .perfSub{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);margin:9px 0 3px}
+  .chart{width:100%;height:auto;display:block}
   .tlHead{position:absolute;top:0;bottom:0;left:0;width:2px;background:var(--red);
     box-shadow:0 0 4px rgba(192,57,43,.7)}
   .log{max-height:380px;overflow:auto;font-size:12px;font-variant-numeric:tabular-nums}
@@ -146,7 +149,7 @@
     <div class="legend">
       <span><i></i>link · ● joint (deg)</span><span><i class="lim"></i>within 5° of a limit</span>
       <span><i class="fail"></i>IK failed</span><span><i class="pred"></i>WALLX predicted fingertip path</span>
-      <span id="ikNote"></span>
+      <span id="ikNote"></span><span id="workMs" title="moving average of the JS work per animation frame"></span>
     </div>
   </section>
   <section class="card" id="poseCard">
@@ -197,7 +200,7 @@
     CAMERAS: ['front', 'left_wrist', 'right_wrist'],
     MOVE_M_S: 0.03,      // fingertip speed above which the arm glows / leaves a trail
     CASE_S: 480,         // the event case clock
-    POLL_MS: 300, JOINTS_MS: 1500, STORY_MS: 10000
+    POLL_MS: 300, LIST_MS: 2000, JOINTS_MS: 1500, STORY_MS: 10000
   };
   const ARMS = ['left_ee', 'right_ee'];
 
@@ -207,6 +210,7 @@
     pose: null, geo: null, prevTip: { left_ee: null, right_ee: null }, trail: { left_ee: [], right_ee: [] },
     hist: { left: { z: [], g: [] }, right: { z: [], g: [] } },
     shownFrame: -1, logHi: -1, logIndex: [], busy: false, summaryAt: 0, story: [], storySig: '', storyShown: false,
+    stats: null, perfKey: '', listAt: 0, tlDirty: false, tlAt: 0,
     lastPaint: 0, lastSlow: 0
   };
 
@@ -540,17 +544,80 @@
     return (S.summary && S.summary.duration_s) || 0;
   }
 
+  /* trial stats, accumulated as rows arrive (never recomputed over every row per frame) */
+  function resetStats() { S.stats = { n: 0, wallx: 0, lat: [], perState: {}, lastT: null, lastState: null, ver: 0, sorted: null }; }
+
+  function addStats(rows) {
+    const st = S.stats;
+    rows.forEach(function (r) {
+      const state = (r.harness && r.harness.state) || String(r.source || '—').toUpperCase();
+      const t = typeof r.t === 'number' ? r.t : null;
+      if (st.lastT != null && t != null) st.perState[st.lastState] = (st.perState[st.lastState] || 0) + Math.max(0, t - st.lastT);
+      if (t != null) st.lastT = t;
+      st.lastState = state;
+      st.n++;
+      if (r.source === 'wallx') st.wallx++;
+      if (typeof r.latency_ms === 'number') st.lat.push(r.latency_ms);
+    });
+    st.sorted = null;
+    st.ver++;
+  }
+
+  function latStats() {
+    const st = S.stats;
+    if (!st.sorted) st.sorted = st.lat.slice().sort(function (a, b) { return a - b; });
+    const v = st.sorted;
+    if (!v.length) return { mean: null, p95: null };
+    return { mean: v.reduce(function (a, x) { return a + x; }, 0) / v.length, p95: v[Math.min(v.length - 1, Math.ceil(v.length * 0.95) - 1)] };
+  }
+
+  function fmtS(s) { return s < 60 ? s.toFixed(1) + ' s' : Math.floor(s / 60) + 'm ' + String(Math.round(s % 60)).padStart(2, '0') + 's'; }
+
+  function subgoalChart() {  // seconds per harness state (sub-goal), longest first
+    const ps = S.stats.perState;
+    const keys = Object.keys(ps).filter(function (k) { return ps[k] > 0; }).sort(function (a, b) { return ps[b] - ps[a]; }).slice(0, 7);
+    if (!keys.length) return '<div class="muted">no timing yet</div>';
+    const max = ps[keys[0]], rh = 7;
+    let s = '<svg class="chart" viewBox="0 0 100 ' + keys.length * rh + '">';
+    keys.forEach(function (k, i) {
+      const w = ps[k] / max * 56, y = i * rh;
+      s += '<text x="0" y="' + (y + 5) + '" font-size="4.1" fill="#5b6570">' + esc(k) + '</text>' +
+        '<rect x="22" y="' + (y + 1.2) + '" width="' + w.toFixed(1) + '" height="4.6" rx="1" fill="' + (STATE_COLORS[k] || '#9aa6b2') + '"/>' +
+        '<text x="' + (23.5 + w).toFixed(1) + '" y="' + (y + 5) + '" font-size="3.9" fill="#23282e">' + fmtS(ps[k]) + '</text>';
+    });
+    return s + '</svg>';
+  }
+
+  function successChart() {  // every trial attempt once: recorded trials + agent trials that have no recording, in time order
+    const items = [];
+    (S.story || []).forEach(function (it) {
+      if (it.kind === 'trial') items.push({ id: it.id, v: it.verdict });
+      else (it.trials || []).forEach(function (t) { if (!t.replay) items.push({ id: it.id + ' · trial ' + t.trial, v: t.verdict }); });
+    });
+    if (!items.length) return '<div class="muted">no trials yet</div>';
+    const isJudged = function (v) { return !!v && !/^(live|none|no verdict)$/.test(v); };
+    const judged = items.filter(function (x) { return isJudged(x.v); }), ok = judged.filter(function (x) { return x.v === 'ok'; }).length;
+    const last = items.slice(-40), bw = 100 / Math.max(last.length, 14);
+    let s = '<svg class="chart" viewBox="0 0 100 16" preserveAspectRatio="none">';
+    last.forEach(function (x, i) {
+      const col = x.v === 'ok' ? '#2e8b57' : x.v === 'hold' ? '#e67e22' : isJudged(x.v) ? '#c0392b' : '#b9c3cd';
+      const hgt = x.v === 'ok' ? 15 : isJudged(x.v) ? 9 : 4;
+      s += '<rect x="' + (i * bw + bw * 0.11).toFixed(2) + '" y="' + (16 - hgt) + '" width="' + (bw * 0.78).toFixed(2) + '" height="' + hgt +
+        '" rx="0.6" fill="' + col + '"><title>' + esc(x.id + ' · ' + (x.v || 'none')) + '</title></rect>';
+    });
+    return '<div class="kv"><span>success across trials</span><b>' + ok + ' / ' + judged.length + ' judged' +
+      (judged.length ? ' (' + Math.round(ok / judged.length * 100) + ' %)' : '') + '</b></div>' + s + '</svg>';
+  }
+
   function renderPerf(row) {
-    const rows = S.rows;
-    const wallx = rows.filter(function (r) { return r.source === 'wallx'; }).length;
-    const lat = rows.map(function (r) { return typeof r.latency_ms === 'number' ? r.latency_ms : null; })
-      .filter(function (v) { return v != null; }).sort(function (a, b) { return a - b; });
-    const mean = lat.length ? lat.reduce(function (s, v) { return s + v; }, 0) / lat.length : null;
-    const p95 = lat.length ? lat[Math.min(lat.length - 1, Math.ceil(lat.length * 0.95) - 1)] : null;
     const spent = spentS();
+    const h = (row && row.harness) || {};
+    const key = [S.id, S.stats.ver, Math.round(spent), h.parcels, h.lane, S.storySig.length, S.summary && S.summary.parcels].join('|');
+    if (key === S.perfKey) return;  // nothing changed: no DOM work
+    S.perfKey = key;
+    const L = latStats(), mean = L.mean, p95 = L.p95, wallx = S.stats.wallx, rows = { length: S.stats.n };
     const frac = clamp(spent / CFG.CASE_S, 0, 1);
     const C = 2 * Math.PI * 17;
-    const h = (row && row.harness) || {};
     const parcels = h.parcels != null ? h.parcels
       : (S.summary && S.summary.parcels != null ? S.summary.parcels : '—');
     $('perf').innerHTML =
@@ -574,7 +641,9 @@
       '<div class="kv"><span>parcels</span><b>' + esc(parcels) + '</b></div>' +
       '<div class="kv"><span>lane</span><b>' + esc(h.lane || '—') + '</b></div>' +
       '<div class="kv"><span>goal</span><b>' +
-        esc(((S.meta && S.meta.goal) || (row && row.goal) || '—')).slice(0, 42) + '</b></div>';
+        esc(((S.meta && S.meta.goal) || (row && row.goal) || '—')).slice(0, 42) + '</b></div>' +
+      '<div class="perfSub">time per sub-goal</div>' + subgoalChart() +
+      '<div class="perfSub">all trials</div>' + successChart();
   }
 
   /* ------------------------------------------------------------------ cameras */
@@ -648,44 +717,59 @@
         '%;width:' + ((s.to - s.from + 1) / n * 100).toFixed(2) + '%;background:' +
         (STATE_COLORS[s.state] || '#9aa6b2') + '"><span>' + esc(s.state) + '</span></div>';
     });
+    const ticks = [], flags = [];  // one SVG path each, however many rows: transitions as short ticks, flags as red marks
     rows.forEach(function (r, i) {
       const h = r.harness || {};
-      if (h.transitions && h.transitions.length)
-        html += '<div class="tlTick" style="left:' + (i / n * 100).toFixed(2) + '%"></div>';
+      if (h.transitions && h.transitions.length) ticks.push('M' + (i + 0.5) + ' 0V0.22');
+      if (h.flags && h.flags.length) flags.push('M' + (i + 0.5) + ' 0V1');
     });
+    html += '<svg class="tlTicks" viewBox="0 0 ' + n + ' 1" preserveAspectRatio="none">' +
+      '<path d="' + ticks.join('') + '" stroke="rgba(35,40,46,.6)" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
+      '<path d="' + flags.join('') + '" stroke="#c0392b" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>';
     html += '<div class="tlHead" id="tlHead"></div></div>';
     tl.innerHTML = html;
+    S.tlDirty = false;
+    S.tlAt = performance.now();
   }
 
   /* ------------------------------------------------------------------ log */
-  function rebuildLog() {
-    const entries = [];
-    S.rows.forEach(function (r, i) {
-      const h = r.harness || {};
-      const prev = i ? ((S.rows[i - 1].harness || {}).state) : null;
-      const bits = [];
-      if (h.state && h.state !== prev) bits.push('→ ' + h.state);
-      if (h.transitions && h.transitions.length) bits.push('transition ' + JSON.stringify(h.transitions));
-      if (h.flags && h.flags.length) bits.push('flag ' + JSON.stringify(h.flags));
-      if (h.codes && h.codes.length)
-        bits.push('code ' + h.codes.map(function (c) { return String(c && c[0]); }).join(' '));
-      if (r.error) bits.push('error ' + r.error);
-      if (!bits.length) return;
-      entries.push({ i: i, t: r.t, text: bits.join(' · ') });
-    });
-    S.logIndex = entries.map(function (e) { return e.i; });
-    S.logHi = -1;
-    const el = $('log');
-    if (!entries.length) { el.innerHTML = '<div class="muted">nothing yet</div>'; return; }
-    el.innerHTML = entries.map(function (e, k) {
-      const ts = e.t ? new Date(e.t * 1000).toLocaleTimeString() : '';
-      return '<div class="logRow" id="logrow_' + k + '"><span class="lt">' + ts + '</span>' + esc(e.text) + '</div>';
-    }).join('');
+  function logText(i) {
+    const r = S.rows[i], h = r.harness || {};
+    const prev = i ? ((S.rows[i - 1].harness || {}).state) : null;
+    const bits = [];
+    if (h.state && h.state !== prev) bits.push('→ ' + h.state);
+    if (h.transitions && h.transitions.length) bits.push('transition ' + JSON.stringify(h.transitions));
+    if (h.flags && h.flags.length) bits.push('flag ' + JSON.stringify(h.flags));
+    if (h.codes && h.codes.length)
+      bits.push('code ' + h.codes.map(function (c) { return String(c && c[0]); }).join(' '));
+    if (r.error) bits.push('error ' + r.error);
+    return bits.join(' · ');
+  }
+
+  function appendLog(from) {  // from 0 = rebuild; else only the rows that just arrived are added (no per-row DOM rebuild)
+    const el = $('log'), html = [];
+    if (from === 0) { S.logIndex = []; S.logHi = -1; el.innerHTML = ''; }
+    for (let i = from; i < S.rows.length; i++) {
+      const text = logText(i);
+      if (!text) continue;
+      const t = S.rows[i].t, k = S.logIndex.length;
+      S.logIndex.push(i);
+      html.push('<div class="logRow" id="logrow_' + k + '"><span class="lt">' + (t ? new Date(t * 1000).toLocaleTimeString() : '') +
+        '</span>' + esc(text) + '</div>');
+    }
+    if (html.length) {
+      const ph = el.querySelector('.muted');
+      if (ph) ph.remove();
+      el.insertAdjacentHTML('beforeend', html.join(''));
+    } else if (!S.logIndex.length) el.innerHTML = '<div class="muted">nothing yet</div>';
   }
 
   function highlightLog(i) {
-    let hi = -1;
-    for (let k = 0; k < S.logIndex.length; k++) if (S.logIndex[k] <= i) hi = k;
+    let hi = -1, lo = 0, up = S.logIndex.length - 1;  // binary search: the last log entry at or before row i
+    while (lo <= up) {
+      const m = (lo + up) >> 1;
+      if (S.logIndex[m] <= i) { hi = m; lo = m + 1; } else up = m - 1;
+    }
     if (hi === S.logHi) return;
     if (S.logHi >= 0 && $('logrow_' + S.logHi)) $('logrow_' + S.logHi).classList.remove('hi');
     if (hi >= 0 && $('logrow_' + hi)) {
@@ -886,12 +970,15 @@
     S.summary = d.summary || null;
     S.frames = d.frames || {};
     S.rows = d.rows || [];
+    resetStats();
+    addStats(S.rows);
+    S.perfKey = '';
     const last = S.rows[S.rows.length - 1];
     S.after = last ? (Number.isFinite(last.index) ? last.index : S.rows.length - 1) : -1;
     S.cursor = Math.max(0, S.rows.length - 1);
     updateScrub();
     rebuildTimeline();
-    rebuildLog();
+    appendLog(0);
     renderSlow(true);
     loadJoints(true);
     markStory();
@@ -901,7 +988,8 @@
     if (S.busy) return;
     S.busy = true;
     try {
-      if (S.follow) {
+      if (S.follow && Date.now() - S.listAt > CFG.LIST_MS) {  // a new trial started? (the list is not re-read on every 300 ms poll)
+        S.listAt = Date.now();
         const list = await api('/api/trials');
         S.trials = list;
         const newest = list.length ? list[0].id : null;
@@ -914,12 +1002,14 @@
       if (!S.id) return;
       const add = await api('/api/trials/' + encodeURIComponent(S.id) + '/rows?after=' + S.after);
       if (add.length) {
-        S.rows = S.rows.concat(add);
+        const from = S.rows.length;
+        Array.prototype.push.apply(S.rows, add);  // append in place: no copy of a long trial per poll
+        addStats(add);
         const last = add[add.length - 1];
         S.after = Number.isFinite(last.index) ? last.index : S.after + add.length;
         updateScrub();
-        rebuildTimeline();
-        rebuildLog();
+        S.tlDirty = true;   // rebuilt at most once a second (renderSlow)
+        appendLog(from);
         renderSlow(true);
       }
       loadJoints(false);
@@ -953,6 +1043,7 @@
       if (idx !== S.shownFrame) { S.shownFrame = idx; renderCams(idx); }
     }
     if (S.logIndex.length) highlightLog(i);
+    if (S.tlDirty && now - (S.tlAt || 0) > 1000) rebuildTimeline();
   }
 
   /* ------------------------------------------------------------------ loop */
@@ -969,6 +1060,7 @@
   }
 
   function loop(now) {
+    const w0 = performance.now();
     const dt = Math.min(0.15, (now - (S.lastPaint || now)) / 1000);
     S.lastPaint = now;
     if (S.follow && S.rows.length) S.cursor = S.rows.length - 1;
@@ -988,6 +1080,9 @@
     if (head && S.rows.length > 1)
       head.style.left = (S.cursor / (S.rows.length - 1) * 100).toFixed(2) + '%';
     renderSlow(false);
+    const w = performance.now() - w0;  // this frame's JS work (independent of how often the browser paints)
+    S.workMs = S.workMs == null ? w : S.workMs * 0.95 + w * 0.05;
+    if (now - (S.workAt || 0) > 1000) { S.workAt = now; $('workMs').textContent = 'render ' + S.workMs.toFixed(1) + ' ms/frame'; }
     requestAnimationFrame(loop);
   }
 
@@ -1043,6 +1138,7 @@
 
   /* ------------------------------------------------------------------ boot */
   async function init() {
+    resetStats();
     buildStatic();
     buildChips();
     wireControls();

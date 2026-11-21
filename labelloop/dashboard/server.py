@@ -65,7 +65,8 @@ def list_trials(root):
         if not (d.is_dir() and TRIAL_ID_RE.match(d.name)):
             continue
         meta, summary = _read_json(d / "meta.json") or {}, _read_json(d / "summary.json")
-        rows = read_rows(d)
+        need = summary is None or any(summary.get(k) is None for k in ("calls", "parcels", "duration_s"))
+        rows = read_rows(d) if need else []  # a finished trial's summary has it all: no re-reading long trials on every poll
         parcels = (summary or {}).get("parcels")
         if parcels is None and rows:
             h = rows[-1].get("harness")
