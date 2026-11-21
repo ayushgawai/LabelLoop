@@ -7,7 +7,7 @@ It gets NO shell: only the fixed tools below. Robot launch command, relay flags 
 
 Writes runs/agent/<ts>/ (wording.json, trial logs, images, montages) and results/agent/REPORT_<ts>.md.
 """
-import argparse, base64, json, os, re, socket, subprocess, sys, time, urllib.request
+import argparse, base64, json, os, re, socket, subprocess, sys, time, urllib.error, urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -211,8 +211,17 @@ class Agent:
             body["previous_response_id"] = prev
         req = urllib.request.Request("https://api.openai.com/v1/responses", json.dumps(body).encode(),
                                      {"Authorization": "Bearer " + ENV["OPENAI_API_KEY"], "content-type": "application/json"})
-        with urllib.request.urlopen(req, timeout=600) as r:
-            return json.load(r)
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"OpenAI {e.code}: {e.read()[:500]!r}") from None
+
+    def pending(self, rid):  # function calls the previous run left unanswered (its last finish): the thread needs their outputs first
+        req = urllib.request.Request(f"https://api.openai.com/v1/responses/{rid}", headers={"Authorization": "Bearer " + ENV["OPENAI_API_KEY"]})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            out = json.load(r).get("output", [])
+        return [{"type": "function_call_output", "call_id": o["call_id"], "output": "ok (that run ended)"} for o in out if o.get("type") == "function_call"]
 
     def run(self):
         memo = ROOT / "runs/agent/last_response_id"  # same thread across runs (Responses API keeps the conversation server-side)
@@ -222,6 +231,8 @@ class Agent:
                f"New run. You have {self.a.sessions} robot sessions and {self.a.minutes} minutes. The human just reset the table: "
                "bins in place, the test parcel somewhere on the table. Take a snapshot first. Learn from the earlier runs"
                + (" in this thread." if prev else ":\n\n" + past)}]}], None
+        if prev:
+            inp = self.pending(prev) + inp
         while report is None:
             left = self.a.sessions - self.sessions
             r = self.ask(inp, prev)
