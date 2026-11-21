@@ -5,6 +5,7 @@ joint-space interpolation between them).
   python -m labelloop.dashboard.demo [--root runs/demo/trials]     then   python -m labelloop.dashboard.server --root runs/demo/trials
 """
 import argparse
+import functools
 import json
 import time
 from pathlib import Path
@@ -13,7 +14,7 @@ import cv2
 import numpy as np
 
 from labelloop import look
-from labelloop.dashboard.kinematics import ARMS, FRAME, GRIP_MAX, HOME_R, chain
+from labelloop.dashboard.kinematics import FRAME, GRIP_MAX, HOME_R, chain
 from labelloop.pose import matrix_to_rpy
 
 REAL_FRONT = Path(__file__).resolve().parents[2] / "tests" / "data" / "real_head_qr.jpg"
@@ -28,6 +29,7 @@ def state_of(q, grip):
             "rotation_rpy": np.round(matrix_to_rpy(R @ HOME_R.T), 5).tolist(), "gripper": round(float(grip), 4)}
 
 
+@functools.lru_cache(maxsize=None)  # deterministic (look.reach seeds its IK): plan once per arm + spot
 def _keyframes(arm, parcel):
     """Joint keyframes (q, gripper) of one pick-and-place: home, above the parcel, down, grip, lift, over the bin, release, home."""
     cfg = {"arm_y": FRAME["arm_y"], "arm_z": FRAME["arm_z"]}
@@ -74,7 +76,7 @@ def make_trial(root, tid, lane="B", n=90, start_epoch=None, outcome="ok", retry=
     instr = place.format(arm=arm[:-3], mat=mat)
     idle, scan, home = 4, 5, 6
     k = n - idle - scan - home - 1  # PLACE calls: the trial has exactly n rows (the last one DONE)
-    moves = _path(_keyframes(arm, parcel), k)
+    moves = _path(_keyframes(arm, tuple(parcel)), k)
     if retry:  # first try: the same motion at double speed whose gripper never closes, then the real one
         half = moves[::2]
         moves = ([(q, GRIP_MAX) for q, _ in half] + half)[:k]
@@ -140,13 +142,51 @@ def make_trial(root, tid, lane="B", n=90, start_epoch=None, outcome="ok", retry=
     return d
 
 
+def make_agent_run(agent_root, reports_root, ts, trial_dirs, notes=None, model="demo-model"):
+    """A trial-agent run like scripts/trial_agent.py writes: runs/agent/<ts>/{journal.json, t<N>.jsonl (runlog rows: t, call, state,
+    instruction, transitions, flags, confirmed), progress.jsonl, wording.json} + results/agent/REPORT_<ts>.md; trial N = trial_dirs[N-1]."""
+    d = Path(agent_root) / ts
+    d.mkdir(parents=True, exist_ok=True)
+    journal, wording = [], {"PLACE": ["use the {arm} arm to put the box into the {mat} bin"]}
+    for n, td in enumerate(trial_dirs, 1):
+        rows = [json.loads(l) for l in (Path(td) / "trial.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+        with open(d / ("t%d.jsonl" % n), "w", encoding="utf-8") as f:
+            for r in rows:
+                h = r["harness"]
+                f.write(json.dumps({"t": r["t"], "call": h["call"], "state": h["state"], "instruction": h["instruction"],
+                                    "transitions": h["transitions"], "flags": h["flags"], "confirmed": h["confirmed"]}) + "\n")
+                if r["latency_ms"] is not None:
+                    f.write(json.dumps({"t": r["t"], "call": h["call"], "latency_s": r["latency_ms"] / 1000, "error": None}) + "\n")
+        outs = [t[2] for r in rows for t in r["harness"]["transitions"] if t[1] == "DONE"]
+        journal.append({"trial": n, "note": (notes or {}).get(n, "demo trial %d" % n), "overlay": "parcel" if n % 2 else "none",
+                        "wording": wording, "verdict": outs[0] if outs else "no verdict",
+                        "seconds_to_verdict": round(rows[-1]["t"] - rows[0]["t"], 1), "retries": sum(t[2] == "retry" for r in rows for t in r["harness"]["transitions"])})
+    (d / "journal.json").write_text(json.dumps(journal, indent=1), encoding="utf-8")
+    (d / "wording.json").write_text(json.dumps(wording, indent=1), encoding="utf-8")
+    with open(d / "progress.jsonl", "w", encoding="utf-8") as f:
+        for j in journal:
+            f.write(json.dumps({"t": "13:%02d:00" % (20 + j["trial"]), "tool": "run_trial", "args": {"note": j["note"]}, "out": json.dumps(j)}) + "\n")
+    rep = Path(reports_root) / ("REPORT_%s.md" % ts)
+    rep.parent.mkdir(parents=True, exist_ok=True)
+    rep.write_text("# Trial agent report %s (%s, %d robot sessions)\n\n# Demo run: %d trials, %d ok\n\nSynthetic report for the dashboard demo.\n\n"
+                   "## Journal\n%s\n\nArtifacts: %s\n" % (ts, model, len(journal), len(journal), sum(j["verdict"] == "ok" for j in journal),
+                                                         "\n".join("- " + json.dumps(j) for j in journal), d), encoding="utf-8")
+    return d, rep
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="python -m labelloop.dashboard.demo", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", default="runs/demo/trials")
+    p.add_argument("--agent", default="runs/demo/agent")
+    p.add_argument("--reports", default="runs/demo/reports")
     a = p.parse_args(argv)
+    dirs = []
     for tid, kw in (("20261121_130500", dict(lane="B")), ("20261121_132000", dict(lane="A", retry=True, flags=[(40, "grasp:missed")])),
                     ("20261121_134500", dict(lane="B", outcome="failed", n=150, flags=[(60, "bin_moved")]))):
-        print("wrote", make_trial(a.root, tid, **kw))
+        dirs.append(make_trial(a.root, tid, **kw))
+        print("wrote", dirs[-1])
+    print("wrote", *make_agent_run(a.agent, a.reports, "20261121_131900", dirs[1:], {1: "retry after a missed grasp", 2: "bin moved: HOLD"}))
+    print("serve: python -m labelloop.dashboard.server --root %s --agent %s --reports %s" % (a.root, a.agent, a.reports))
 
 
 if __name__ == "__main__":

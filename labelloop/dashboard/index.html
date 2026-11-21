@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LabelLoop × WALLX</title>
+<link rel="icon" href="data:,">
 <style>
   :root{
     --ink:#23282e; --ink2:#5b6570; --paper:#fdfcf6; --rule:rgba(47,111,208,.10);
@@ -41,9 +42,31 @@
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
   main{position:relative;z-index:1;display:grid;gap:14px;padding:14px 22px 60px 78px;
     grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
-    grid-template-areas:"table pose" "table perf" "cams log" "time log"}
+    grid-template-areas:"table pose" "table perf" "cams log" "time log" "story story"}
   #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf}
-  #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log}
+  #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log} #storyCard{grid-area:story}
+  .story{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto;padding:2px 4px 2px 0}
+  .st{border:1.3px solid rgba(35,40,46,.35);border-radius:10px 7px 11px 6px / 7px 11px 6px 10px;padding:6px 9px;background:rgba(255,255,255,.72)}
+  .st.agent{border-color:var(--violet);background:rgba(124,108,224,.05)}
+  .st.cur{box-shadow:0 0 0 2.5px rgba(47,111,208,.35)}
+  .stHead{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12.5px}
+  .stHead .when{font-variant-numeric:tabular-nums;font-weight:700}
+  .stHead .grow{flex:1}
+  .stHead button{padding:1px 8px;font-size:11.5px}
+  .stHead button:disabled{opacity:.4;cursor:default}
+  .kind{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:0 6px;border-radius:8px;border:1px solid}
+  .kind.trial{color:var(--blue)} .kind.agent{color:var(--violet)}
+  .verdict{font-size:11px;font-weight:700;padding:0 7px;border-radius:9px;color:#fff;background:#8a94a0}
+  .verdict.ok{background:var(--green)} .verdict.failed,.verdict.mixed{background:var(--red)}
+  .verdict.hold{background:var(--orange)} .verdict.live{background:var(--blue)}
+  .stMeta{font-size:11.5px;color:var(--ink2);margin:3px 0;word-break:break-word}
+  .stMeta q{color:var(--ink);font-style:italic}
+  .stSub{margin:6px 0 0 10px;padding-left:9px;border-left:2px dotted rgba(124,108,224,.55);display:flex;flex-direction:column;gap:6px}
+  pre.report{white-space:pre-wrap;font:11.5px/1.45 ui-monospace,Consolas,monospace;background:#fffdf3;
+    border:1px dashed rgba(35,40,46,.35);border-radius:8px;padding:8px;max-height:380px;overflow:auto;margin:6px 0 0}
+  .tl.sm{height:20px;border-radius:6px;overflow:visible} .tl.sm .tlSeg{font-size:9px}
+  .tlFlag{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:var(--red);z-index:2}
+  .tlFlag::before{content:"";position:absolute;top:-6px;left:-4px;border:5px solid transparent;border-top:6px solid var(--red)}
   .card{background:rgba(255,255,255,.62);border:1.6px solid var(--ink);
     border-radius:14px 9px 16px 8px / 9px 16px 8px 14px;padding:9px 11px 11px;min-width:0}
   .cardTitle{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
@@ -85,7 +108,7 @@
   .logRow.hi{background:#fff6d8;border-left-color:var(--amber)}
   .lt{color:var(--ink2);margin-right:7px;font-size:11px}
   @media (max-width:900px){
-    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"table" "pose" "perf" "cams" "time" "log";padding:12px 12px 40px 16px}
+    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
     header{padding:10px 12px 8px 16px} body::before{display:none}
   }
 </style>
@@ -139,6 +162,10 @@
     <div class="cardTitle">log</div>
     <div class="log" id="log"><div class="muted">nothing yet</div></div>
   </section>
+  <section class="card" id="storyCard">
+    <div class="cardTitle">story · every trial and trial-agent run, in time order</div>
+    <div class="story" id="story"><div class="muted">loading…</div></div>
+  </section>
 </main>
 <script>
 (function () {
@@ -163,7 +190,7 @@
     CAMERAS: ['front', 'left_wrist', 'right_wrist'],
     MOVE_M_S: 0.03,      // fingertip speed above which the arm glows / leaves a trail
     CASE_S: 480,         // the event case clock
-    POLL_MS: 300, JOINTS_MS: 1500
+    POLL_MS: 300, JOINTS_MS: 1500, STORY_MS: 10000
   };
   const ARMS = ['left_ee', 'right_ee'];
 
@@ -172,7 +199,7 @@
     follow: true, playing: false, speed: 1, cursor: 0, after: -1,
     pose: null, geo: null, prevTip: { left_ee: null, right_ee: null }, trail: { left_ee: [], right_ee: [] },
     hist: { left: { z: [], g: [] }, right: { z: [], g: [] } },
-    shownFrame: -1, logHi: -1, logIndex: [], busy: false, summaryAt: 0,
+    shownFrame: -1, logHi: -1, logIndex: [], busy: false, summaryAt: 0, story: [], storySig: '', storyShown: false,
     lastPaint: 0, lastSlow: 0
   };
 
@@ -640,6 +667,127 @@
     S.logHi = hi;
   }
 
+  /* ------------------------------------------------------------------ story */
+  function when(epoch) {
+    return epoch ? new Date(epoch * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  }
+
+  function verdictPill(v) { return '<span class="verdict ' + esc(String(v).split('/')[0]) + '">' + esc(v) + '</span>'; }
+
+  function storyBar(blocks, flags) {  // sub-goal timeline: blocks sized by seconds (rows when no time), flags as red markers
+    if (!blocks || !blocks.length) return '';
+    const useS = blocks.every(function (b) { return typeof b.s === 'number'; }) && blocks.some(function (b) { return b.s > 0; });
+    const w = blocks.map(function (b) { return useS ? Math.max(b.s, 0) : (b.to - b.from + 1); });
+    const tot = w.reduce(function (a, v) { return a + v; }, 0) || 1;
+    let x = 0, html = '<div class="tl sm">';
+    const pos = blocks.map(function (b, k) {
+      const bw = w[k] / tot * 100, p = [x, bw];
+      html += '<div class="tlSeg" title="' + esc(b.state) + (typeof b.s === 'number' ? ' · ' + b.s + ' s' : '') + '" style="left:' +
+        x.toFixed(2) + '%;width:' + bw.toFixed(2) + '%;background:' + (STATE_COLORS[b.state] || '#9aa6b2') + '"><span>' +
+        (bw > 7 ? esc(b.state) : '') + '</span></div>';
+      x += bw;
+      return p;
+    });
+    (flags || []).forEach(function (f) {
+      const k = blocks.findIndex(function (b) { return b.from <= f.i && f.i <= b.to; });
+      if (k < 0) return;
+      const b = blocks[k], mx = pos[k][0] + (f.i - b.from + 0.5) / (b.to - b.from + 1) * pos[k][1];
+      html += '<div class="tlFlag" style="left:' + mx.toFixed(2) + '%" title="' + esc(f.flag) + ' (row ' + f.i + ')"></div>';
+    });
+    return html + '</div>';
+  }
+
+  function wordingText(w) {
+    if (Array.isArray(w)) return w.map(function (s) { return '<q>' + esc(s) + '</q>'; }).join(' → ');
+    if (w && typeof w === 'object')
+      return Object.keys(w).map(function (k) { return k + ' <q>' + esc([].concat(w[k]).join(' | ')) + '</q>'; }).join(' · ');
+    return '';
+  }
+
+  function storyTrial(it) {
+    const meta = [];
+    if (it.wording && it.wording.length) meta.push('wording ' + wordingText(it.wording));
+    meta.push('overlay ' + esc(it.overlay || 'none') + (it.stage ? ' · staged' : ''));
+    if (it.codes && it.codes.length) meta.push('read ' + esc(it.codes.join(', ')));
+    if (it.agent) meta.push('agent run ' + esc(it.agent) + ' · trial ' + esc(it.agent_trial));
+    return '<div class="st" data-id="' + esc(it.id) + '"><div class="stHead"><span class="when">' + when(it.epoch) + '</span>' +
+      '<span class="kind trial">trial</span><span>' + esc(it.id) + '</span>' + verdictPill(it.verdict) +
+      '<span>' + (it.duration_s != null ? Math.round(it.duration_s) + ' s' : '—') + '</span>' +
+      '<span>' + (it.retries || 0) + ' retr' + (it.retries === 1 ? 'y' : 'ies') + '</span>' +
+      '<span class="muted">' + (it.wallx_calls || 0) + ' WALLX / ' + (it.calls || 0) + ' calls</span><span class="grow"></span>' +
+      '<button data-replay="' + esc(it.id) + '">replay ▶</button></div>' +
+      '<div class="stMeta">' + meta.join(' · ') + '</div>' + storyBar(it.blocks, it.flags) + '</div>';
+  }
+
+  function storyAgent(it) {
+    const subs = (it.trials || []).map(function (t) {
+      return '<div><div class="stHead"><span>trial ' + esc(t.trial) + '</span>' + verdictPill(t.verdict || 'none') +
+        '<span>' + (t.seconds_to_verdict != null ? Math.round(t.seconds_to_verdict) + ' s' : '—') + '</span>' +
+        '<span>' + (t.retries || 0) + ' retries</span><span class="muted">overlay ' + esc(t.overlay || 'none') +
+        (t.stage ? ' · staged' : '') + '</span><span class="grow"></span>' +
+        (t.replay ? '<button data-replay="' + esc(t.replay) + '">replay ▶</button>'
+                  : '<button disabled title="no recorded trial matches this run">no recording</button>') + '</div>' +
+        '<div class="stMeta">' + (t.note ? esc(t.note) + ' · ' : '') + wordingText(t.wording) + '</div>' +
+        storyBar(t.blocks, t.flags) + '</div>';
+    }).join('');
+    return '<div class="st agent" data-agent="' + esc(it.id) + '"><div class="stHead"><span class="when">' + when(it.epoch) + '</span>' +
+      '<span class="kind agent">agent run</span><span>' + esc(it.title || it.id) + '</span>' + verdictPill(it.verdict) +
+      '<span class="grow"></span>' + (it.report ? '<button data-report="' + esc(it.id) + '">report</button>' : '') + '</div>' +
+      (subs ? '<div class="stSub">' + subs + '</div>' : '') + '<pre class="report" hidden></pre></div>';
+  }
+
+  function renderStory() {
+    const el = $('story'), atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+    el.innerHTML = S.story.length ? S.story.map(function (it) { return it.kind === 'agent' ? storyAgent(it) : storyTrial(it); }).join('')
+      : '<div class="muted">no trials or agent runs yet</div>';
+    if (atEnd || !S.storyShown) el.scrollTop = el.scrollHeight;  // newest at the bottom: keep following it
+    S.storyShown = true;
+    markStory();
+  }
+
+  function markStory() {
+    Array.prototype.forEach.call($('story').querySelectorAll('.st[data-id]'), function (n) {
+      n.classList.toggle('cur', n.dataset.id === S.id);
+    });
+  }
+
+  async function loadStory() {
+    try {
+      const d = await api('/api/story');
+      const sig = JSON.stringify(d);
+      if (sig === S.storySig) return;   // nothing changed: no DOM rebuild
+      S.storySig = sig;
+      S.story = d;
+      renderStory();
+    } catch (e) { /* next refresh retries */ }
+  }
+
+  async function replay(id) {
+    setPlaying(false);
+    S.follow = false;
+    const sel = $('trialPicker');
+    if (!Array.prototype.some.call(sel.options, function (o) { return o.value === id; })) await refreshTrials();
+    await loadTrial(id);
+    sel.value = id;
+    S.cursor = 0;
+    updateScrub();
+    setPlaying(true);
+    $('tableCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function toggleReport(btn) {
+    const pre = btn.closest('.st').querySelector('pre.report');
+    if (!pre.hidden) { pre.hidden = true; return; }
+    if (!pre.dataset.loaded) {
+      try {
+        const d = await api('/api/agent/' + encodeURIComponent(btn.dataset.report));
+        pre.textContent = d.report || JSON.stringify(d.journal, null, 1);
+        pre.dataset.loaded = '1';
+      } catch (e) { pre.textContent = 'report unavailable'; }
+    }
+    pre.hidden = false;
+  }
+
   /* ------------------------------------------------------------------ data */
   async function api(path) {
     const r = await fetch(path, { cache: 'no-store' });
@@ -715,6 +863,7 @@
     rebuildLog();
     renderSlow(true);
     loadJoints(true);
+    markStory();
   }
 
   async function poll() {
@@ -851,6 +1000,13 @@
     document.addEventListener('keydown', function (e) {
       if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); $('playBtn').click(); }
     });
+
+    $('story').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      if (b.dataset.replay) replay(b.dataset.replay).catch(function () { /* trial gone: keep the view */ });
+      else if (b.dataset.report) toggleReport(b);
+    });
   }
 
   /* ------------------------------------------------------------------ boot */
@@ -864,6 +1020,8 @@
       if (S.trials.length) await loadTrial(S.trials[0].id);
     } catch (e) { /* ignore */ }
     setInterval(poll, CFG.POLL_MS);
+    loadStory();
+    setInterval(loadStory, CFG.STORY_MS);
   }
 
   init();
