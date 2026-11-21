@@ -16,7 +16,8 @@ from manaenv.assets.resolver import resolve_runtime_asset_reference
 ROOT = "assets/labelloop"
 _ALL = ("pz", "nz", "py", "ny", "px", "nx")
 # parcel id -> faces that can hold its label; one asset box_<id>_<face> per face (props.variants; tests/test_layout.py keeps it equal)
-LABELLED = {"z95112": _ALL, "z90210": _ALL, "z10001": ("pz", "nz"), "z94110": _ALL, "z90015": _ALL, "z60601": _ALL, "z95014": _ALL}
+LABELLED = {"z95112": _ALL, "z90210": _ALL, "z10001": ("pz", "nz"), "z94110": _ALL, "z90015": _ALL, "z60601": _ALL, "z95014": _ALL,
+            "bhindi": ("pz", "nz"), "lobar": ("pz", "nz"), "miro": ("pz", "nz")}
 PARCELS = ("nolabel", "garbage", "wallet", "plainbox", *(f"{b}_{f}" for b, fs in LABELLED.items() for f in fs))
 
 

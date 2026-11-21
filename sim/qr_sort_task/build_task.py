@@ -1,4 +1,4 @@
-"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort cases 18-31 (31 = empty calibration case).
+"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort cases 18-34 (31 = empty calibration case).
 
   python sim/qr_sort_task/build_task.py --x2real $X2REAL_ROOT
 
@@ -50,14 +50,15 @@ INSTR = ("Read each parcel's QR label: put ZIP 940, 941, 950 and 951 parcels int
 # late: parcel asset suffix -> time (s) a human slides it into the induction zone; every parcel is parked off-table until then,
 # so the zone is EMPTY at reset (the harness takes its empty-zone reference). The harness gives each parcel up to 3 pick-and-place
 # tries (~40 s of sim each): 150 s per single parcel, stream parcels 150 s apart.
-STREAM = ("z95112", "z90210", "z10001", "nolabel", "garbage", "z94110", "z90015", "z60601", "z95014", "wallet", "plainbox")
+STREAM = ("z95112", "z90210", "z10001", "nolabel", "garbage", "z94110", "z90015", "z60601", "z95014", "wallet", "plainbox", "bhindi", "lobar", "miro")
 CASES = {
     18: dict(late={"z95112": 6.0}, timeout=150), 19: dict(late={"z90210": 6.0}, timeout=150),
     20: dict(late={"z10001": 6.0}, timeout=150),
     21: dict(late={"nolabel": 6.0}, timeout=150), 22: dict(late={"garbage": 6.0}, timeout=150),
     23: dict(late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780),
     **{n: dict(late={b: 6.0}, timeout=150) for n, b in zip(range(24, 30), ("z94110", "z90015", "z60601", "z95014", "wallet", "plainbox"))},
-    30: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 11 parcels
+    **{n: dict(late={b: 6.0}, timeout=150) for n, b in zip(range(32, 35), ("bhindi", "lobar", "miro"))},  # real flat retail boxes
+    30: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 14 parcels
     31: dict(late={}, timeout=90),  # CALIBRATION (harness calib_test: true): no parcels, no events, no success term - time-out only
 }
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
@@ -108,7 +109,8 @@ def zone(b):
     ex, ey = sorted(TABLE_C[0] - v for v in lx), sorted(TABLE_C[1] - v for v in ly)  # -> env (the map flips the axes)
     x = [max(INDUCT_ENV["x"][0], ex[0]), min(INDUCT_ENV["x"][1], ex[1])]
     y = [max(INDUCT_ENV["y"][0], ey[0]), min(INDUCT_ENV["y"][1], ey[1])]
-    assert x[1] - x[0] >= 0.01 and y[1] - y[0] >= 0.01, f"no room to drop {b} in front of the bins: x {x}, y {y}"
+    # >= 4 mm (was 10): LOBAR (267 mm long, lengthwise) leaves only ~6 mm of x play in front of the bins
+    assert x[1] - x[0] >= 0.004 and y[1] - y[0] >= 0.01, f"no room to drop {b} in front of the bins: x {x}, y {y}"
     if x == INDUCT_ENV["x"] and y == INDUCT_ENV["y"]:
         return [INDUCT_ENV["x"], INDUCT_ENV["y"]]
     inward = lambda lo, hi: [math.ceil(lo * 1e4) / 1e4, math.floor(hi * 1e4) / 1e4]  # noqa: E731 (0.1 mm steps, never outward)

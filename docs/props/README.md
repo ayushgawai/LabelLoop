@@ -38,6 +38,16 @@ Sim-only props, NOT measured or photographed yet (nominal sizes in `props.py`): 
 4.5 x 3.5 x 0.75 in (reject, no label), `plainbox` kraft box 6 x 4 x 3 in (reject, no label). Every labelled parcel carries its one QR label on a random
 face per episode (variants `<id>_<face>`, see sim/README.md).
 
+Real FLAT retail boxes, measured with a tape measure on a phone (photos not in the repo yet; the sim models them from the numbers and the colours
+below). They always arrive lying flat, biggest face down, and carry ONE 100 x 70 mm shipping label on the big top or bottom face (random per episode,
+variants `<id>_pz` / `<id>_nz`). All three are wider than the 97.5 mm gripper opening lying flat (parcel_report WARNs, intended): two-arm handling.
+
+| Prop | What | L x W x H (in) | L x W x H (mm) | Print | Label (QR) | Sim id / case |
+|---|---|---|---|---|---|---|
+| Bhindi | Bhindi Masala ready-meal box | 6.5 x 4 x 1.5 | 165 x 102 x 38 | deep purple, orange band at one end, dark food photo on top | LL-08, lane A -> blue (`420/95126/001`) | `bhindi`, case 32 |
+| Lobar | LOBAR protein bar variety pack | 10.5 x 4 x 2.5 | 267 x 102 x 64 | chocolate brown, dark band | LL-11, lane B -> red (`420/90024/001`) | `lobar`, case 33 |
+| Miro | Miro box | 8.5 x 6.5 x 1.5 | 216 x 165 x 38 | black, white logo patch (90 x 45 mm, modelled as a plain rectangle) on top | LL-14, reject -> black (`420/02139/001`) | `miro`, case 34 |
+
 Not measured yet: weights (the sim guesses 0.10-0.20, 0.15-0.30, 0.05-0.10 and 0.25-0.40 kg) and a no-label parcel (still the 60 mm sim cube).
 The QR labels are printed from `sim/make_qr_boxes.py` (`docs/labels/`: `sim/make_labels.py`, full shipping labels, 40 mm QR); package 4's own authenticity sticker
 also carries a QR code, which the sim does not model.

@@ -61,6 +61,20 @@ PARCELS = {
                    tape=dict(axis="z", mm=72, at=0, rgb=(40, 40, 40))),
     # brown leather wallet 4.5 x 3.5 x 0.75 in, flat, no label, matte dark brown. Not a parcel -> reject. 89 mm across: tight grasp.
     "wallet": dict(size=(4.5 * IN, 3.5 * IN, 0.75 * IN), mass=(0.08, 0.15), yaw=0.3, color=(60, 40, 28), labels=()),
+    # --- real FLAT retail boxes (sim-modelled from phone measurements, photos not in the repo yet). They always arrive lying flat, biggest
+    # face down; `faces` restricts the one label to the big top/bottom face (variants). All three are wider than the gripper opening
+    # lying flat (parcel_report WARNs, intended): they are handled with two arms. ---
+    # Bhindi Masala ready-meal box 6.5 x 4 x 1.5 in: deep purple, orange band at one end, dark food photo on top. Lane A (spare LL-08, 95126).
+    "bhindi": dict(label="large", size=(6.5 * IN, 4 * IN, 1.5 * IN), mass=(0.15, 0.30), yaw=0.1, color=(70, 40, 110), faces=("pz", "nz"),
+                   tape=dict(axis="x", mm=30, at=67, rgb=(225, 120, 40)),
+                   patches=[dict(face="pz", at=(-20, 0), mm=(90, 80), rgb=(35, 22, 22))]),
+    # LOBAR protein bar variety pack 10.5 x 4 x 2.5 in: chocolate brown, dark band along its length. yaw is small: 267 mm lengthwise barely fits in front of the bins: yaw 0, the centre has only ~6 mm of x play. Lane B (spare LL-11, 90024).
+    "lobar": dict(label="large", size=(10.5 * IN, 4 * IN, 2.5 * IN), mass=(0.30, 0.55), yaw=0.0, color=(95, 60, 40), faces=("pz", "nz"),
+                  tape=dict(axis="x", mm=40, at=0, rgb=(40, 30, 25))),
+    # Miro box 8.5 x 6.5 x 1.5 in: black, white logo patch on top (plain rectangle; the real one is rounded). Reject (spare LL-14, 02139).
+    # The logo sits 55 mm off-centre so the centred shipping label does not hide it.
+    "miro": dict(label="large", size=(8.5 * IN, 6.5 * IN, 1.5 * IN), mass=(0.20, 0.40), yaw=0.1, color=(25, 25, 28), faces=("pz", "nz"),
+                 patches=[dict(face="pz", at=(0, 55), mm=(90, 45), rgb=(235, 235, 235))]),
     # plain kraft box 6 x 4 x 3 in, no label (a random box), stood on its 6 x 3 in edge: 76 mm across. -> reject.
     "plainbox": dict(size=(6 * IN, 3 * IN, 4 * IN), mass=(0.10, 0.20), yaw=0.2, color=(196, 158, 110), labels=()),
 }
@@ -80,13 +94,13 @@ _ROWS = [
     ("z90015", "sim only (tall kraft box 3 x 5 x 8 in), not yet bought", "Sofia Lindqvist", "1400 S Figueroa St", "Los Angeles", "CA", "90015"),
     ("z60601", "sim only (white retail box 5 x 3.5 x 2.5 in), not yet bought", "Marcus Webb", "77 E Randolph St", "Chicago", "IL", "60601"),
     ("z95014", "sim only (large kraft box 12 x 10 x 6 in), not yet bought", "Hana Kimura", "10300 De Anza Blvd", "Cupertino", "CA", "95014"),
-    ("", "spare, lane A", "Olivia Grant", "415 Union Ave", "San Jose", "CA", "95126"),
+    ("bhindi", "Bhindi Masala ready-meal box 6.5 x 4 x 1.5 in", "Olivia Grant", "415 Union Ave", "San Jose", "CA", "95126"),
     ("", "spare, lane A", "Noah Patel", "600 Castro St", "Mountain View", "CA", "94043"),
     ("", "spare, lane A", "Lena Fischer", "2250 Lawrence Rd", "Santa Clara", "CA", "95054"),
-    ("", "spare, lane B", "Carlos Mendoza", "405 Hilgard Ave", "Los Angeles", "CA", "90024"),
+    ("lobar", "LOBAR protein bar pack 10.5 x 4 x 2.5 in", "Carlos Mendoza", "405 Hilgard Ave", "Los Angeles", "CA", "90024"),
     ("", "spare, lane B", "Ruth Adler", "200 N Spring St", "Los Angeles", "CA", "90012"),
     ("", "spare, lane B", "Tomas Novak", "1601 Abbot Kinney Blvd", "Venice", "CA", "90291"),
-    ("", "spare, reject", "Aiko Tanaka", "33 Oxford St", "Cambridge", "MA", "02139"),
+    ("miro", "Miro box 8.5 x 6.5 x 1.5 in", "Aiko Tanaka", "33 Oxford St", "Cambridge", "MA", "02139"),
     ("", "spare, reject", "Grace Liu", "1100 Congress Ave", "Austin", "TX", "73301"),
     ("", "spare, reject", "Owen Doyle", "400 Pine St", "Seattle", "WA", "98101"),
 ]
@@ -115,13 +129,13 @@ def fits(face_m, size):
 
 def variants(base):
     """{variant id: spec} of parcel `base`. A parcel with a QR code (ROUTES) gets one variant `<base>_<face>` per face that can hold its
-    label (fits), labels=(face,); any other prop is {base: its spec} (None for the plain cube)."""
+    label (fits) and is in the prop's optional `faces` (flat boxes: pz/nz only), labels=(face,); any other prop is {base: its spec} (None for the plain cube)."""
     p = PARCELS.get(base)
     if base not in ROUTES:
         return {base: p}
     x, y, z = p["size"]
     dims = {"pz": (x, y), "nz": (x, y), "py": (x, z), "ny": (x, z), "px": (y, z), "nx": (y, z)}
-    return {f"{base}_{f}": dict(p, labels=(f,)) for f in FACES if fits(dims[f], p["label"])}
+    return {f"{base}_{f}": dict(p, labels=(f,)) for f in p.get("faces", FACES) if fits(dims[f], p["label"])}
 
 # Table mat: the real event benches have a mint/teal green work mat over the whole tabletop (WALLX was likely trained on those).
 # size (x depth, y across, z thickness) m, sRGB matte; colour sampled from the event photo, adjust if needed.

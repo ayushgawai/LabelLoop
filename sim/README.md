@@ -1,6 +1,6 @@
 # LabelLoop in X2Real (sim) — research + draft
 
-Status (Windows run, Isaac Sim 6.0.1): the suite is cases 18-30 (layout and cases: see "Cases" below). Cases 1-17 (earlier layouts and their
+Status (Windows run, Isaac Sim 6.0.1): the suite is cases 18-34 (layout and cases: see "Cases" below). Cases 1-17 (earlier layouts and their
 props: a001..b003 boxes, decoys, table mat, lane mats, floor reject basket) were removed on 2026-11-20; the Phase sections are history and still mention them.
 Text below written before running; **[UNVERIFIED]** tags not mentioned in Phase 3 results are still unverified.
 `X2` = X2Real checkout (`manaenv/` paths are relative to it). Items marked **[UNVERIFIED]** need the Linux box.
@@ -125,10 +125,11 @@ The induction zone starts empty and a human swipes each parcel in FROM THE LEFT,
 on the mat, to a random spot of `INDUCT_ENV` (env x -0.08..0.06, y -0.308..-0.148 = lateral -0.12..+0.04 m) 0.08 m further left with `SLIDE_V` 0.4 m/s toward the robot's right (`disturb(slide_v=...)`, friction 1.0 stops it); `zone()` shrinks the zone
 for a bigger parcel so all of it stays 3 cm clear of the lane bins and the reject bin and 1 cm inside the table (package 1: env x -0.0096..0.0284; the left-gripper keep-out `LEFT_GRIPPER_Y` now only binds for the big flat parcels).
 18 z95112 (lane A) | 19 z90210 (lane B) | 20 z10001 (unknown ZIP, reject) | 21 nolabel | 22 garbage | 24 z94110 (A) | 25 z90015 (B) | 26 z60601 (reject) |
-27 z95014 (A, not graspable) | 28 wallet (reject) | 29 plainbox (reject): all at 6 s, timeout 150 s.
+27 z95014 (A, not graspable) | 28 wallet (reject) | 29 plainbox (reject) | 32 bhindi (A) | 33 lobar (B) | 34 miro (reject): all at 6 s, timeout 150 s.
+32-34 are the real FLAT retail boxes of docs/props (label LL-08 / LL-11 / LL-14 on the top or bottom face only; wider than the gripper lying flat -> two arms; lobar has ~6 mm of x play).
 23 stream: z95112 6 s, z90210 156 s, z10001 306 s, nolabel 456 s, garbage 606 s (timeout 780 s).
-30 mixed stream of all 11 parcels 150 s apart (z95112, z90210, z10001, nolabel, garbage, z94110, z90015, z60601, z95014, wallet, plainbox; 6 s ... 1506 s,
-timeout 1680 s). Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else black. This layout replaced the earlier row layout (bins at y +-0.15,
+30 mixed stream of all 14 parcels 150 s apart (z95112, z90210, z10001, nolabel, garbage, z94110, z90015, z60601, z95014, wallet, plainbox, bhindi, lobar, miro; 6 s ... 1956 s,
+timeout 2130 s). Instruction: ZIP 940/941/950/951 -> blue, 900-902 -> red, else black. This layout replaced the earlier row layout (bins at y +-0.15,
 reject bin beside blue, zone in front of the right arm); the "Cases 18-23" section below is history.
 
 ## Unverified (all of it, in short)

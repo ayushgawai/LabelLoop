@@ -7,8 +7,8 @@ the rest (FROM / SHIP TO / tracking) is realism. The SAME artwork (`sim/make_qr_
 - `labels_letter.pdf`: US Letter, 300 dpi, true size, grey cut lines, 50 mm ruler per page.
 - `preview_large.png` (100 x 70 mm), `preview_small.png` (62 x 62 mm).
 
-16 labels: 7 for items (package 1 -> 95112, package 2 -> 90210, package 3 mailer -> 10001, the four sim-only boxes 94110 / 90015 / 60601 / 95014
-"not yet bought") + 9 spares (3 lane A, 3 lane B, 3 reject) for any extra package.
+16 labels: 10 for items (package 1 -> 95112, package 2 -> 90210, package 3 mailer -> 10001, the four sim-only boxes 94110 / 90015 / 60601 / 95014
+"not yet bought", the flat retail boxes Bhindi LL-08 -> 95126, LOBAR LL-11 -> 90024, Miro LL-14 -> 02139) + 6 spares (2 lane A, 2 lane B, 2 reject).
 
 Registry (single source): `sim/qr_sort_task/props.py` `LABELS`; lanes from `SORT_PLAN` (same copy `build_task.py` uses). Regenerate:
 

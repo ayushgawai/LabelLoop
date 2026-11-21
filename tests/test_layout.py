@@ -69,7 +69,8 @@ def test_layout_lane_bins_far_row_reject_bin_right_side_zone_at_the_centre():
 
 def test_target_follows_the_zip3_of_the_code():
     assert {b: bt.TARGET[b] for b in bt.ROUTES} == {"z95112": "bin_blue", "z90210": "bin_red", "z10001": "reject_bin", "z94110": "bin_blue",
-                                                    "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue"}
+                                                    "z90015": "bin_red", "z60601": "reject_bin", "z95014": "bin_blue",
+                                                    "bhindi": "bin_blue", "lobar": "bin_red", "miro": "reject_bin"}
     for b in bt.PARCELS:  # unlabelled props are not in TARGET -> reject
         assert bt.TARGET.get(b, "reject_bin") == "reject_bin" or b in bt.ROUTES
 
@@ -80,11 +81,13 @@ def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
         dims = {"pz": (x, y), "nz": (x, y), "py": (x, z), "ny": (x, z), "px": (y, z), "nx": (y, z)}
         lw, lh = props.LABEL_SIZES[bt.PARCELS[b]["label"]]
         v = bt.variants(b)  # fits in either orientation
-        assert list(v) == [f"{b}_{f}" for f in props.FACES if max(dims[f]) * 1000 >= max(lw, lh) - 1e-6 and min(dims[f]) * 1000 >= min(lw, lh) - 1e-6]
+        assert list(v) == [f"{b}_{f}" for f in bt.PARCELS[b].get("faces", props.FACES) if max(dims[f]) * 1000 >= max(lw, lh) - 1e-6 and min(dims[f]) * 1000 >= min(lw, lh) - 1e-6]
         assert all(p["labels"] == (vid.rsplit("_", 1)[1],) and p["size"] == bt.PARCELS[b]["size"] for vid, p in v.items())
     assert list(bt.variants("z10001")) == ["z10001_pz", "z10001_nz"]
+    for b in ("bhindi", "lobar", "miro"):  # real flat boxes: label on the big top or bottom face only
+        assert list(bt.variants(b)) == [f"{b}_pz", f"{b}_nz"]
     assert {b: bt.PARCELS[b]["label"] for b in bt.ROUTES} == {"z94110": "small", "z60601": "small", "z95112": "large", "z90210": "large",
-                                                              "z10001": "large", "z90015": "large", "z95014": "large"}
+                                                              "z10001": "large", "z90015": "large", "z95014": "large", "bhindi": "large", "lobar": "large", "miro": "large"}
     assert len(bt.variants("z60601")) == 6 and not props.fits((0.127, 0.064), "large") and props.fits((0.064, 0.127), "small")
     assert bt.variants("wallet") == {"wallet": bt.PARCELS["wallet"]} and bt.PARCELS["wallet"]["labels"] == ()
     assert bt.variants("nolabel") == {"nolabel": None}
@@ -92,7 +95,7 @@ def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
 
 def test_cases_scene_and_dag_group_variants_per_base_id():
     c = bt.CASES[30]
-    assert len(c["late"]) == 11 and c["timeout"] == max(c["late"].values()) + 174
+    assert len(c["late"]) == 14 and c["timeout"] == max(c["late"].values()) + 174
     sc, dg = bt.scene(30, c), bt.dag(30, c)
     names = {o["id"] for o in sc["objects"] if o["id"].startswith("box_")}
     assert names == {f"box_{v}" for b in c["late"] for v in bt.variants(b)}
@@ -128,4 +131,12 @@ def test_label_registry_routes_match_sort_plan_and_code_pattern():
         assert bt.TARGET.get(r["sim_id"], r["target_bin"]) == r["target_bin"]
     assert {r["sim_id"]: r["qr_payload"] for r in props.LABELS if r["sim_id"]} == props.ROUTES
     spares = [r for r in props.LABELS if not r["sim_id"]]
-    assert [r["lane"] for r in spares] == ["A"] * 3 + ["B"] * 3 + ["reject"] * 3 and {r["size"] for r in spares} == {"large"}
+    assert [r["lane"] for r in spares] == ["A"] * 2 + ["B"] * 2 + ["reject"] * 2 and {r["size"] for r in spares} == {"large"}
+
+
+def test_flat_retail_boxes_cases_32_34_have_zones_and_use_the_spare_labels():
+    for n, b, lid, zip5 in ((32, "bhindi", "LL-08", "95126"), (33, "lobar", "LL-11", "90024"), (34, "miro", "LL-14", "02139")):
+        assert bt.CASES[n] == dict(late={b: 6.0}, timeout=150) and b in bt.STREAM and bt.zone(b)
+        assert props.LABEL_OF[b]["label_id"] == lid and props.ROUTES[b] == f"420/{zip5}/001"
+        bt.scene(n, bt.CASES[n]), bt.dag(n, bt.CASES[n])
+        assert bt.spec(b)["size"][2] < min(bt.spec(b)["size"][:2])  # flat: z is the thin side
