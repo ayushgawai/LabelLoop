@@ -39,7 +39,7 @@ Sim-only props, NOT measured or photographed yet (nominal sizes in `props.py`): 
 face per episode (variants `<id>_<face>`, see sim/README.md).
 
 Not measured yet: weights (the sim guesses 0.10-0.20, 0.15-0.30, 0.05-0.10 and 0.25-0.40 kg) and a no-label parcel (still the 60 mm sim cube).
-The QR labels are printed from `sim/make_qr_boxes.py` (`sheet_a4.png`: 40 mm QR + 5 mm white margin); package 4's own authenticity sticker
+The QR labels are printed from `sim/make_qr_boxes.py` (`docs/labels/`: `sim/make_labels.py`, full shipping labels, 40 mm QR); package 4's own authenticity sticker
 also carries a QR code, which the sim does not model.
 
 | Package 1 | Package 2 | Package 3 | Package 4 |

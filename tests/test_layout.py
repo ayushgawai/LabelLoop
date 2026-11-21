@@ -64,10 +64,14 @@ def test_variants_one_per_eligible_face_mailer_only_top_and_bottom():
     for b, code in bt.ROUTES.items():
         x, y, z = bt.PARCELS[b]["size"]
         dims = {"pz": (x, y), "nz": (x, y), "py": (x, z), "ny": (x, z), "px": (y, z), "nx": (y, z)}
-        v = bt.variants(b)
-        assert list(v) == [f"{b}_{f}" for f in props.FACES if min(dims[f]) >= props.LABEL - 1e-9]
+        lw, lh = props.LABEL_SIZES[bt.PARCELS[b]["label"]]
+        v = bt.variants(b)  # fits in either orientation
+        assert list(v) == [f"{b}_{f}" for f in props.FACES if max(dims[f]) * 1000 >= max(lw, lh) - 1e-6 and min(dims[f]) * 1000 >= min(lw, lh) - 1e-6]
         assert all(p["labels"] == (vid.rsplit("_", 1)[1],) and p["size"] == bt.PARCELS[b]["size"] for vid, p in v.items())
     assert list(bt.variants("z10001")) == ["z10001_pz", "z10001_nz"]
+    assert {b: bt.PARCELS[b]["label"] for b in bt.ROUTES} == {"z94110": "small", "z60601": "small", "z95112": "large", "z90210": "large",
+                                                              "z10001": "large", "z90015": "large", "z95014": "large"}
+    assert len(bt.variants("z60601")) == 6 and not props.fits((0.127, 0.064), "large") and props.fits((0.064, 0.127), "small")
     assert bt.variants("wallet") == {"wallet": bt.PARCELS["wallet"]} and bt.PARCELS["wallet"]["labels"] == ()
     assert bt.variants("nolabel") == {"nolabel": None}
 
@@ -96,3 +100,18 @@ def test_registered_assets_match_props_variants():
     labelled = {k: (allf if isinstance(v, ast.Name) else ast.literal_eval(v)) for k, v in zip(consts["LABELLED"].keys, consts["LABELLED"].values)
                 for k in [ast.literal_eval(k)]}
     assert labelled == {b: tuple(v.rsplit("_", 1)[1] for v in bt.variants(b)) for b in bt.ROUTES}
+
+
+def test_label_registry_routes_match_sort_plan_and_code_pattern():
+    import re
+    import yaml
+    pat = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "task_qr_sort.yaml").read_text())["code_pattern"]
+    ids = [r["label_id"] for r in props.LABELS]
+    assert len(set(ids)) == len(ids) and len({r["qr_payload"] for r in props.LABELS}) == len(ids)
+    for r in props.LABELS:
+        assert re.match(pat, r["qr_payload"]).group(1) == r["zip5"] and r["zip3"] == r["zip5"][:3]
+        assert r["target_bin"] == bt.SORT_PLAN.get(r["zip3"], "reject_bin") and r["lane"] == props.LANE[r["target_bin"]]
+        assert bt.TARGET.get(r["sim_id"], r["target_bin"]) == r["target_bin"]
+    assert {r["sim_id"]: r["qr_payload"] for r in props.LABELS if r["sim_id"]} == props.ROUTES
+    spares = [r for r in props.LABELS if not r["sim_id"]]
+    assert [r["lane"] for r in spares] == ["A"] * 3 + ["B"] * 3 + ["reject"] * 3 and {r["size"] for r in spares} == {"large"}

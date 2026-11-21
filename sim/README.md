@@ -149,7 +149,7 @@ Caveat: with the label centred on the optical axis it is half hidden by the fing
 ## Phase 5: 60 mm cube parcels (Windows, `C:\x2`)
 Why: the G gripper opens ~97 mm (finger limit 0.04875), so 100x100x50 mm boxes could not be grasped from above and WALLX ignored the big slab.
 Parcels are now 60 mm kraft cubes (`CUBE_MM`, one constant; `make_usd.CUBE` must match), ~0.08 kg (spawn 0.07-0.09), friction 1.0. Label = 40 mm QR (ERROR_CORRECT_H)
-+ 5 mm white margin = 50 mm, centred on the top face and the +Y side face; decoys are plain kraft cubes. `sheet_a4.png` prints the labels at exactly 40 mm QR / 50 mm label.
++ 5 mm white margin = 50 mm, centred on the top face and the +Y side face; decoys are plain kraft cubes. Printable labels: `docs/labels/` (`sim/make_labels.py`).
 Layout copied from the built-in fruit scene (`fruits_to_basket/vnext.yaml`, the scene behind `pick_fruits_into_basket`): cubes in `object_start_region` x 0.05..0.28, y -0.38..0.38, yaws +-0.1,
 min_spacing 0.03; bins at x -0.105 (middle of the fruit basket's x -0.14..-0.07), y +-0.15 (case 4: +-0.26).
 Zero-action runs, case 1 and 6 (1 episode each): complete, cubes upright with the QR on top, bins far side (orange left, blue right), nothing intersecting.

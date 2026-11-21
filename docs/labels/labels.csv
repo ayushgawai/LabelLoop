@@ -1,0 +1,17 @@
+label_id,qr_payload,zip5,zip3,lane,target_bin,recipient,street,city,state,tracking,weight_lb,date,size,sim_id,item
+LL-01,420/95112/001,95112,951,A,bin_blue,Maya Okafor,212 Maple Ct,San Jose,CA,LLX 4849 7339 1074 37,1.0,2026-11-20,large,z95112,package 1: Amazon box 9 x 6 x 3.5 in
+LL-02,420/90210/001,90210,902,B,bin_red,Daniel Reyes,9 Canon Dr,Beverly Hills,CA,LLX 9088 5104 3170 50,2.3,2026-11-20,large,z90210,package 2: Amazon box 11 x 8.1 x 4 in
+LL-03,420/10001/001,10001,100,reject,reject_bin,Priya Natarajan,350 W 31st St,New York,NY,LLX 6284 6095 8166 29,4.3,2026-11-20,large,z10001,package 3: Amazon padded mailer 10 x 8.5 in
+LL-04,420/94110/001,94110,941,A,bin_blue,Ethan Brooks,88 Valencia Ave,San Francisco,CA,LLX 6081 5155 3599 91,2.0,2026-11-20,small,z94110,"sim only (small kraft box 3 x 3 x 3 in), not yet bought"
+LL-05,420/90015/001,90015,900,B,bin_red,Sofia Lindqvist,1400 S Figueroa St,Los Angeles,CA,LLX 4895 1197 1298 78,2.7,2026-11-20,large,z90015,"sim only (tall kraft box 3 x 5 x 8 in), not yet bought"
+LL-06,420/60601/001,60601,606,reject,reject_bin,Marcus Webb,77 E Randolph St,Chicago,IL,LLX 5678 5988 4106 21,3.0,2026-11-20,small,z60601,"sim only (white retail box 5 x 3.5 x 2.5 in), not yet bought"
+LL-07,420/95014/001,95014,950,A,bin_blue,Hana Kimura,10300 De Anza Blvd,Cupertino,CA,LLX 2839 0467 7002 11,1.2,2026-11-20,large,z95014,"sim only (large kraft box 12 x 10 x 6 in), not yet bought"
+LL-08,420/95126/001,95126,951,A,bin_blue,Olivia Grant,415 Union Ave,San Jose,CA,LLX 6606 1424 0526 09,1.2,2026-11-20,large,,"spare, lane A"
+LL-09,420/94043/001,94043,940,A,bin_blue,Noah Patel,600 Castro St,Mountain View,CA,LLX 6718 9962 5003 55,1.5,2026-11-20,large,,"spare, lane A"
+LL-10,420/95054/001,95054,950,A,bin_blue,Lena Fischer,2250 Lawrence Rd,Santa Clara,CA,LLX 6737 4690 8732 41,1.6,2026-11-20,large,,"spare, lane A"
+LL-11,420/90024/001,90024,900,B,bin_red,Carlos Mendoza,405 Hilgard Ave,Los Angeles,CA,LLX 8055 0572 6616 58,3.0,2026-11-20,large,,"spare, lane B"
+LL-12,420/90012/001,90012,900,B,bin_red,Ruth Adler,200 N Spring St,Los Angeles,CA,LLX 9928 8923 9806 85,1.7,2026-11-20,large,,"spare, lane B"
+LL-13,420/90291/001,90291,902,B,bin_red,Tomas Novak,1601 Abbot Kinney Blvd,Venice,CA,LLX 2784 1398 2827 16,4.4,2026-11-20,large,,"spare, lane B"
+LL-14,420/02139/001,02139,021,reject,reject_bin,Aiko Tanaka,33 Oxford St,Cambridge,MA,LLX 9506 7571 9493 55,4.4,2026-11-20,large,,"spare, reject"
+LL-15,420/73301/001,73301,733,reject,reject_bin,Grace Liu,1100 Congress Ave,Austin,TX,LLX 7828 5828 6231 65,2.8,2026-11-20,large,,"spare, reject"
+LL-16,420/98101/001,98101,981,reject,reject_bin,Owen Doyle,400 Pine St,Seattle,WA,LLX 9378 4630 4916 61,1.3,2026-11-20,large,,"spare, reject"

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, WALL, variants
+from props import BINS, CUBE, GRIPPER_OPEN, PARCELS, ROUTES, SORT_PLAN, WALL, variants
 
 MOD = "manaenv.assets.objects.labelloop_qr_sort"
 SCENE = lambda n: f"labelloop_qr_sort_case{n}_scene"
@@ -43,8 +43,6 @@ INDUCT_ENV = {"x": [-0.08, 0.06], "y": [-0.2682, -0.0182]}
 LEFT_GRIPPER_Y, SLIDE_FROM = -0.27, 0.08  # tabletop-local y of the left gripper's inner edge; swipe start offset (disturb's 0.08 m)
 SLIDE_V = 1.25  # sqrt(2 * mu 1.0 * g * 0.08 m): slides the 8 cm from its entry point to the sampled spot; m/s toward the robot's right (env -y) given to a parcel as it is swiped in (disturb slide_v)
 CUBE_SPEC = dict(size=CUBE, mass=(0.07, 0.09), yaw=0.3)  # any parcel not in props.PARCELS
-SORT_PLAN = {"950": "bin_blue", "951": "bin_blue", "940": "bin_blue", "941": "bin_blue",
-             "900": "bin_red", "901": "bin_red", "902": "bin_red"}  # ZIP3 -> lane bin (harness config sort plan); anything else -> reject_bin
 TARGET = {b: SORT_PLAN.get(c.split("/")[1][:3], "reject_bin") for b, c in ROUTES.items()}  # labelled parcel id -> bin from its code's ZIP3
 INSTR = ("Read each parcel's QR label: put ZIP 940, 941, 950 and 951 parcels into the blue bin, ZIP 900-902 into the red bin; "
          "put anything else in the black bin on the right; return home.")
