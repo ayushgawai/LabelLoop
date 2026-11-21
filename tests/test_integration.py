@@ -15,7 +15,7 @@ from test_event_server import start_relay
 from wallx_stub import Stub
 
 ROOT = Path(__file__).parent.parent
-TASK = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "look": {"enabled": False}, "spin": {"enabled": False}, "handover": True,
+TASK = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "look": {"enabled": False}, "spin": {"enabled": False}, "show": {"enabled": False}, "handover": True,
         "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3},
         "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # v5 flow; these tests assert the arms never leave home
 ROBOT = load_yaml(ROOT / "configs/ex001_6r.yaml")

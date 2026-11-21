@@ -2,8 +2,12 @@ import re
 
 from labelloop.brain.instructions import instruction
 
-# IDLE -> SCAN -> SPIN -> (LOOK -> LOOKHOME) -> INSPECT -> route   (label search; each step is skipped when disabled / tries 0)
-# SCAN: head ROI codes; none after scan_max_calls -> SPIN.  SPIN: scripted (no WALLX): one arm pushes the parcel so it yaws, goes home,
+# IDLE -> SCAN -> SHOW -> SPIN -> (LOOK -> LOOKHOME) -> INSPECT -> route   (label search; each step is skipped when disabled / tries 0)
+# SCAN: head ROI codes; none after scan_max_calls -> SHOW.  SHOW (show.enabled, not big, once per parcel): scripted (no WALLX): one arm grasps the
+#   parcel, lifts it in front of the head camera and turns each face toward it (all cameras decode); the first confirmed code (or the last face) ->
+#   SHOWSET: the arm sets it down inside the delivery arm's grasp region (the delivery arm is known from the code, else the reject arm) and goes
+#   home; then the code is read (route) or the search goes on. No plan (parcel too wide for the gripper, nothing reachable) -> SPIN at once.
+#   SPIN: scripted (no WALLX): one arm pushes the parcel so it yaws, goes home,
 #   then the head camera re-reads (spin.tries tries). LOOK (look.enabled): scripted wrist-camera look-around. INSPECT: WALLX flips it.
 # Nothing found after the last step (or the budget's deliver reserve is hit) -> no_label / budget reject. A big parcel skips SPIN / LOOK.
 # route: PLACE (lane arm: A left, B right) | REJECT (right arm) | LIFT2 (big, both arms); with handover: true a HANDOVER precedes
@@ -16,7 +20,7 @@ from labelloop.brain.instructions import instruction
 #   slide.max_strokes, each re-fitted by the head camera); then the delivery arm places as usual (also when the slide failed).
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
-COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE")  # tries counted per parcel
+COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE", "SHOW")  # tries counted per parcel
 WALLX = ACTIONS + ("INSPECT", "HANDOVER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
@@ -39,7 +43,7 @@ class StateMachine:
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
-        self.looked = False  # LOOK done
+        self.looked = self.showed = False  # LOOK / SHOW done
 
     def _go(self, state, why):
         if state in WALLX and self.remaining() < self.cfg["budget"]["wallx_call_s"]:  # not even one more WALLX call fits
@@ -78,13 +82,15 @@ class StateMachine:
 
     def _search_next(self):  # the current label-search step is exhausted: the next enabled one if it is affordable, else reject
         c, sp, lk = self.cfg, self.cfg.get("spin", {}), self.cfg.get("look", {})
-        nxt = ("SPIN" if sp.get("enabled") and not self.big and self.tries.get("SPIN", 0) < sp["tries"] else
+        nxt = ("SHOW" if c.get("show", {}).get("enabled") and not self.big and not self.showed else
+               "SPIN" if sp.get("enabled") and not self.big and self.tries.get("SPIN", 0) < sp["tries"] else
                "LOOK" if lk.get("enabled") and not self.big and not self.looked else
                "INSPECT" if self.tries.get("INSPECT", 0) < c["tries"].get("INSPECT", 0) else None)
         if nxt and not self._admit(nxt):
             self._route(None, "budget")
         elif nxt:
             self.looked |= nxt == "LOOK"
+            self.showed |= nxt == "SHOW"
             self._go(nxt, "no code")
         else:
             self._route(None, "no_label")
@@ -112,10 +118,20 @@ class StateMachine:
         else:
             self._route(None, "too_wide", self.code, self.obj, slide=False)
 
+    def _parse(self, codes):  # (codes with the parcel-format ones first, their pattern match, the lane of the first)
+        codes = sorted(codes, key=lambda c: not self.pattern.match(c))
+        m = codes and self.pattern.match(codes[0])
+        return codes, m, m and self.lane_of.get(m.group(1)[:3])
+
+    def delivery_arm(self, codes=()):  # "left_ee" / "right_ee": the arm that will place the parcel once `codes` are read (none: the reject bin)
+        lane = self._parse(codes)[2]
+        return ("right" if self.cfg.get("handover") else self.cfg["arms"].get(lane or "reject", "right")) + "_ee"
+
+    def end_show(self):  # nothing to grasp / show: the next search step
+        self._search_next()
+
     def _read(self, codes):
-        codes = sorted(codes, key=lambda c: not self.pattern.match(c))  # parcel-format codes first
-        m = self.pattern.match(codes[0])
-        lane = m and self.lane_of.get(m.group(1)[:3])
+        codes, m, lane = self._parse(codes)
         self._route(lane, "routed" if lane else "unknown_zip" if m else "bad_code", codes[0])
 
     def _done(self, outcome):
@@ -157,6 +173,15 @@ class StateMachine:
                 self._read(codes)
             elif self.calls >= ev.get("spin_calls", 0):
                 self._search_next()
+        elif s == "SHOW":  # scripted grasp-and-show; show_calls = calls of the plan (0 = none)
+            if codes:
+                self.pend = codes
+                self._go("SHOWSET", "code")
+            elif self.calls >= ev.get("show_calls", 0):
+                self._go("SHOWSET", "shown")
+        elif s == "SHOWSET":  # the parcel is down and the arm home
+            if self.calls >= ev.get("showset_calls", 0):
+                self._read(self.pend) if self.pend else self._search_next()
         elif s == "SLIDE":  # a stroke is done (arm home, parcel re-fitted next entry); 0 = nothing planned
             n = ev.get("slide_calls", 0)
             if self.calls >= n:

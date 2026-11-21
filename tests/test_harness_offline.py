@@ -11,7 +11,7 @@ from labelloop.harness import Harness
 from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
 BASE = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
-CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow
+CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "show": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow
 NOLOOK = CFG
 LOOKCFG = {**CFG, "look": {**BASE["look"], "enabled": True}}
 

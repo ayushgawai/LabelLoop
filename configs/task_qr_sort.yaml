@@ -67,6 +67,27 @@ slide:                    # scripted hand-off (SLIDE before PLACE / REJECT): if 
     blue: [0.499, 0.854, 0.019, 0.222]
     red: [0.499, 0.854, -0.260, -0.019]
     black: [0.362, 0.692, -0.554, -0.326]
+show:                     # scripted GRASP-AND-SHOW label search (SCAN -> SHOW, the default first search; SPIN stays the fallback), no WALLX call:
+                          # one arm grasps the parcel (look.grasp_plan), lifts it in front of the head camera, turns each face toward the head
+                          # (wrist + head cameras decode, per-camera confirmation), stops at the first valid code, sets it down inside the
+                          # DELIVERY arm's grasp region (slide.handoff) and goes home; then the delivery arm's WALLX place as usual. A parcel too
+                          # wide for the gripper (grasp.grip_max) or big skips SHOW -> SPIN. Faces IK cannot reach (the bottom) are skipped -> SPIN.
+  enabled: true
+  est_calls: 22           # budget estimate of SHOW + SHOWSET in scripted calls (pick 4 + 4 views x 2 + set-down 4 + home 2 + retrace)
+  grip_open: 1.526        # WALLX gripper units (real G range [0, 1.526]; sim_max 1.89 rad maps linearly, 1.526 = fully open)
+  grip_close: 0.3         # commanded closed: ~19 mm opening, narrower than any parcel (50 mm min) so the fingers hold with force (CONFIRM in sim; 0.0 = fully closed)
+  dwell_calls: 2          # images per view (qr_confirm_frames needs >= 2): the call after the move sees the arrival, the next call (hold or the next move) the second
+  lift: 0.08              # straight lift after the grasp, no rotation (m), so the parcel clears the table before it turns
+  place_lift: 0.05        # set-down: the parcel hangs this far above the table over the spot before / after the descent (m)
+  tip_z: [0.17, 0.14, 0.12]   # fingertip height of the show point (m, root; the parcel centre is ~2 cm lower); first that gives stop_views views wins
+  points: [[0.32, 0.10], [0.32, 0.0], [0.28, 0.10]]   # root xy of the show point, y mirrored to the grasping arm's side (the head image centre is x ~0.35)
+  faces: [z+, y+, z-, y-]  # faces to show (box frame: y = across the jaws, z = along the heading); 'bottom' is never reachable (it must point UP at the head: the arm cannot hold the tool that far back; IK finds nothing for x 0.22-0.40, y +-0.15, z 0.14-0.20), the top was seen at SCAN
+  elevations_deg: [35, 15]  # a face normal points this far above the horizontal toward the head (the head itself is 55 deg up; the arm cannot lean that far)
+  vis_min: 0.7            # a face counts as shown if its normal . (unit vector to the head) >= this (45 deg)
+  stop_views: 4           # search show points until one gives this many views (the 4 sides; the bottom never fits the arm)
+  n_spin: 8               # tool spins tried about each face normal (360 / n_spin deg apart)
+  held_clear: 0.03        # the hanging parcel's lowest point stays this far above the table in transit (m)
+  spots: [[0.0, 0.0], [0.05, 0.0], [-0.05, 0.0], [0.0, 0.05], [0.0, -0.05]]   # set-down offsets from the delivery arm's hand-off point (m)
 look:                     # scripted no-contact look-around (SCAN -> LOOK): the wrist camera takes oblique views, each gated by IK on the URDF chain, no WALLX call
   enabled: false          # off by default (SPIN replaces it); true = also try LOOK after SPIN, before INSPECT
   est_calls: 20           # budget estimate of LOOK in scripted calls

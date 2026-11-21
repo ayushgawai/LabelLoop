@@ -25,6 +25,7 @@ class Harness:
         self.views, self.point, self.look_info = [], None, None  # LOOK viewpoints / point_test pose, built at SCAN -> LOOK
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])  # items are (camera, text): same text in N consecutive frames of ONE camera
         self.spin, self.spin_info, self.spin_sigma = None, None, None  # the planned push of the current SPIN try; the yaw direction all tries keep
+        self.show, self.show_info, self.sset, self.show_done = None, None, None, 0  # SHOW plan; its log; the SHOWSET (set-down) plan; SHOW calls driven
         self.slide, self.slide_info = None, None  # the planned stroke of the current SLIDE entry (None = nothing to push)
         self.calib, self.cal_n, self.cal_cur = None, 0, None  # calib_test schedule, calls consumed, entry of the current call
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
@@ -42,16 +43,16 @@ class Harness:
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]
         box = scene.roi_box(front, cfg)
-        if before in ("LOOK", "INSPECT", "HANDOVER"):  # parcel in hand: a label counts anywhere but in a bin (a labelled parcel lying in one)
+        if before in ("LOOK", "INSPECT", "HANDOVER", "SHOW"):  # parcel in hand: a label counts anywhere but in a bin (a labelled parcel lying in one)
             bins = [scene.roi_box(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]]
             codes = [(t, p) for t, p in locate(front) if not any(scene.inside(p, b) for b in bins)]
         else:
             codes = [(t, p) for t, p in locate(front) if scene.inside(p, box)]
-        if not codes and before not in ("LOOK", "INSPECT", "HANDOVER"):  # small QR missed on this frame: retry on the ROI crop at 2x
+        if not codes and before not in ("LOOK", "INSPECT", "HANDOVER", "SHOW"):  # small QR missed on this frame: retry on the ROI crop at 2x
             crop = cv2.resize(front[box[1]:box[3], box[0]:box[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, (box[0] + x / 2, box[1] + y / 2)) for t, (x, y) in locate(crop)]
         wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k != "front"})} \
-            if before in ("SPIN", "LOOK", "INSPECT", "HANDOVER") else set()  # SCAN counts head ROI codes only
+            if before in ("SHOW", "SPIN", "LOOK", "INSPECT", "HANDOVER") else set()  # SCAN counts head ROI codes only
         seen = {("front", t) for t, _ in codes} | wrist
         confirmed = {t for _, t in self.confirmer.update(seen)}
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
@@ -64,11 +65,22 @@ class Harness:
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
+        pre = self.sm.calls
         instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
+                              "show_calls": len(self.show["calls"]) if self.show else 0,
+                              "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
                               "spin_push": push, "spin_calls": push + sc if self.spin else 1,
                               "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0})  # no feasible push: the try is skipped
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
+        if self.sm.state == "SHOW" and self.sm.calls == 0:  # grasp-and-show: nothing to grasp -> the next search step at once
+            self.plan_show(front, cfg)
+            if not self.show:
+                self.sm.end_show()
+                instr = self.sm.instruction()
+        if before == "SHOW" and self.sm.state == "SHOWSET":  # the parcel is in hand (or not yet gripped): put it back where the delivery arm can take it
+            self.show_done = pre + 1
+            self.plan_showset()
         if self.sm.state == "SPIN" and self.sm.calls == 0:  # a new SPIN try (arm home, parcel as it lies now)
             self.plan_spin(front, cfg)
         if self.sm.state == "SLIDE" and self.sm.calls == 0:  # a new stroke (arm home, parcel as it lies now): nothing to push -> the delivery arm acts
@@ -89,7 +101,7 @@ class Harness:
                               left_gripper=state["left_ee"]["gripper"],
                               right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
                               flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index, look=self.look_info,
-                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info)
+                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info, show=self.show_info)
         return instr
 
     def parcel_hw(self, front, cfg, lc):
@@ -154,6 +166,26 @@ class Harness:
             info.update(why="stroke" if self.slide else "no stroke", arm=self.slide and self.slide["arm"],
                         tips=self.slide and self.slide["tips"], c_after=self.slide and self.slide["c_after"])
         self.slide_info = info
+
+    def plan_show(self, front, cfg):
+        """Fit the parcel; the arm(s) that can grasp it plan a SHOW (look.show_plan); the one that shows the most faces wins (ties: the nearer to
+        the parcel's side). No plan (no fit, too wide for the gripper, nothing reachable) -> self.show None."""
+        sc = {**self.cfg["look"], **self.cfg["spin"], **self.cfg["grasp"], **self.cfg["slide"], **self.cfg["show"]}
+        fit, home, self.show, self.sset = self.fit(front, cfg, sc), self.homes(), None, None
+        plans = [] if fit is None else [look.show_plan(a, fit, sc, home) for a in sorted(look.SIGN, key=lambda a: abs(fit["c"][1] - look.SIGN[a] * sc["arm_y"]))]
+        plans = [p for p in plans if p]
+        self.show = max(plans, key=lambda p: len(p["faces"]), default=None)
+        self.show_info = {"fit": fit and {"c": fit["c"].tolist(), "half": fit["half"].tolist(), "yaw": fit["yaw"]},
+                          "arm": self.show and self.show["arm"], "P": self.show and self.show["P"], "faces": self.show and self.show["faces"],
+                          "missing": self.show and self.show["missing"], "n_calls": self.show and len(self.show["calls"]),
+                          "why": None if self.show else "no fit" if fit is None else "too_wide" if look.too_wide(fit, sc) else "no plan"}
+
+    def plan_showset(self):
+        """The set-down after SHOW (`show_done` calls driven): inside the grasp region of the arm that will deliver (the code just read, else the reject arm)."""
+        sc = {**self.cfg["look"], **self.cfg["spin"], **self.cfg["grasp"], **self.cfg["slide"], **self.cfg["show"]}
+        deliv = self.sm.delivery_arm(self.sm.pend or ())
+        self.sset = look.set_down(self.show, deliv, max(self.show_done, 1), sc, self.homes())
+        self.show_info = {**self.show_info, "done": self.show_done, "delivery": deliv, "set_down": self.sset["where"], "spot": self.sset["spot"], "yaw": self.sset["yaw"]}
 
     def plan_spin(self, front, cfg):
         """Fit the parcel's oriented footprint to the head-camera change mask and plan the face-normal push; no plan (the try is skipped)
@@ -227,6 +259,18 @@ class Harness:
                 return home_response(embodiment, state, self.home)
             other = "right_ee" if e["arm"] == "left_ee" else "left_ee"
             return move_response(embodiment, state, {e["arm"]: {"position": e["ee"].tolist(), "rotation_rpy": e["rpy"].tolist()}, other: self.home[other]})
+        if self.sm.state in ("SHOW", "SHOWSET"):  # grasp-and-show / set-down waypoints (gripper values included), then home; the other arm stays home
+            sp, i = (self.show, self.sm.calls) if self.sm.state == "SHOW" else (self.sset, self.sm.calls)
+            n = sp and len(sp["calls"])
+            if sp and i < n:
+                c = sp["calls"][i]
+                arm = self.show["arm"]
+                other = "right_ee" if arm == "left_ee" else "left_ee"
+                return move_response(embodiment, state, {arm: {"position": c["ee"].tolist(), "rotation_rpy": c["rpy"].tolist(), "gripper": c["grip"]},
+                                                         other: self.home[other]})
+            if self.sm.state == "SHOWSET" and (not sp or i < n + self.cfg["home_calls"]):
+                return home_response(embodiment, state, self.home)  # (the gripper keeps its last value until home)
+            return move_response(embodiment, state, {}) if self.sm.state == "SHOW" else None
         if self.sm.state in ("SPIN", "SLIDE"):  # push waypoints (gripper closed), then home; the read calls after that hold still
             sp, i = (self.spin if self.sm.state == "SPIN" else self.slide), self.sm.calls
             n = sp and len(sp["wps"])

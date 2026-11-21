@@ -20,9 +20,9 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_places=0, hidden=0, big=False, look=None, spin=None, xy=None, half=(0.06, 0.04)):
-    """spin = K: the label shows on the head camera once K scripted pushes were done (call FakeScene.push(); the test loop does it when the harness reaches the push end). look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). xy = root (x, y) of the parcel centre: drawn as a yaw-0 box of face half-extents `half` (m) at that point (default: a square at ZONE), scripted slides move it (FakeScene.slide). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
-    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look, "spin": spin, "pushes": 0, "xy": xy and np.array(xy, float), "half": half}
+def parcel(code, fail_places=0, hidden=0, big=False, look=None, spin=None, xy=None, half=(0.06, 0.04), face=None):
+    """spin = K: the label shows on the head camera once K scripted pushes were done (call FakeScene.push(); the test loop does it when the harness reaches the push end). look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). xy = root (x, y) of the parcel centre: drawn as a yaw-0 box of face half-extents `half` (m) at that point (default: a square at ZONE), scripted slides move it (FakeScene.slide). face = F: the label is on face F ("y+", "z-", "bottom", ...: box-frame names of look.FACES) and shows on both wrists while the scripted SHOW holds that face toward the head (FakeScene.show_face; the head never sees it). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
+    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look, "spin": spin, "pushes": 0, "xy": xy and np.array(xy, float), "half": half, "face": face}
 
 
 def nolabel(big=False):
@@ -44,6 +44,7 @@ class FakeScene:
         self.queue, self.gap, self.waited = list(queue), gap, 0
         self.zone, self.hand, self.at, self.log = None, False, {}, []  # at: id(obj) -> mat colour | "black"
         self.kind, self.n, self.grip, self.text, self.view = None, 0, 1.0, None, None
+        self.show_face = None  # the face a scripted SHOW currently holds toward the head
 
     def on(self, where):
         return [o for o in self.log if self.at[id(o)] == where]
@@ -69,13 +70,16 @@ class FakeScene:
                 x, y = (int(v) for v in look.table_to_pixel((*o["xy"], look.TABLE_Z + 0.08)))
             else:
                 front[y - h:y + h, x - h:x + h] = col
-            if o["code"] and not o["hidden"] and (o["spin"] is None or o["pushes"] >= o["spin"]):
+            if o["code"] and not o["hidden"] and o["face"] is None and (o["spin"] is None or o["pushes"] >= o["spin"]):
                 front[y - 35:y + 35, x - 35:x + 35] = qr_image(o["code"])
         wrist = {k: np.full((480, 640, 3), 128, np.uint8) for k in ("left_wrist", "right_wrist")}
         if o and o["hidden"] and self.kind == "INSPECT" and o["inspects"] >= o["hidden"]:  # the left arm turned the label up
             wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
         if o and o["look"] is not None and self.view == o["look"]:
             wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
+        if o and o["face"] is not None and self.show_face == o["face"]:  # the held parcel shows its label face to the head: both wrists see it
+            for k in wrist:
+                wrist[k][100:380, 180:460] = qr_image(o["code"], 280)
         ee = {"position": [0.1185, 0, 0.181], "rotation_rpy": [0, 0, 0]}  # the home pose (q = 0)
         return ({"front": front, **wrist},
                 {"left_ee": {**ee, "gripper": 0.2}, "right_ee": {**ee, "gripper": self.grip}})
@@ -84,6 +88,11 @@ class FakeScene:
         """A scripted slide stroke was driven: the parcel moves along the push by plan["dist"] (to plan["c_after"])."""
         if self.zone and self.zone["xy"] is not None:
             self.zone["xy"] = np.array(plan["c_after"], float)
+
+    def setdown(self, plan):
+        """A scripted SHOW set the parcel down (a look.set_down plan): it lies at plan["spot"] (yaw ignored: the mock draws yaw-0 boxes)."""
+        if self.zone and self.zone["xy"] is not None and plan["spot"] is not None:
+            self.zone["xy"] = np.array(plan["spot"], float)
 
     def push(self):
         if self.zone:

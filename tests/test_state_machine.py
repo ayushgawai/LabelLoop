@@ -4,7 +4,7 @@ from labelloop.brain.state_machine import StateMachine
 from labelloop.config import load_yaml
 
 BASE = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
-CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow (handover, INSPECT, no budget); SPIN / LOOK / arm roles / budget have their own tests below
+CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "show": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow (handover, INSPECT, no budget); SPIN / LOOK / arm roles / budget have their own tests below
 A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
 GAIN = 0.05  # > bin_gain
 
