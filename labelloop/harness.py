@@ -139,7 +139,14 @@ class Harness:
             empty = pres < cfg["presence_min"] or (self.cfg.get("event_fast") and self.obj_box is None and not codes)  # (event_fast: no object in the image = a stale reference)
             self.empty = self.empty + 1 if empty else 0
             if self.ref is None or self.sm.rebase or self.empty >= cfg["ref_refresh_calls"]:
-                self.ref, self.ref_cfg, self.empty, self.sm.rebase = scene.zone_ref(front, cfg), False, 0, False
+                base = front
+                if self.ref is None and self.cfg.get("event_fast") and self.obj_box is not None:  # parcel already there at the start: inpaint it out
+                    x0, y0, x1, y1 = [int(v) for v in self.obj_box]  # (else it is IN the reference and a successful pick never reads as an empty zone)
+                    if (x1 - x0) * (y1 - y0) < 0.3 * front.shape[0] * front.shape[1]:
+                        m = np.zeros(front.shape[:2], np.uint8)
+                        m[max(y0 - 15, 0):y1 + 15, max(x0 - 15, 0):x1 + 15] = 255
+                        base = cv2.inpaint(front, m, 7, cv2.INPAINT_TELEA)
+                self.ref, self.ref_cfg, self.empty, self.sm.rebase = scene.zone_ref(base, cfg), False, 0, False
         kroi = scene.kraft_in_roi(front, cfg)
         bins = {c: scene.presence(front, r, cfg, "bin_rois", c) for c, r in self.bin_refs.items()}  # {} until the first SCAN
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped

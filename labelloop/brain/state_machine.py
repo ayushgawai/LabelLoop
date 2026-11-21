@@ -107,10 +107,10 @@ class StateMachine:
         return self.remaining() - cost - c["home_calls"] * b["scripted_call_s"] >= b["deliver_reserve_s"]
 
     def _bin_moved(self, ev, level=0.8, calls=3):
-        """A NON-target bin region changed >= level for `calls` calls in a row: the bin itself moved (real agent trial: WALLX lifted the
+        """A bin region (the target one only while the parcel has not landed) changed >= level for `calls` calls in a row: the bin itself moved (real agent trial: WALLX lifted the
         black bin into the red one: 0.93+, persistent; an arm hovering over a bin reads 0.4-0.6)."""
-        target = self.cfg["lanes"].get(self.lane, "black")
-        hit = any(v >= level for k, v in ev.get("bins", {}).items() if k != target)
+        target = self.cfg["lanes"].get(self.lane, "black")  # the target bin too while the drop has not succeeded (agent run 3: WALLX tipped the red TARGET bin)
+        hit = any(v >= level for k, v in ev.get("bins", {}).items() if k != target or not self._success(ev))
         self.binhit = self.binhit + 1 if hit else 0
         return self.binhit >= calls
 

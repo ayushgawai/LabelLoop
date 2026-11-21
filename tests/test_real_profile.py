@@ -392,3 +392,12 @@ def test_bin_moved_latches_hold():  # agent trial 2: WALLX lifted the black bin 
     for _ in range(3):
         out = sm.step({**ev, "bins": {"blue": 0.05, "red": 0.7, "black": 0.95}})
     assert sm.state == "HOLD" and out is None and "bin_moved" in sm.flags
+
+
+def test_target_bin_moved_without_landing_latches_hold():  # agent run 3: WALLX tipped the red TARGET bin, the parcel never left the table
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True})
+    sm = StateMachine(cfg)
+    sm.lane, sm.state, sm.plan = [k for k, v in cfg["lanes"].items() if v == "red"][0], "PLACE", ["PLACE"]
+    for _ in range(3):
+        sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0.0, "red": 0.85, "black": 0.65}})
+    assert sm.state == "HOLD"
