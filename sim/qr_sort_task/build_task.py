@@ -211,7 +211,7 @@ def dag(n, c):
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_sort", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
-                    "termination_component": {"terms": {"success": success} if assign else {}}}}},  # empty case: stage_base's time_out only
+                    "termination_component": {"terms": {"success": success if assign else {"_func": f"{MOD}.never"}}}}}},  # empty case: X2Real needs a success term; never -> time_out only
             {"id": "return", "include": "labelloop/task/stage_base.yaml", "score": 2,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_return", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},

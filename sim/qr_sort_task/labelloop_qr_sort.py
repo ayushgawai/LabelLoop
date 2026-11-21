@@ -83,6 +83,11 @@ def lanes_sorted(env, *, assignments, bins, vel_max=0.5, consecutive_steps=5):
     return _consecutive(env, ok, consecutive_steps, "_labelloop_lanes_count")
 
 
+def never(env):
+    """Termination that never fires (calibration case 31 has nothing to sort; X2Real requires a success term per stage)."""
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+
 def _parked(env, name):
     return _pos(env, name)[0][:, 2] - env.scene.env_origins[:, 2] < -2.0
 
