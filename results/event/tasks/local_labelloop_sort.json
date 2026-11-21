@@ -1,0 +1,203 @@
+{
+  "task_id": "labelloop_sort",
+  "collection_id": "local_labelloop_sort",
+  "mode": "benchmark",
+  "model": {
+    "config_name": "labelloop_relay",
+    "deploy": "lan",
+    "model_address": "ws://192.168.1.157:8001",
+    "robot_type": "DESKTOP",
+    "mode_type": "EndPose",
+    "infer_type": "sync",
+    "infer_params": {
+      "action_horizon": 32,
+      "async_params": {
+        "algorithm": "sync",
+        "api_schema": "public_v2",
+        "embodiment": "teletwin_desktop/gripper-g",
+        "normalization": "provided",
+        "image_wire_format": "base64_jpeg"
+      }
+    }
+  },
+  "data": [
+    {
+      "case_id": 1,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Basic: Bhindi (blue, LL-08), label up, near the centre of the table."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the blue bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480
+    },
+    {
+      "case_id": 2,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Attribute: IQBAR A (red, LL-11), label up."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the red bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480
+    },
+    {
+      "case_id": 3,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Multi-target: Bhindi (blue), IQBAR A (red) and the wallet (no label, reject to black), sorted one after another."
+      },
+      "scores_dict": {
+        "Bhindi: grasped and released inside the blue bin": 3,
+        "IQBAR A: grasped and released inside the red bin": 3,
+        "Wallet: grasped and released inside the black bin": 3,
+        "Label read / correct bin chosen for every parcel": 1,
+        "Arms return home": 0
+      },
+      "timeout": 480
+    },
+    {
+      "case_id": 4,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Harder + position: Miro (red, LL-12) placed far to the left, label up."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the red bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480
+    },
+    {
+      "case_id": 5,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Human disturbance: mailer (blue, LL-09), label up; the operator nudges it once while the gripper is away."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the blue bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480
+    },
+    {
+      "case_id": 6,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Look-alikes + background: the two IQBAR boxes side by side, one labelled (red bin), one unlabelled (black bin)."
+      },
+      "scores_dict": {
+        "Labelled IQBAR: grasped and released inside the red bin": 3,
+        "Unlabelled IQBAR: grasped and released inside the black bin": 3,
+        "Label read / correct bin chosen for every parcel": 1,
+        "Arms return home": 3
+      },
+      "timeout": 480
+    }
+  ],
+  "new_data": [
+    {
+      "case_id": 1,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Basic: Bhindi (blue, LL-08), label up, near the centre of the table."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the blue bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    },
+    {
+      "case_id": 2,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Attribute: IQBAR A (red, LL-11), label up."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the red bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    },
+    {
+      "case_id": 3,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Multi-target: Bhindi (blue), IQBAR A (red) and the wallet (no label, reject to black), sorted one after another."
+      },
+      "scores_dict": {
+        "Bhindi: grasped and released inside the blue bin": 3,
+        "IQBAR A: grasped and released inside the red bin": 3,
+        "Wallet: grasped and released inside the black bin": 3,
+        "Label read / correct bin chosen for every parcel": 1,
+        "Arms return home": 0
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    },
+    {
+      "case_id": 4,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Harder + position: Miro (red, LL-12) placed far to the left, label up."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the red bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    },
+    {
+      "case_id": 5,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Human disturbance: mailer (blue, LL-09), label up; the operator nudges it once while the gripper is away."
+      },
+      "scores_dict": {
+        "Label read / correct bin chosen": 2,
+        "Parcel grasped": 3,
+        "Parcel released inside the blue bin": 4,
+        "Arms return home": 1
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    },
+    {
+      "case_id": 6,
+      "instruction": "Read each parcel's label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else or no label to the black bin.",
+      "env_description": {
+        "开场摆放": "Look-alikes + background: the two IQBAR boxes side by side, one labelled (red bin), one unlabelled (black bin)."
+      },
+      "scores_dict": {
+        "Labelled IQBAR: grasped and released inside the red bin": 3,
+        "Unlabelled IQBAR: grasped and released inside the black bin": 3,
+        "Label read / correct bin chosen for every parcel": 1,
+        "Arms return home": 3
+      },
+      "timeout": 480,
+      "task": "LabelLoop sort"
+    }
+  ]
+}

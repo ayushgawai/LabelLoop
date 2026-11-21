@@ -1,0 +1,50 @@
+{
+  "task_id": "labelloop_pipeline_test",
+  "collection_id": "local_labelloop_pipeline_test",
+  "mode": "benchmark",
+  "model": {
+    "config_name": "labelloop_relay",
+    "deploy": "lan",
+    "model_address": "ws://192.168.1.157:8001",
+    "robot_type": "DESKTOP",
+    "mode_type": "EndPose",
+    "infer_type": "sync",
+    "infer_params": {
+      "action_horizon": 32,
+      "async_params": {
+        "algorithm": "sync",
+        "api_schema": "public_v2",
+        "embodiment": "teletwin_desktop/gripper-g",
+        "normalization": "provided",
+        "image_wire_format": "base64_jpeg"
+      }
+    }
+  },
+  "data": [
+    {
+      "case_id": 1,
+      "instruction": "put the box into the blue bin",
+      "env_description": {
+        "开场摆放": "A box on the table within reach; the blue bin on the table."
+      },
+      "scores_dict": {
+        "The box is inside the blue bin": 1
+      },
+      "timeout": 480
+    }
+  ],
+  "new_data": [
+    {
+      "case_id": 1,
+      "instruction": "put the box into the blue bin",
+      "env_description": {
+        "开场摆放": "A box on the table within reach; the blue bin on the table."
+      },
+      "scores_dict": {
+        "The box is inside the blue bin": 1
+      },
+      "timeout": 480,
+      "task": "LabelLoop pipeline test"
+    }
+  ]
+}
