@@ -5,11 +5,11 @@ from labelloop.config import load_yaml
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
 A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
-GAIN = 0.01  # > mat_gain
+GAIN = 0.05  # > bin_gain
 
 
-def ev(presence=0.0, kroi=0.0, codes=(), kmats=None, reject=0.0, **kw):
-    return {"reject": reject, "presence": presence, "kroi": kroi, "codes": set(codes), "kmats": kmats or {"blue": 0.0, "red": 0.0}, **kw}
+def ev(presence=0.0, kroi=0.0, codes=(), bins=None, **kw):
+    return {"presence": presence, "kroi": kroi, "codes": set(codes), "bins": {"blue": 0.0, "red": 0.0, "black": 0.0, **(bins or {})}, **kw}
 
 
 def parcel(sm, code, kroi=0.08, **kw):
@@ -27,13 +27,13 @@ def handover(sm):
     return sm.step(ev(0.06, 0.08))
 
 
-def finish(sm, reject=0.0, **landed):
-    """Object gone from the zone, kraft gained on the given mats: through HOME and VERIFY."""
+def finish(sm, **landed):
+    """Object gone from the zone, the given bins changed: through HOME and VERIFY."""
     for _ in range(2):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "red": 0.0, **landed}, reject=reject))
+        sm.step(ev(0.0, 0.0, bins=landed))
     states = []
     while sm.state in ("HOME", "VERIFY"):
-        sm.step(ev(0.0, 0.0, kmats={"blue": 0.0, "red": 0.0, **landed}, reject=reject))
+        sm.step(ev(0.0, 0.0, bins=landed))
         states.append(sm.state)
     return states
 
@@ -49,8 +49,8 @@ def test_lane_a_handover_then_place_ok_early_end_home_verify_idle_and_counts():
     sm = StateMachine(CFG)
     assert parcel(sm, A) == "hand the block from the left arm to the right arm" and sm.plan == ["HANDOVER", "PLACE"]
     assert handover(sm) == "put the block into the blue bin with the right arm" and sm.state == "PLACE"
-    assert sm.step(ev(0.0, kmats={"blue": GAIN, "red": 0.0})) == "put the block into the blue bin with the right arm"  # ok 1 of 2
-    assert sm.step(ev(0.0, kmats={"blue": GAIN, "red": 0.0})) == "put both arms back to the home position"
+    assert sm.step(ev(0.0, bins={"blue": GAIN})) == "put the block into the blue bin with the right arm"  # ok 1 of 2
+    assert sm.step(ev(0.0, bins={"blue": GAIN})) == "put both arms back to the home position"
     assert sm.state == "HOME" and sm.calls == 0
     assert finish(sm, blue=GAIN)[-1] == "IDLE"
     assert sm.parcels == 1 and sm.results[0]["outcome"] == "ok" and sm.results[0]["lane"] == "A"
@@ -71,7 +71,7 @@ def test_lane_b_place_fails_twice_retries_from_handover_then_ok_on_third_try():
         handover(sm)
         assert sm.state == "PLACE"
     for _ in range(2):
-        sm.step(ev(0.0, kmats={"red": GAIN, "blue": 0.0}))
+        sm.step(ev(0.0, bins={"red": GAIN}))
     assert sm.state == "HOME"
     assert finish(sm, red=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
 
@@ -107,9 +107,9 @@ def test_code_found_mid_inspect_routes_immediately_without_home():
 
 def test_big_parcel_both_arms_lane_and_reject_no_handover():
     sm = StateMachine(CFG)
-    sm.step(ev(0.3, 0.08)), sm.step(ev(0.3, 0.08))
-    assert sm.step(ev(0.3, 0.08, [A])) == "pick up the block with both arms and put it into the blue bin" and sm.state == "LIFT2"
-    assert sm.step(ev(0.3, 0.08)) and finish(sm, blue=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
+    sm.step(ev(0.4, 0.08)), sm.step(ev(0.4, 0.08))
+    assert sm.step(ev(0.4, 0.08, [A])) == "pick up the block with both arms and put it into the blue bin" and sm.state == "LIFT2"
+    assert sm.step(ev(0.4, 0.08)) and finish(sm, blue=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
     sm = StateMachine(CFG)  # reject: mat = black; the "big" override works too
     assert parcel(sm, NOZIP, big=True) == "pick up the block with both arms and put it into the black bin" and sm.plan == ["LIFT2"]
     sm = StateMachine(CFG)
@@ -135,7 +135,7 @@ def test_reject_success_then_failure_after_last_try_goes_idle_and_rebases():
     sm = StateMachine(CFG)
     parcel(sm, NOZIP)
     handover(sm)
-    assert finish(sm, reject=0.1)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
+    assert finish(sm, black=GAIN)[-1] == "IDLE" and sm.results[0]["outcome"] == "ok"
     sm = StateMachine(CFG)
     parcel(sm, NOZIP)
     entered = 0
@@ -164,4 +164,4 @@ def test_max_parcels_makes_done_and_holds():
     sm = StateMachine({**CFG, "max_parcels": 1})
     parcel(sm, NOZIP)
     handover(sm)
-    assert finish(sm, reject=0.1)[-1] == "DONE" and sm.step(ev()) is None
+    assert finish(sm, black=GAIN)[-1] == "DONE" and sm.step(ev()) is None

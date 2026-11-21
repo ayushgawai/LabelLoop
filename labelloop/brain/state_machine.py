@@ -13,7 +13,7 @@ COUNTED = ACTIONS + ("INSPECT",)  # tries counted per parcel
 class StateMachine:
     """step(ev) -> instruction | None (None = hold still).
     ev = {"presence": zone changed fraction, "kroi": kraft fraction of the zone, "codes": confirmed code texts,
-          "kmats": {mat colour: kraft area fraction inside its bbox}, "reject": reject-bin changed fraction, optional "big": bool override of the presence test}."""
+          "bins": {bin colour incl. black: ROI changed fraction vs the snapshot at SCAN}, optional "big": bool override of the presence test}."""
 
     def __init__(self, cfg):
         self.cfg, self.pattern = cfg, re.compile(cfg["code_pattern"])
@@ -27,7 +27,7 @@ class StateMachine:
 
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = None
-        self.big, self.obj, self.tries, self.base, self.ok, self.seen, self.prev = False, "block", {}, {}, 0, 0, 0.0
+        self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
 
     def _go(self, state, why):
         self.transitions.append((self.state, state, why))
@@ -45,15 +45,10 @@ class StateMachine:
     def _next_action(self):  # retry the whole plan while its last (place) step has tries left
         return self.plan[0] if self.tries.get(self.plan[-1], 0) < self.cfg["tries"][self.plan[-1]] else None
 
-    def _success(self, ev):
+    def _success(self, ev):  # the zone is empty and the parcel's bin changed (it landed there, not just left the zone)
         sc = self.cfg["scene"]
-        gain = {c: ev["kmats"][c] - self.base.get(c, 0) for c in ev["kmats"]}
-        empty = ev["presence"] < sc["presence_min"]
-        if self.lane:
-            return empty and gain[self.cfg["lanes"][self.lane]] >= sc["mat_gain"]
-        if "reject_bin_roi" in sc:  # the object must have landed in the black bin, not just left the zone
-            return empty and ev.get("reject", 0.0) >= sc["reject_gain"]
-        return empty and max(gain.values()) < sc["mat_gain"]
+        bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
+        return ev["presence"] < sc["presence_min"] and ev["bins"][bin_] >= sc["bin_gain"]
 
     def _route(self, lane, reason, code=None, obj="block"):
         self.lane, self.code, self.reason, self.obj = lane, code, reason, obj
@@ -87,7 +82,6 @@ class StateMachine:
                 self.seen = self.seen + 1 if self.seen and abs(f - self.prev) <= cfg["settle_tol"] else 1
             self.prev = f
             if self.seen >= cfg["stable_calls"]:
-                self.base = dict(ev["kmats"])
                 self._go("SCAN", "object in zone")
         elif s == "SCAN":
             self.big = ev.get("big", f >= sc["big_presence"])

@@ -4,7 +4,7 @@ from pathlib import Path
 from labelloop.config import load_yaml
 from labelloop.eval.runlog import RunLog
 from labelloop.harness import Harness
-from labelloop.robots.mock import A, B, BAD, BIN, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
+from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
 
@@ -25,7 +25,7 @@ def test_stream_of_five_routes_each_parcel_and_never_latches_done(tmp_path):
     objs = [parcel(A), parcel(B, fail_places=2, hidden=2), parcel(UNKNOWN), nolabel(), garbage()]
     scene, log = FakeScene(objs), tmp_path / "sub" / "run.jsonl"
     h, sent = run(scene, runlog=RunLog(str(log)), until=lambda h: h.sm.parcels == 5)
-    assert [scene.at[id(o)] for o in objs] == ["blue", "red", "reject", "reject", "reject"]
+    assert [scene.at[id(o)] for o in objs] == ["blue", "red", "black", "black", "black"]
     assert [r["outcome"] for r in h.sm.results] == ["ok"] * 5 and not h.done
     instrs = [i for _, i in sent if i]
     assert "put the block into the blue bin with the right arm" in instrs and "put the block into the red bin with the right arm" in instrs
@@ -36,13 +36,13 @@ def test_stream_of_five_routes_each_parcel_and_never_latches_done(tmp_path):
     lines = [json.loads(l) for l in log.read_text().splitlines()]
     steps = [l for l in lines if "state" in l]
     assert len(steps) == h.calls and sum("latency_s" in l for l in lines) == h.calls - 20
-    assert {"codes", "lane", "presence", "kraft_roi", "mats", "kraft_mats", "transitions"} <= set(steps[0])
+    assert {"codes", "lane", "presence", "kraft_roi", "bin_change", "transitions"} <= set(steps[0])
 
 
 def test_bad_code_goes_to_reject_and_max_parcels_done():
     scene = FakeScene([parcel(BAD)])
     h, _ = run(scene, {**CFG, "max_parcels": 1})
-    assert h.done and scene.at[id(scene.log[0])] == "reject"
+    assert h.done and scene.at[id(scene.log[0])] == "black"
     h.reset()
     assert h.state_name == "IDLE" and not h.done and h.calls == 0
 
@@ -52,7 +52,7 @@ def test_object_that_leaves_zone_without_reaching_reject_bin_is_not_ok():
         def apply(self, instruction):
             o = self.zone
             super().apply(instruction)
-            if o and self.at[id(o)] == "reject":
+            if o and self.at[id(o)] == "black":
                 self.at[id(o)] = "lost"
 
     scene = Dropper([parcel(BAD)])
@@ -77,7 +77,7 @@ def test_hidden_label_found_on_second_inspect_try_routes_to_its_lane():
 def test_label_never_found_is_no_label_reject_via_handover():
     scene = FakeScene([nolabel()])
     h, sent = run(scene, {**CFG, "max_parcels": 1})
-    assert scene.at[id(scene.log[0])] == "reject" and h.sm.results[0]["reason"] == "no_label"
+    assert scene.at[id(scene.log[0])] == "black" and h.sm.results[0]["reason"] == "no_label"
     assert sum(s == "INSPECT" for s, _ in sent) == CFG["tries"]["INSPECT"] * CFG["max_calls"]["INSPECT"]
     assert states(sent)[2:5] == ["INSPECT", "HANDOVER", "REJECT"]
 
@@ -85,7 +85,7 @@ def test_label_never_found_is_no_label_reject_via_handover():
 def test_big_parcel_is_lifted_by_both_arms_and_garbage_is_handed_over():
     scene = FakeScene([parcel(A, big=True), garbage()])
     h, sent = run(scene, until=lambda h: h.sm.parcels == 2)
-    assert [scene.at[id(o)] for o in scene.log] == ["blue", "reject"]
+    assert [scene.at[id(o)] for o in scene.log] == ["blue", "black"]
     assert states(sent)[:9] == ["IDLE", "SCAN", "LIFT2", "HOME", "VERIFY", "IDLE", "SCAN", "HANDOVER", "REJECT"]
     assert "pick up the block with both arms and put it into the blue bin" in [i for _, i in sent]
 
@@ -94,7 +94,7 @@ def test_codes_inside_bins_are_ignored_while_inspecting_but_count_elsewhere():
     h = Harness(CFG)
     scene = FakeScene([])
     imgs, state = scene.observe()
-    bx0, by0 = BIN[0], BIN[1]
+    bx0, by0 = BINS["black"][:2]
     imgs["front"][by0 + 20:by0 + 90, bx0 + 20:bx0 + 90] = qr_image(A)  # labelled parcel lying in the reject bin
     imgs["front"][60:130, 30:100] = qr_image(B)  # label in the open (e.g. on the parcel held by the arm)
     h.step(imgs, state), h.step(imgs, state)

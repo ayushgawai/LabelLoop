@@ -20,7 +20,7 @@ class Harness:
         self.sm.reset()
         self.home = None  # episode-start pose, captured on the first step()
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])
-        self.ref, self.empty, self.rej_ref = None, 0, None  # empty-zone reference frame; reject-bin snapshot
+        self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
 
     def step(self, images, state):
@@ -30,9 +30,8 @@ class Harness:
         before, cfg = self.sm.state, self.cfg["scene"]
         front = images["front"]
         box = scene.roi_box(front, cfg)
-        mats = scene.mats(front, cfg)
         if before in ("INSPECT", "HANDOVER"):  # parcel in hand: a label counts anywhere but in a bin (a labelled parcel lying in one)
-            bins = [*mats.values(), scene.roi_box(front, cfg, "reject_bin_roi") if "reject_bin_roi" in cfg else None]
+            bins = [scene.roi_box(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]]
             codes = [(t, p) for t, p in locate(front) if not any(scene.inside(p, b) for b in bins)]
         else:
             codes = [(t, p) for t, p in locate(front) if scene.inside(p, box)]
@@ -41,23 +40,22 @@ class Harness:
             codes = [(t, (box[0] + x / 2, box[1] + y / 2)) for t, (x, y) in locate(crop)]
         wrist = {t for t, _ in decode({k: v for k, v in images.items() if k != "front"})}
         confirmed = self.confirmer.update({t for t, _ in codes} | wrist)
-        kmats = scene.kraft_in_mats(front, mats, cfg)
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
         if before == "IDLE":  # arms are home: keep the reference current whenever the zone has been empty a while
             self.empty = self.empty + 1 if pres < cfg["presence_min"] else 0
             if self.ref is None or self.sm.rebase or self.empty >= cfg["ref_refresh_calls"]:
                 self.ref, self.empty, self.sm.rebase = scene.zone_ref(front, cfg), 0, False
         kroi = scene.kraft_in_roi(front, cfg)
-        rej = 0.0 if self.rej_ref is None else scene.presence(front, self.rej_ref, cfg, "reject_bin_roi")
-        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "kmats": kmats, "reject": rej})
-        if before == "IDLE" and self.sm.state == "SCAN" and "reject_bin_roi" in cfg:  # object arrived, arms home
-            self.rej_ref = scene.zone_ref(front, cfg, "reject_bin_roi")
+        bins = {c: scene.presence(front, r, cfg, "bin_rois", c) for c, r in self.bin_refs.items()}  # {} until the first SCAN
+        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins})
+        if before == "IDLE" and self.sm.state == "SCAN":  # object arrived, arms home: snapshot every bin
+            self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
         self.subgoal_changed = self.sm.state != before
         if self.runlog:
             self.runlog.write(call=self.calls, state=before, instruction=instr, codes=codes, wrist_codes=wrist,
-                              confirmed=confirmed, lane=self.sm.lane, presence=pres, reject_change=rej, kraft_roi=kroi, mats=mats,
-                              kraft_mats=kmats, left_gripper=state["left_ee"]["gripper"],
+                              confirmed=confirmed, lane=self.sm.lane, presence=pres, bin_change=bins, kraft_roi=kroi,
+                              left_gripper=state["left_ee"]["gripper"],
                               right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
                               flags=self.sm.flags, parcels=self.sm.parcels)
         return instr
