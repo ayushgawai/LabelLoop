@@ -11,6 +11,7 @@
     --blue:#2f6fd0; --red:#c0392b; --green:#2e8b57; --amber:#c98a1b; --violet:#7c6ce0; --orange:#e67e22;
   }
   *{box-sizing:border-box}
+  [hidden]{display:none !important}
   html,body{margin:0;min-height:100%}
   body{
     font:14px/1.35 ui-rounded,"Segoe UI",system-ui,-apple-system,sans-serif;
@@ -91,8 +92,14 @@
   .kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;
     border-bottom:1px dotted rgba(35,40,46,.22);padding:1px 0}
   .kv b{font-variant-numeric:tabular-nums;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .cams{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .cams{display:block}
+  .camPair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  .cams2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .cams figure{margin:0}
+  .camPair img{aspect-ratio:16/9 !important;object-fit:contain !important}
+  #ovFig.exact img{border-color:var(--violet);box-shadow:0 0 0 2px rgba(124,108,224,.35)}
+  .camNote{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:12px;
+    color:var(--ink2);border:1.4px dashed rgba(35,40,46,.4);border-radius:10px 6px 11px 7px / 7px 11px 6px 10px;background:rgba(255,255,255,.5)}
   .cams img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1.4px solid var(--ink);
     border-radius:10px 6px 11px 7px / 7px 11px 6px 10px;background:#0f1214;display:block}
   .cams figcaption{font-size:10.5px;color:var(--ink2);text-align:center;margin-top:2px}
@@ -151,7 +158,7 @@
     <div id="perf"><div class="muted">waiting…</div></div>
   </section>
   <section class="card" id="camCard">
-    <div class="cardTitle">cameras</div>
+    <div class="cardTitle">cameras · raw front vs what WALLX saw</div>
     <div class="cams" id="cams"></div>
   </section>
   <section class="card" id="timeCard">
@@ -195,7 +202,7 @@
   const ARMS = ['left_ee', 'right_ee'];
 
   const S = {
-    trials: [], id: null, meta: null, summary: null, rows: [], joints: null, jAt: 0, jBusy: false, jFail: false,
+    trials: [], id: null, meta: null, summary: null, rows: [], frames: {}, joints: null, jAt: 0, jBusy: false, jFail: false,
     follow: true, playing: false, speed: 1, cursor: 0, after: -1,
     pose: null, geo: null, prevTip: { left_ee: null, right_ee: null }, trail: { left_ee: [], right_ee: [] },
     hist: { left: { z: [], g: [] }, right: { z: [], g: [] } },
@@ -571,26 +578,49 @@
   }
 
   /* ------------------------------------------------------------------ cameras */
+  function nearestEarlier(list, idx) {  // binary search in sorted row indices
+    if (!list || !list.length) return null;
+    let lo = 0, hi = list.length - 1, ans = null;
+    while (lo <= hi) {
+      const m = (lo + hi) >> 1;
+      if (list[m] <= idx) { ans = list[m]; lo = m + 1; } else hi = m - 1;
+    }
+    return ans;
+  }
+
+  function setSrc(img, src) { if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; } }
+
   function renderCams(idx) {
     const wrap = $('cams');
     if (!wrap.dataset.built) {
-      wrap.innerHTML = CFG.CAMERAS.map(function (c) {
-        return '<figure><img id="cam_' + c + '" alt="' + c + '"><figcaption>' +
-          c.replace('_', ' ') + '</figcaption></figure>';
-      }).join('');
+      const fig = function (c, cap) { return '<figure><img id="cam_' + c + '" alt="' + c + '"><figcaption>' + cap + '</figcaption></figure>'; };
+      wrap.innerHTML = '<div class="camPair">' + fig('front', 'front · raw') +
+        '<figure id="ovFig"><img id="cam_front_overlay" alt="the front image as WALLX saw it">' +
+        '<div class="camNote" id="ovNote" hidden></div><figcaption id="ovCap">what WALLX saw</figcaption></figure></div>' +
+        '<div class="cams2">' + fig('left_wrist', 'left wrist') + fig('right_wrist', 'right wrist') + '</div>';
       wrap.dataset.built = '1';
-      CFG.CAMERAS.forEach(function (c) {
+      CFG.CAMERAS.concat(['front_overlay']).forEach(function (c) {
         const img = $('cam_' + c);
         img.addEventListener('error', function () { img.style.opacity = '0.18'; });
         img.addEventListener('load', function () { img.style.opacity = '1'; });
       });
     }
     if (!S.id) return;
-    CFG.CAMERAS.forEach(function (c) {
-      const img = $('cam_' + c);
-      const src = '/api/trials/' + encodeURIComponent(S.id) + '/frame/' + idx + '/' + c;
-      if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; }
-    });
+    const base = '/api/trials/' + encodeURIComponent(S.id) + '/frame/';
+    CFG.CAMERAS.forEach(function (c) { setSrc($('cam_' + c), base + idx + '/' + c); });
+    const ov = S.frames && S.frames.front_overlay, k = nearestEarlier(ov, idx);
+    const img = $('cam_front_overlay'), note = $('ovNote');
+    img.hidden = k == null;
+    note.hidden = k != null;
+    $('ovFig').classList.toggle('exact', k === idx);
+    if (k == null) {
+      note.textContent = ov && ov.length ? 'no masked frame sent to WALLX yet at this row'
+        : 'no overlay recorded in this trial: WALLX saw the raw front image';
+      $('ovCap').textContent = 'what WALLX saw';
+    } else {
+      setSrc(img, base + k + '/front_overlay');
+      $('ovCap').textContent = 'what WALLX saw · row ' + k + (idx > k ? ' (' + (idx - k) + ' row' + (idx - k > 1 ? 's' : '') + ' ago)' : '');
+    }
   }
 
   /* ------------------------------------------------------------------ timeline */
@@ -854,6 +884,7 @@
     const d = await api('/api/trials/' + encodeURIComponent(id));
     S.meta = d.meta || {};
     S.summary = d.summary || null;
+    S.frames = d.frames || {};
     S.rows = d.rows || [];
     const last = S.rows[S.rows.length - 1];
     S.after = last ? (Number.isFinite(last.index) ? last.index : S.rows.length - 1) : -1;
@@ -895,9 +926,10 @@
       if (S.follow) S.cursor = Math.max(0, S.rows.length - 1);
       if (Date.now() - S.summaryAt > 2000) {
         S.summaryAt = Date.now();
-        const d = await api('/api/trials/' + encodeURIComponent(S.id));
+        const d = await api('/api/trials/' + encodeURIComponent(S.id) + '?rows=0');   // no rows: cheap on long trials
         S.summary = d.summary || null;
         S.meta = d.meta || S.meta;
+        S.frames = d.frames || S.frames;
       }
     } catch (e) {
       /* server not up yet / trial rotated under us: the next poll retries */

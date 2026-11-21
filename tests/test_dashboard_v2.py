@@ -154,3 +154,20 @@ def test_story_survives_broken_files(served):
     by = {i["id"]: i for i in items}
     assert by["20261121_132000"]["live"] and by["20261121_132000"]["verdict"] == "ok"  # outcome known, summary not written yet
     assert len(by["20261121_131900"]["trials"]) == 2  # journal falls back to the report's list
+
+
+def test_frame_index_overlay_frames_and_rows_free_detail(served):
+    root, start = served
+    make_trial(root, TID, n=30, frames=True, frame_every=3)
+    url = start()
+    code, d = get_json(url + "/api/trials/" + TID)
+    assert code == 200 and len(d["rows"]) == 30
+    f = d["frames"]
+    assert f["front"] == list(range(0, 30, 3)) and f["left_wrist"] == f["front"]
+    wallx = [r["index"] for r in d["rows"] if r["source"] == "wallx"]
+    assert f["front_overlay"] and set(f["front_overlay"]) <= set(wallx)  # the masked image is recorded only when WALLX is called
+    code, light = get_json(url + "/api/trials/" + TID + "?rows=0")
+    assert code == 200 and "rows" not in light and light["frames"] == f and light["summary"]["calls"] == 30
+    k = f["front_overlay"][0]
+    with urllib.request.urlopen(url + "/api/trials/%s/frame/%d/front_overlay" % (TID, k + 1), timeout=10) as r:  # nearest earlier
+        assert r.status == 200 and r.headers["Content-Type"] == "image/jpeg" and r.read()[:2] == b"\xff\xd8"

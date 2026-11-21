@@ -4,7 +4,7 @@
 Reads the folders written by labelloop.robots.trial_recorder and serves the one-file page (index.html) plus a tiny JSON API:
   /                               the dashboard page
   /api/trials                     list (newest first)
-  /api/trials/<id>                {meta, rows, summary}
+  /api/trials/<id>[?rows=0]       {meta, rows, summary, frames: {camera: [row indices]}} (rows=0: without the rows)
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
   /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
@@ -93,6 +93,16 @@ def _indexed_frames(trial_dir, camera):
     return sorted(pairs)
 
 
+def frame_index(trial_dir):
+    """{camera: sorted row indices that have a frame} of a trial (frames/<index>_<camera>.jpg; front_overlay = what WALLX saw)."""
+    out = {}
+    for p in (Path(trial_dir) / "frames").glob("*.jpg"):
+        head, _, cam = p.stem.partition("_")
+        if head.isdigit() and CAMERA_RE.match(cam):
+            out.setdefault(cam, []).append(int(head))
+    return {c: sorted(v) for c, v in sorted(out.items())}
+
+
 def frame_path(trial_dir, index, camera):
     """The frame of `camera` recorded at the nearest earlier index (else the earliest one); None if the camera has none."""
     pairs = _indexed_frames(trial_dir, camera)
@@ -163,9 +173,11 @@ class Handler(BaseHTTPRequestHandler):
         d = Path(self.root) / tid
         if not d.is_dir():
             return self._json({"error": "no such trial"}, 404)
-        if len(rest) == 1:
-            return self._json({"meta": _read_json(d / "meta.json") or {}, "rows": read_rows(d),
-                               "summary": _read_json(d / "summary.json")})
+        if len(rest) == 1:  # ?rows=0: meta + summary + frame index only (the page's periodic refresh of a long trial)
+            out = {"meta": _read_json(d / "meta.json") or {}, "summary": _read_json(d / "summary.json"), "frames": frame_index(d)}
+            if query.get("rows", ["1"])[0] != "0":
+                out["rows"] = read_rows(d)
+            return self._json(out)
         if len(rest) == 2 and rest[1] == "rows":
             try:
                 after = int(query.get("after", ["-1"])[0])
