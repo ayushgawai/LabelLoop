@@ -1,0 +1,12 @@
+# WALLX backend switch. Same infer() interface either way; harness code does not change.
+#   cloud: public_v2 msgpack-over-WebSocket (organizer API). Endpoint = env WALLX_ENDPOINT, key = env WALLX_API_KEY (.env), never stored here.
+#   local: self-hosted Wall-X server on the GPU box (scripts/run_wallx_local.ps1), no auth.
+# Env WALLX_BACKEND=cloud|local overrides `backend` for one run.
+backend: cloud
+cloud:
+  timeout_s: 60
+  open_timeout_s: 30
+local:
+  url: ws://127.0.0.1:8002   # native Wall-X server speaks the X2Real sim convention (home-relative pose, sim gripper); converted with configs/ex001_6r.yaml
+  timeout_s: 60
+  open_timeout_s: 30

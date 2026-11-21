@@ -7,8 +7,7 @@ import time
 import numpy as np
 from websockets.asyncio.server import serve
 
-from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, endpoint_headers_from_env,
-                                    hold_response, pack, unpack)
+from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, hold_response, pack, unpack)
 
 MAX_FRAME_BYTES = 32 * 1024 * 1024
 EMBODIMENTS = ("quanta_x1_pro", "quanta_x1_pro/gripper-g", "quanta_x1_pro/gripper-h")
@@ -47,11 +46,12 @@ def _plain_state(state):
 class Relay:
     """make_harness() -> Harness per downstream connection, or None for passthrough."""
 
-    def __init__(self, endpoint, headers, make_harness=None):
-        self.endpoint, self.headers, self.make_harness = endpoint, headers, make_harness
+    def __init__(self, endpoint, headers, make_harness=None, make_client=None):
+        self.endpoint, self.headers, self.make_harness, self.make_client = endpoint, headers, make_harness, make_client
 
     async def handle(self, downstream):
-        wallx, harness, goal, n, fresh = WallxClient(self.endpoint, self.headers), None, None, 0, True
+        wallx = self.make_client() if self.make_client else WallxClient(self.endpoint, self.headers)
+        harness, goal, n, fresh = None, None, 0, True
         try:
             harness = self.make_harness() if self.make_harness else None
             await asyncio.to_thread(wallx.connect)
@@ -121,7 +121,7 @@ async def main():
         from labelloop.harness import Harness
         task, agent, runlog = load_yaml(a.task), VisionAgent.from_env(), RunLog(a.log)
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731
-    async with start(Relay(*endpoint_headers_from_env(), make_harness), a.host, a.port):
+    async with start(Relay(None, None, make_harness, WallxClient.from_env), a.host, a.port):  # backend from configs/wallx.yaml
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
 
