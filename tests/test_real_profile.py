@@ -519,3 +519,12 @@ def test_bin_check_off_once_the_parcel_left_its_spot():  # agent run 4: the lift
     for _ in range(4):
         sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0.95, "red": 0.1, "black": 0.5}, "spot_cleared": True})
     assert sm.state == "PLACE"
+
+
+def test_bin_where_and_frozen_where():
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True, "wording": {"PLACE": "put the box into the {mat} bin {bin_where}"}})
+    sm = StateMachine(cfg)
+    sm.lane, sm.state, sm.where = [k for k, v in cfg["lanes"].items() if v == "red"][0], "PLACE", "middle"
+    assert sm.instruction() == "put the box into the red bin at the back right"
+    sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0, "red": 0, "black": 0}, "where": "right"})
+    assert sm.where == "middle"

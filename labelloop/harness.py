@@ -25,6 +25,8 @@ def apply_profile(cfg):
     prof = cfg["profiles"][cfg.get("profile", "sim")]
     ab = look.set_profile(prof)
     cfg["look"].update(ab)
+    if prof.get("bin_words"):
+        cfg["bin_words"] = prof["bin_words"]
     if prof.get("bin_rois"):  # measured on the real head image: overrides the sim bin regions (blanking, bin-change success)
         cfg["scene"]["bin_rois"] = prof["bin_rois"]
     if prof.get("induction_roi"):

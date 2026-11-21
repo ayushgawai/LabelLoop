@@ -19,7 +19,7 @@ ENV = {k: v.strip().strip('"').strip("'") for k, v in (l.strip().split("=", 1) f
 PY = str(ROOT / ".venv/bin/python")
 GOAL = "Read each parcel label and sort it: ZIP 940/941/950/951 to the blue bin, 900-902 to the red bin, anything else to the black bin."
 KEYS = ("PLACE", "REJECT", "INSPECT", "CENTER", "HOME", "LIFT2", "STAND", "PICK", "PICK_STANDING", "PICK_WIDE", "PLACE_WIDE")
-FIELDS = {"mat", "arm", "where", "obj", "fix", "fix_side", "lift", "lift_side"}
+FIELDS = {"mat", "arm", "where", "obj", "fix", "fix_side", "lift", "lift_side", "bin_where"}
 CLIENT = ("source /opt/xr/bot/x2robot_client/share/x2robot_client/scripts/session_env.sh >/dev/null 2>&1; timeout -s INT {sec} python3 "
           "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address 192.168.1.157:8001 --instruction {instr} "
           "--robot-mode end_pose --infer-type sync --embodiment teletwin_desktop/gripper-g --image-wire-format base64 --attach --home-on-stop")
@@ -65,6 +65,10 @@ What we learned so far (do not repeat these):
   STAND and get PICK_WIDE "use both arms to squeeze the short ends of the box and lift it up" then PLACE_WIDE "put the box into the
   {mat} bin with both arms" (only the target bin visible). PICK / PLACE get up to 35 calls (~50 s) per try: slow is fine, finish it.
   Use run_trial seconds 200-300.
+- Agent run 5 (14:24): two-arm squeeze + retry: the RIGHT arm lifted the box, then carried it to the BLACK bin at the right edge
+  (not the red target) and bumped the blue bin. New: {where} is frozen once routed; {bin_where} = the target bin's place in words
+  ("at the back right" for red, "at the back left" blue, "at the right edge" black). Try PLACE_WIDE e.g. "keep holding the box and
+  put it into the {mat} bin {bin_where}".
 - OLDER TEST PLAN, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
   raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
   (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.

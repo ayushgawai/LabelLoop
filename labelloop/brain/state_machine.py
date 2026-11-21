@@ -93,7 +93,8 @@ class StateMachine:
                 fix = "right" if arm == "left" else "left"
                 roles = {"fix": fix, "fix_side": fix, "lift": arm, "lift_side": arm}
             return instruction(key, self.cfg, self.tries.get("INSPECT", 1) - 1 if s == "INSPECT" else 0,
-                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm, where=self.where or "middle", **roles)
+                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm, where=self.where or "middle",
+                               bin_where=self.cfg.get("bin_words", {}).get(self.cfg["lanes"].get(self.lane, "black"), ""), **roles)
 
     def _arm(self):  # the arm that puts the parcel in its bin: the lane's (handover: false) or the receiving right arm
         return "right" if self.cfg.get("handover") else self.cfg["arms"].get(self.lane or "reject", "right")
@@ -273,7 +274,8 @@ class StateMachine:
         cfg, sc, s = self.cfg, self.cfg["scene"], self.state
         self.transitions, self.flags = [], []
         self.near, self.calls = ev.get("near"), self.calls + 1
-        self.where = ev.get("where") or self.where  # event_fast: last known parcel place in words, for {where}
+        if self.state in ("IDLE", "SCAN", "CENTER") or not self.where:  # frozen once routed (it drifted while the arms moved the parcel)
+            self.where = ev.get("where") or self.where  # event_fast: last known parcel place in words, for {where}
         self.wide, self.box_area = ev.get("wide", self.wide), ev.get("box_area")  # wide is measured in SCAN only: keep it for the parcel
         self.spent += self._cost(s)
         over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
