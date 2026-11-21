@@ -11,10 +11,17 @@ CFG = {"embodiment": "quanta_x1_pro/gripper-g", "gripper": {"wallx_max": 1.526, 
                      "right_ee": {"position": [.28, -.05, .39], "rotation_rpy": [.03, -.51, -.37]}}}
 
 
+from labelloop.wallx_client import home_response  # noqa: E402
+
+
 class FakeHarness:
     def __init__(self, instruction="pick"):
         self.instruction, self.calls, self.replies, self.resets = instruction, [], [], 0
         self.cfg, self.state_name, self.home = {}, "IDLE", None
+
+    def scripted_reply(self, embodiment, state):
+        if self.cfg.get("scripted_home") and self.state_name == "HOME":
+            return home_response(embodiment, state, self.home)
 
     def reset(self):
         self.resets += 1

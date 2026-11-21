@@ -18,6 +18,14 @@ scan_max_calls: 6         # kraft object, no confirmed decode after this many SC
 home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
 scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
+look:                     # scripted no-contact look-around (SCAN -> LOOK): a wrist camera visits each side of the parcel, no WALLX call
+  enabled: true           # false = SCAN -> INSPECT as before
+  distance: 0.20          # wrist camera horizontal distance from the parcel point (m)
+  height: 0.10            # wrist camera height above the table (m); raised if the EE would sit < 3 cm over it
+  target_h: 0.05          # aim point height above the table (m)
+  reach: 0.55             # skip a view whose EE is further than this from its arm base (m)
+  move_calls: 2           # calls driving to each view, then
+  dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
 max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
 tries: {PUSH: 0, INSPECT: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject

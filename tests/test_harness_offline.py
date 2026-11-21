@@ -7,6 +7,7 @@ from labelloop.harness import Harness
 from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
 CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
+NOLOOK = {**CFG, "look": {"enabled": False}}
 
 
 def run(scene, cfg=CFG, runlog=None, max_calls=1000, until=lambda h: h.done):
@@ -68,7 +69,7 @@ def states(sent):
 
 def test_hidden_label_found_on_second_inspect_try_routes_to_its_lane():
     scene = FakeScene([parcel(A, hidden=2)])
-    h, sent = run(scene, {**CFG, "max_parcels": 1})
+    h, sent = run(scene, {**NOLOOK, "max_parcels": 1})
     assert scene.at[id(scene.log[0])] == "blue" and h.sm.results[0]["code"] == A
     assert states(sent)[:5] == ["IDLE", "SCAN", "INSPECT", "HANDOVER", "PLACE"]  # the 2nd try (new wording) reveals it
     assert [i for s, i in sent if s == "INSPECT"][-1] == CFG["instructions"]["INSPECT"][1].format(obj="block")
@@ -76,7 +77,7 @@ def test_hidden_label_found_on_second_inspect_try_routes_to_its_lane():
 
 def test_label_never_found_is_no_label_reject_via_handover():
     scene = FakeScene([nolabel()])
-    h, sent = run(scene, {**CFG, "max_parcels": 1})
+    h, sent = run(scene, {**NOLOOK, "max_parcels": 1})
     assert scene.at[id(scene.log[0])] == "black" and h.sm.results[0]["reason"] == "no_label"
     assert sum(s == "INSPECT" for s, _ in sent) == CFG["tries"]["INSPECT"] * CFG["max_calls"]["INSPECT"]
     assert states(sent)[2:5] == ["INSPECT", "HANDOVER", "REJECT"]
@@ -102,3 +103,32 @@ def test_codes_inside_bins_are_ignored_while_inspecting_but_count_elsewhere():
     h.step(imgs, state), h.step(imgs, state)
     assert h.confirmer.counts.keys() == {B}
     assert h.sm.state == "HANDOVER" and h.sm.code == B
+
+
+def run_look(scene, **kw):  # like run(), but tells the mock which look-around view the wrist camera is at
+    h, sent = Harness(CFG), []
+    while not h.done and len(sent) < 400:
+        scene.view = h.look_index
+        instr = h.step(*scene.observe())
+        sent.append((h.sm.state, instr))
+        scene.apply(instr)
+        if h.sm.parcels:
+            break
+    return h, sent
+
+
+def test_look_finds_label_on_a_wrist_view_and_skips_inspect():
+    scene = FakeScene([parcel(A, hidden=99, look=2)])
+    h, sent = run_look(scene)
+    ss = states(sent)
+    assert h.sm.results[0]["code"] == A and scene.at[id(scene.log[0])] == "blue" and "INSPECT" not in ss
+    assert ss.index("LOOKHOME") > ss.index("LOOK") and ss.index("HANDOVER") > ss.index("LOOKHOME")  # home first, then the route
+    assert all(i is None for s, i in sent if s in ("LOOK", "LOOKHOME")) and len(h.views) == 3
+
+
+def test_look_sees_nothing_then_inspect_then_no_label_reject():
+    scene = FakeScene([parcel(A, hidden=99)])
+    h, sent = run_look(scene)
+    ss = states(sent)
+    assert ss.index("LOOK") < ss.index("LOOKHOME") < ss.index("INSPECT") and h.sm.results[0]["reason"] == "no_label"
+    assert sum(s == "LOOK" for s, _ in sent) == 3 * 4 and scene.at[id(scene.log[0])] == "black"

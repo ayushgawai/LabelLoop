@@ -15,7 +15,7 @@ from test_event_server import start_relay
 from wallx_stub import Stub
 
 ROOT = Path(__file__).parent.parent
-TASK = load_yaml(ROOT / "configs/task_qr_sort.yaml")
+TASK = {**load_yaml(ROOT / "configs/task_qr_sort.yaml"), "look": {"enabled": False}}  # these tests assert the arms never leave home
 ROBOT = load_yaml(ROOT / "configs/ex001_6r.yaml")
 
 

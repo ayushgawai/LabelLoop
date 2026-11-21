@@ -30,8 +30,19 @@ def zone_ref(img, cfg, key="induction_roi", sub=None):
 
 def presence(img, ref, cfg, key="induction_roi", sub=None):
     """Fraction of the ROI (default the induction zone) that differs from its reference."""
+    return float(_changed(img, ref, cfg, key, sub).mean())
+
+
+def _changed(img, ref, cfg, key="induction_roi", sub=None):
     cur = zone_ref(img, cfg, key, sub)
-    return float((cv2.absdiff(cur, cv2.resize(ref, cur.shape[::-1])) > cfg["presence_thr"]).mean())
+    return cv2.absdiff(cur, cv2.resize(ref, cur.shape[::-1])) > cfg["presence_thr"]
+
+
+def centroid(img, ref, cfg):
+    """(x, y) of the changed pixels of the induction zone in full-image coords (zone centre if nothing changed)."""
+    x0, y0, x1, y1 = roi_box(img, cfg)
+    ys, xs = np.nonzero(_changed(img, ref, cfg))
+    return (x0 + xs.mean(), y0 + ys.mean()) if len(xs) else ((x0 + x1) / 2, (y0 + y1) / 2)
 
 
 def kraft_in_roi(img, cfg):

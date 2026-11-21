@@ -2,7 +2,9 @@ import re
 
 from labelloop.brain.instructions import instruction
 
-# IDLE -> SCAN -> INSPECT -> route                (SCAN: head ROI + wrist codes; no code after scan_max_calls -> INSPECT)
+# IDLE -> SCAN -> LOOK -> LOOKHOME -> INSPECT | route   (SCAN: head ROI + wrist codes; no code after scan_max_calls -> LOOK)
+# LOOK: scripted, no WALLX call: a wrist camera visits each side of the parcel (harness drives it); a code ends it early.
+# LOOKHOME: scripted home, then the route (code read) or INSPECT. A big parcel skips LOOK. look.enabled false skips LOOK.
 # SCAN | INSPECT -> HANDOVER -> PLACE | REJECT    (code routes immediately, even mid-INSPECT; garbage / no_label / bad code -> REJECT)
 #                -> LIFT2                         (big parcel: both arms do it all, lane or reject)
 # INSPECT: left arm picks the parcel up and turns it, tries.INSPECT tries; last one without a code -> no_label reject.
@@ -26,7 +28,7 @@ class StateMachine:
         self._fresh()
 
     def _fresh(self):
-        self.code = self.lane = self.reason = self.plan = None
+        self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
 
     def _go(self, state, why):
@@ -90,7 +92,15 @@ class StateMachine:
             elif codes:
                 self._read(codes)
             elif self.calls >= cfg["scan_max_calls"]:
-                self._go("INSPECT", "no code")
+                look = cfg.get("look", {}).get("enabled") and not self.big
+                self._go("LOOK" if look else "INSPECT", "no code")
+        elif s == "LOOK":
+            if codes or self.calls >= ev.get("look_calls", 0):
+                self.pend = codes
+                self._go("LOOKHOME", "code" if codes else "looked")
+        elif s == "LOOKHOME":
+            if self.calls >= cfg["home_calls"]:
+                self._read(self.pend) if self.pend else self._go("INSPECT", "no code")
         elif s == "INSPECT":
             if codes:
                 self._read(codes)

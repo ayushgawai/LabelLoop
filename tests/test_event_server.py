@@ -12,10 +12,17 @@ STATE = {"left_ee": {"position": [.1, .2, .3], "rotation_rpy": [0, 0, 0], "gripp
          "right_ee": {"position": [.1, -.2, .3], "rotation_rpy": [0, 0, 0], "gripper": .2}}
 
 
+from labelloop.wallx_client import home_response  # noqa: E402
+
+
 class FakeHarness:
     def __init__(self, instruction):
         self.instruction, self.steps, self.replies = instruction, [], []
         self.cfg, self.state_name, self.home = {}, "IDLE", None
+
+    def scripted_reply(self, embodiment, state):
+        if self.cfg.get("scripted_home") and self.state_name == "HOME":
+            return home_response(embodiment, state, self.home)
 
     def reset(self):
         pass

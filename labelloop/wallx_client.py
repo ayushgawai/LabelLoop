@@ -105,11 +105,13 @@ def hold_response(embodiment, state):
     return {"embodiment": embodiment, "actions": acts}
 
 
-def home_response(embodiment, state, home, horizon=HORIZON):
-    """WALLX-shaped reply easing (smoothstep) from `state` to `home` over `horizon` frames."""
+def move_response(embodiment, state, targets, horizon=HORIZON):
+    """WALLX-shaped reply easing (smoothstep) each arm in `targets` ({arm: {position, rotation_rpy[, gripper]}}) from `state`
+    over `horizon` frames; other arms hold, a missing gripper keeps its value."""
     acts = {}
     for arm in ("left_ee", "right_ee"):
-        s, h = state[arm], home[arm]
+        s = state[arm]
+        h = {**s, **targets.get(arm, {})}
         p0, p1 = np.asarray(s["position"], float), np.asarray(h["position"], float)
         pos, rpy, grip = [], [], []
         for i in range(1, horizon + 1):
@@ -120,6 +122,11 @@ def home_response(embodiment, state, home, horizon=HORIZON):
             grip.append(float(s["gripper"] + e * (h["gripper"] - s["gripper"])))
         acts[arm] = {"position": pos, "rotation_rpy": rpy, "gripper": grip}
     return {"embodiment": embodiment, "actions": acts}
+
+
+def home_response(embodiment, state, home, horizon=HORIZON):
+    """WALLX-shaped reply easing (smoothstep) from `state` to `home` over `horizon` frames."""
+    return move_response(embodiment, state, home, horizon)
 
 
 def encode_jpeg_b64(rgb, quality=95):

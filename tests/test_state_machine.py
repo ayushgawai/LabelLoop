@@ -3,7 +3,7 @@ from pathlib import Path
 from labelloop.brain.state_machine import StateMachine
 from labelloop.config import load_yaml
 
-CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
+CFG = {**load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml"), "look": {"enabled": False}}  # LOOK has its own tests
 A, B, NOZIP, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
 GAIN = 0.05  # > bin_gain
 

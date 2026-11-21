@@ -17,9 +17,9 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_places=0, hidden=0, big=False):
-    """hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
-    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0}
+def parcel(code, fail_places=0, hidden=0, big=False, look=None):
+    """look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
+    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look}
 
 
 def nolabel(big=False):
@@ -40,7 +40,7 @@ class FakeScene:
     def __init__(self, queue, gap=6):
         self.queue, self.gap, self.waited = list(queue), gap, 0
         self.zone, self.hand, self.at, self.log = None, False, {}, []  # at: id(obj) -> mat colour | "black"
-        self.kind, self.n, self.grip, self.text = None, 0, 1.0, None
+        self.kind, self.n, self.grip, self.text, self.view = None, 0, 1.0, None, None
 
     def on(self, where):
         return [o for o in self.log if self.at[id(o)] == where]
@@ -63,6 +63,8 @@ class FakeScene:
                 front[y - 35:y + 35, x - 35:x + 35] = qr_image(o["code"])
         wrist = {k: np.full((480, 640, 3), 128, np.uint8) for k in ("left_wrist", "right_wrist")}
         if o and o["hidden"] and self.kind == "INSPECT" and o["inspects"] >= o["hidden"]:  # the left arm turned the label up
+            wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
+        if o and o["look"] is not None and self.view == o["look"]:
             wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
         ee = {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0]}
         return ({"front": front, **wrist},
