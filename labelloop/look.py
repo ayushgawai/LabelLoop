@@ -38,8 +38,8 @@ def fk(q):
     return p, R
 
 
-def ik(pos, rpy, tries=8):
-    """Damped least squares from several seeds: (q, position error m, rotation error ||R - Rt||_F), best of `tries`."""
+def ik(pos, rpy, tries=8, q0=None):
+    """Damped least squares from several seeds (first q0, e.g. the previous waypoint, else zeros): (q, position error m, rotation error ||R - Rt||_F), best of `tries`."""
     Rt, rng, best = rpy_to_matrix(rpy), np.random.default_rng(0), None
 
     def res(q):
@@ -47,7 +47,7 @@ def ik(pos, rpy, tries=8):
         return np.concatenate([p - pos, 0.3 * (R - Rt).ravel()])
 
     for k in range(tries):
-        q = np.zeros(6) if k == 0 else rng.uniform(LO, HI)
+        q = (np.zeros(6) if q0 is None else np.asarray(q0, float)) if k == 0 else rng.uniform(LO, HI)
         for _ in range(60):
             r, J = res(q), np.empty((12, 6))
             for j in range(6):
@@ -62,10 +62,6 @@ def ik(pos, rpy, tries=8):
         if e[0] < 1e-3 and e[1] < 0.02:
             break
     return best
-
-
-
-
 def pixel_to_table(u, v, wh=(1280, 720), z=TABLE_Z):
     """Root-frame point where the head camera ray through pixel (u, v) of a wh-sized image meets the plane height z."""
     u, v = u * 1280 / wh[0], v * 720 / wh[1]
@@ -73,18 +69,32 @@ def pixel_to_table(u, v, wh=(1280, 720), z=TABLE_Z):
     return HEAD_POS + (z - HEAD_POS[2]) / d[2] * d
 
 
+def table_to_pixel(p, wh=(1280, 720)):
+    """(u, v) in a wh-sized head image of root-frame point p: the inverse of pixel_to_table (any height)."""
+    c = HEAD_R.T @ (np.asarray(p, float) - HEAD_POS)
+    return (CX + FX * c[0] / -c[2]) * wh[0] / 1280, (CY - FY * c[1] / -c[2]) * wh[1] / 720
+
+
 def footprint(box, wh, cfg):
-    """Parcel half-width from the head-mask bbox (x0, y0, x1, y1): corners projected at the aim-point height, conservative
-    (the front face and perspective inflate it); look.hw when unknown. Clipped to 0.06-0.25 m."""
+    """Parcel half-width (m) from the head-mask bbox. CONVENTION: box = (x0, y0, x1, y1) in pixels of the FULL wh-sized head image
+    (what scene.changed_box returns), never crop-relative. The corners are projected at the aim-point height and the half-width is
+    half the largest corner-to-corner distance (conservative: the front face and perspective inflate it); cfg["hw"] when the box is
+    unknown or implausible (< 0.04 or > 0.25 m)."""
     if box is None:
         return cfg["hw"]
-    c = np.array([pixel_to_table(u, v, wh, TABLE_Z + cfg["target_h"])[:2] for u in (box[0], box[2]) for v in (box[1], box[3])])
-    return float(np.clip(np.ptp(c, axis=0).max() / 2, 0.06, 0.25))
+    c = [pixel_to_table(u, v, wh, TABLE_Z + cfg["target_h"])[:2] for u in (box[0], box[2]) for v in (box[1], box[3])]
+    hw = max(np.linalg.norm(a - b) for a in c for b in c) / 2
+    return float(hw) if 0.04 <= hw <= 0.25 else cfg["hw"]
 
 
 def frame(arm, cfg):
     """Arm base in root coordinates."""
     return np.array([0.0, SIGN[arm] * cfg["arm_y"], cfg["arm_z"]])
+
+
+def to_arm(arm, p, cfg):
+    """Root-frame point -> the arm frame, which is also the frame of the WALLX state / targets (absolute, per-arm base)."""
+    return np.asarray(p, float) - frame(arm, cfg)
 
 
 def box_dist(p, c, hw, hz):
@@ -146,3 +156,51 @@ def point_pose(arm, tip, cfg):
         if best is None or e + er < best[3]:
             best = (ee, rpy, e, e + er)
     return best[:3]
+
+
+def reach(arm, tip, pitch, cfg, q0=None):
+    """(ee in arm frame, rpy, q, ik_err) holding the fingertips at root point `tip` at `pitch` (90 deg = pointing down), yaw toward
+    the point; None if IK fails, a joint limit binds or the tip is under TABLE_Z + 0.01. Never returns an infeasible pose."""
+    d = to_arm(arm, tip, cfg)
+    rpy = np.array([0.0, pitch, np.arctan2(d[1], d[0])])
+    ee = d - rpy_to_matrix(rpy) @ TCP
+    q, e, er = ik(ee, rpy, q0=q0)
+    if e < 0.01 and er < 0.05 and tip[2] >= TABLE_Z + 0.01 and np.all(q >= LO - 1e-6) and np.all(q <= HI + 1e-6):
+        return ee, rpy, q, e
+
+
+def path(arm, pts, pitch, cfg, step=0.02):
+    """[(ee, rpy)] at each of `pts` (root frame) if every point along the straight segments between them (every <= step m,
+    not only the ends) is reachable at this pitch, else None."""
+    pts, out, q = np.asarray(pts, float), [], None
+    for i, a in enumerate(pts):
+        n = 0 if i == 0 else int(np.ceil(np.linalg.norm(a - pts[i - 1]) / step))
+        for t in np.linspace(0, 1, n + 1)[1:] if n else [1.0]:
+            r = reach(arm, a if i == 0 else pts[i - 1] + t * (a - pts[i - 1]), pitch, cfg, q)
+            if r is None:
+                return None
+            q = r[2]
+        out.append(r[:2])
+    return out
+
+
+def spin_plan(c, hw, cfg, k):
+    """Push that yaws a parcel centred at root xy `c` (half-width hw): fingertips (gripper closed) start spin.out m outside the near
+    face (the face toward the pushing arm) at an off-centre point (spin.offset x hw from the centre line), go in to the face, then
+    push spin.push_len along it. Try k alternates the side. Waypoints (root tips): above start, start, contact, end, above end.
+    -> {"arm", "pitch", "tips", "wps": [(ee, rpy)]} for the first arm (nearest the parcel first) whose whole path is
+    reachable, or None. ponytail: no arm-link collision check; the straight-down approach only keeps the fingertips clear."""
+    c, s = np.asarray(c, float), 1 if k % 2 == 0 else -1
+    zt, za = TABLE_Z + np.clip(cfg["parcel_h"] / 2, 0.02, 0.05), TABLE_Z + cfg["approach_h"]
+    for arm in sorted(SIGN, key=lambda a: abs(c[1] - SIGN[a] * cfg["arm_y"])):
+        d = frame(arm, cfg)[:2] - c
+        d /= np.linalg.norm(d)
+        n = np.array([-d[1], d[0]])
+        S = c + (hw + cfg["out"]) * d - s * cfg["offset"] * hw * n
+        C = S - cfg["out"] * d
+        E = C + s * cfg["push_len"] * n
+        tips = np.array([(*S, za), (*S, zt), (*C, zt), (*E, zt), (*E, za)])
+        for pitch in np.radians((90, 75, 60, 45)):
+            wps = path(arm, tips, pitch, cfg)
+            if wps:
+                return {"arm": arm, "pitch": float(pitch), "tips": tips, "wps": wps}

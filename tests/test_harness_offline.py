@@ -10,8 +10,10 @@ from labelloop import look
 from labelloop.harness import Harness
 from labelloop.robots.mock import A, B, BAD, BINS, UNKNOWN, FakeScene, garbage, nolabel, parcel, qr_image
 
-CFG = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
-NOLOOK = {**CFG, "look": {"enabled": False}}
+BASE = load_yaml(Path(__file__).parent.parent / "configs" / "task_qr_sort.yaml")
+CFG = {**BASE, "look": {"enabled": False}, "spin": {"enabled": False}, "handover": True, "tries": {"PUSH": 0, "INSPECT": 3, "HANDOVER": 3, "PLACE": 3, "REJECT": 3, "LIFT2": 3}, "budget": {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}}  # the v5 flow
+NOLOOK = CFG
+LOOKCFG = {**CFG, "look": {**BASE["look"], "enabled": True}}
 
 
 def run(scene, cfg=CFG, runlog=None, max_calls=1000, until=lambda h: h.done):
@@ -105,7 +107,7 @@ def test_codes_inside_bins_are_ignored_while_inspecting_but_count_elsewhere():
     h.step(imgs, state), h.step(imgs, state)
     h.sm.state = "INSPECT"
     h.step(imgs, state), h.step(imgs, state)
-    assert h.confirmer.counts.keys() == {B}
+    assert h.confirmer.counts.keys() == {("front", B)}
     assert h.sm.state == "HANDOVER" and h.sm.code == B
 
 
@@ -115,7 +117,7 @@ FAKE = [("left_ee", np.array([0.1, 0.2, 0.2]), np.array([0, 0.5, 0.0]), {"ik_err
 
 
 def run_look(scene, **kw):  # like run(), but tells the mock which look-around view the wrist camera is at
-    h, sent = Harness(CFG), []
+    h, sent = Harness(LOOKCFG), []
     while not h.done and len(sent) < 400:
         scene.view = h.look_index
         instr = h.step(*scene.observe())
@@ -147,7 +149,7 @@ def test_look_sees_nothing_then_inspect_then_no_label_reject(monkeypatch):
 
 def test_scripted_reply_drives_the_view_arm_via_a_lift_and_sends_the_other_arm_home(monkeypatch):
     monkeypatch.setattr(look, "views", lambda p, cfg, hw=None: FAKE)
-    lc, scene, h = CFG["look"], FakeScene([parcel(A, hidden=99)]), Harness(CFG)
+    lc, scene, h = LOOKCFG["look"], FakeScene([parcel(A, hidden=99)]), Harness(LOOKCFG)
     seen = set()
     for _ in range(100):
         imgs, st = scene.observe()
@@ -168,7 +170,7 @@ def test_scripted_reply_drives_the_view_arm_via_a_lift_and_sends_the_other_arm_h
 
 def test_point_test_holds_the_left_fingertips_over_the_parcel_without_wallx(monkeypatch):
     monkeypatch.setattr(look, "views", lambda *a, **k: pytest.fail("no views in point_test"))
-    cfg = {**CFG, "look": {**CFG["look"], "point_test": True}}
+    cfg = {**CFG, "look": {**BASE["look"], "enabled": True, "point_test": True}}
     scene, h = FakeScene([parcel(A, hidden=99)]), Harness(cfg, runlog=None)
     for _ in range(60):
         imgs, st = scene.observe()

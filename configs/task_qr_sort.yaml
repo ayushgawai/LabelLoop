@@ -1,16 +1,23 @@
-# Lane sorter v4: parcels are swiped onto the table from the left in front of the left arm. The LEFT arm + the head camera find
-# and read the QR label (the arm picks the parcel up and turns it until a camera reads it); we route by ZIP3 like a sortation
-# computer; the RIGHT arm puts it in its lane bin (handover left -> right) or in the black reject bin (no label / garbage / unknown
-# ZIP). A BIG parcel is lifted and placed by BOTH arms. CALIBRATE everything marked in sim / on the robot.
+# Lane sorter v6: parcels are swiped onto the table from the left. The head camera reads the QR label; no code -> SCRIPTED SPIN (one
+# arm pushes the parcel so it rotates on the table, the head camera re-reads), then optionally INSPECT (WALLX flips it). We route by
+# ZIP3 like a sortation computer; no handover by default: lane A (blue bin, robot's left) is placed by the LEFT arm, lane B (red,
+# right) and the black reject bin (no label / garbage / unknown ZIP) by the RIGHT arm. A BIG parcel is lifted and placed by BOTH arms.
+# CALIBRATE everything marked in sim / on the robot.
 
 code_pattern: '^420/(\d{5})/\d{3}$'   # group 1 = ZIP5
 sort_plan:                # ZIP3 prefix -> lane; anything else = no route -> black reject bin
   A: ["950", "951", "940", "941"]
   B: ["900", "901", "902"]
-lanes: {A: blue, B: red}   # lane -> bin colour (a key of scene.bins, and the colour word WALLX hears)
+lanes: {A: blue, B: red}
+arms: {A: left, B: right, reject: right}   # arm that places each lane / the reject bin (words in the PLACE / REJECT instructions)
+handover: false           # true = the left arm finds the label, hands over, and the RIGHT arm places (arms is then ignored)
+calib_test: false         # true = at episode start each arm holds its fingertips 0.10 m over known table points (no WALLX), logs expected head pixels
+calib: {tip_h: 0.10, hold_calls: 4, move_calls: 2, pitches_deg: [90, 85, 80, 75, 70],   # steepest reachable pitch (90 = straight down); none -> point refused
+        points: [[0.35, 0.10], [0.35, -0.10], [0.25, 0.0]]}   # root xy of the table points   # lane -> bin colour (a key of scene.bins, and the colour word WALLX hears)
 max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
-# All counts are MODEL CALLS (~1.6 s of motion each; WALLX takes 8-10 s/call), not wall time.
+# Counts are MODEL CALLS (~2.1 s of motion each; WALLX takes ~9 s/call on top); the case budget is in ESTIMATED REAL SECONDS.
+budget: {case_s: 480, deliver_reserve_s: 130, wallx_call_s: 11.0, scripted_call_s: 2.2}   # per parcel, same in sim and on the robot
 qr_confirm_frames: 2      # same value must decode in N consecutive calls
 stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
 settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
@@ -18,8 +25,18 @@ scan_max_calls: 6         # kraft object, no confirmed decode after this many SC
 home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
 scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
+spin:                     # scripted label search (SCAN -> SPIN): push the parcel so it yaws, re-read with the head camera, no WALLX call
+  enabled: true
+  tries: 4                # pushes per parcel, alternating the push side (and the arm when only one reaches)
+  push_len: 0.07          # tangential push along the near face (m)
+  out: 0.04               # the push starts this far outside the near face, then goes in to touch it (m)
+  offset: 0.35            # push point offset from the parcel centre line, x parcel half-width
+  parcel_h: 0.08          # parcel height (m) when not estimable; fingertips at table + clamp(h/2, 0.02, 0.05)
+  approach_h: 0.15        # via height above the table for the straight-down approach / retreat (m)
+  gripper_closed: 0.0     # WALLX gripper units while pushing
+  scan_calls: 3           # head re-read calls after the arm is home (qr_confirm_frames needs >= 2)
 look:                     # scripted no-contact look-around (SCAN -> LOOK): the wrist camera takes oblique views, each gated by IK on the URDF chain, no WALLX call
-  enabled: true           # false = SCAN -> INSPECT as before
+  enabled: false          # off by default (SPIN replaces it); true = also try LOOK after SPIN, before INSPECT
   arm_y: 0.29             # arm base = root + (0, +-arm_y, arm_z). From stock G-asset hints (sim quotes a right EE at (0.1185, -0.29, 0.211)); the URDF says 0.266 / 0.
   arm_z: 0.03             # CONFIRM both with point_test below
   point_test: false       # true = at SCAN -> LOOK hold the LEFT fingertips 0.10 m above the estimated parcel point (no WALLX): shows in the head image whether the frame is right
@@ -35,7 +52,7 @@ look:                     # scripted no-contact look-around (SCAN -> LOOK): the 
   dwell_calls: 2          # calls holding there while codes are read (qr_confirm_frames needs >= 2)
 ok_calls: 2               # outcome check passing this many consecutive calls ends an action state early
 max_calls: {PUSH: 12, INSPECT: 8, HANDOVER: 10, PLACE: 20, REJECT: 20, LIFT2: 20}   # INSPECT per try, HANDOVER fixed (no success check)
-tries: {PUSH: 0, INSPECT: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
+tries: {PUSH: 0, INSPECT: 0, HANDOVER: 3, PLACE: 3, REJECT: 3, LIFT2: 3}   # attempts per parcel (0 = disabled); INSPECT: no code after the last -> no_label reject
                           # WALLX scores ~20-30%/attempt, retries carry it
 
 # Front camera (RGB -> OpenCV HSV: H 0-179). Areas are fractions of the image area, kernels scale with width.
@@ -71,9 +88,9 @@ instructions:
   HANDOVER:
     - "hand the {obj} from the left arm to the right arm"
   PLACE:
-    - "put the {obj} into the {mat} bin with the right arm"
+    - "put the {obj} into the {mat} bin with the {arm} arm"
   REJECT:
-    - "put the {obj} into the black bin with the right arm"
+    - "put the {obj} into the black bin with the {arm} arm"
   LIFT2:
     - "pick up the {obj} with both arms and put it into the {mat} bin"
   HOME:

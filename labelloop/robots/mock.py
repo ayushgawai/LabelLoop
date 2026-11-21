@@ -17,9 +17,9 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_places=0, hidden=0, big=False, look=None):
-    """look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
-    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look}
+def parcel(code, fail_places=0, hidden=0, big=False, look=None, spin=None):
+    """spin = K: the label shows on the head camera once K scripted pushes were done (call FakeScene.push(); the test loop does it when the harness reaches the push end). look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
+    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look, "spin": spin, "pushes": 0}
 
 
 def nolabel(big=False):
@@ -59,7 +59,7 @@ class FakeScene:
         if o:
             (x, y), h = (BIG, 190) if o["big"] else (ZONE, 60)  # big: ~40% of the zone
             front[y - h:y + h, x - h:x + h] = RED if o["kind"] == "garbage" else KRAFT
-            if o["code"] and not o["hidden"]:
+            if o["code"] and not o["hidden"] and (o["spin"] is None or o["pushes"] >= o["spin"]):
                 front[y - 35:y + 35, x - 35:x + 35] = qr_image(o["code"])
         wrist = {k: np.full((480, 640, 3), 128, np.uint8) for k in ("left_wrist", "right_wrist")}
         if o and o["hidden"] and self.kind == "INSPECT" and o["inspects"] >= o["hidden"]:  # the left arm turned the label up
@@ -69,6 +69,10 @@ class FakeScene:
         ee = {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0]}
         return ({"front": front, **wrist},
                 {"left_ee": {**ee, "gripper": 0.2}, "right_ee": {**ee, "gripper": self.grip}})
+
+    def push(self):
+        if self.zone:
+            self.zone["pushes"] += 1
 
     def apply(self, instruction):
         self.hand = False
