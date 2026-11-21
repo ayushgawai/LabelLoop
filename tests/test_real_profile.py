@@ -347,3 +347,15 @@ def test_real_head_label_reads():  # trial 2: a ~60 px taped label on the real h
     from labelloop.perception.qr import locate
     img = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / "real_head_qr.jpg")), cv2.COLOR_BGR2RGB)
     assert [t for t, _ in locate(img)] == ["420/95126/001"]
+
+
+def test_wording_override_and_where_words():  # trial agent: templates come from --wording; {where} = the parcel's place on the free table
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True, "wording": {"PLACE": "put the small box at the {where} of the table into the {mat} bin"}})
+    assert cfg["instructions"]["PLACE"] == ["put the small box at the {where} of the table into the {mat} bin"]
+    h = Harness({**CFG, "profile": "real", "event_fast": True})
+    img = cv2.cvtColor(cv2.imread(str(Path(__file__).parent / "data" / "real_head_qr.jpg")), cv2.COLOR_BGR2RGB)
+    from labelloop.perception.qr import locate
+    assert h.where_words(img, h.cfg["scene"], locate(img)) == "left"
+    sm = StateMachine(cfg)
+    sm.lane, sm.where, sm.state = "A", "front left", "PLACE"
+    assert sm.instruction() == "put the small box at the front left of the table into the %s bin" % cfg["lanes"]["A"]

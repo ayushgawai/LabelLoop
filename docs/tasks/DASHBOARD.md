@@ -28,7 +28,7 @@ shows it live and in replay: animated, easy to read, good for a demo.
 - Keep every existing test green. Never record keys/headers.
 
 ## 3. `labelloop/dashboard/server.py` (new, stdlib `http.server` only)
-`python -m labelloop.dashboard.server [--root runs/trials] [--port 8090]`, bound to 127.0.0.1. Routes:
+`python -m labelloop.dashboard.server [--root runs/trials] [--port 8095]`, bound to 127.0.0.1. Routes:
 - `/`: `index.html`
 - `/api/trials`: list (id, goal, start, calls, duration, parcels) newest first
 - `/api/trials/<id>`: `{meta, rows: [...trial.jsonl], summary}`

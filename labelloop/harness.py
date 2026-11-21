@@ -47,6 +47,8 @@ def apply_profile(cfg):
         cfg["budget"] = {**cfg["budget"], "case_s": 480, "deliver_reserve_s": 20, "wallx_call_s": 2.5, "sim_case_s": None}
         cfg["instructions"] = {**cfg["instructions"], "PLACE": ["put the box into the {mat} bin"], "INSPECT": ["flip the box over"], "REJECT": ["put the box into the black bin"],
                                "LIFT2": ["pick up the box with both arms and put it into the {mat} bin"]}
+    if cfg.get("wording"):  # trial-agent / operator overrides of the WALLX instruction templates ({mat} {arm} {where} {obj})
+        cfg["instructions"] = {**cfg["instructions"], **{k: list(v) if isinstance(v, (list, tuple)) else [v] for k, v in cfg["wording"].items()}}
     return cfg
 
 
@@ -77,6 +79,7 @@ class Harness:
         self._empty = False  # the loaded empty-table JPEG resized to the frame (False = not read yet, None = unreadable)
         self.obj_box, self.near = None, None  # event_fast: object on the table with no readable label; the arm nearest it
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
+        self.last_log = None  # the fields passed to runlog.write at the end of step() (the relay records them)
 
     def step(self, images, state):
         self.sm.begin()  # event_fast: the case clock starts with the first observation
@@ -140,7 +143,7 @@ class Harness:
               "swipe_calls": len(self.swipe["wps"]) + self.cfg["home_calls"] + self.cfg["swipe"]["settle_calls"] if self.swipe else 0,
               "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0}  # no feasible push: the try is skipped
         if self.cfg.get("event_fast"):  # the object on the table (label readable or not) / a parcel already there at the start / the arm nearest it
-            ev.update(present=present, obj=self.obj_box is not None, near=self.near)
+            ev.update(present=present, obj=self.obj_box is not None, near=self.near, where=self.where_words(front, cfg, codes))
         instr = self.sm.step(ev)
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
@@ -179,14 +182,27 @@ class Harness:
             self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
         self.subgoal_changed = self.sm.state != before or any(t[1] == before for t in self.sm.transitions)  # a retry restarts the same sub-goal
-        if self.runlog:
-            self.runlog.write(call=self.calls, state=before, instruction=instr, codes=codes, wrist_codes=wrist,
-                              confirmed=confirmed, lane=self.sm.lane, presence=pres, bin_change=bins, kraft_roi=kroi,
-                              left_gripper=state["left_ee"]["gripper"],
-                              right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
-                              flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index, look=self.look_info,
-                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info, swipe=self.swipe_info, show=self.show_info)
+        self.last_log = {"call": self.calls, "state": before, "instruction": instr, "codes": codes, "wrist_codes": wrist,
+                         "confirmed": confirmed, "lane": self.sm.lane, "presence": pres, "bin_change": bins, "kraft_roi": kroi,
+                         "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"],
+                         "transitions": self.sm.transitions, "flags": self.sm.flags, "parcels": self.sm.parcels,
+                         "look_view": self.look_index, "look": self.look_info, "spent_s": self.sm.spent,
+                         "spin": self.spin_info, "slide": self.slide_info, "swipe": self.swipe_info, "show": self.show_info}
+        self.log(**self.last_log)
         return instr
+
+    def where_words(self, front, cfg, codes):
+        """The parcel's place on the free table in words for WALLX ("left", "front right", "back middle", ...): its head label, else the object box; None if unseen."""
+        h, w = front.shape[:2]
+        if codes:
+            u, v = codes[0][1]
+        elif self.obj_box is not None:
+            u, v = (self.obj_box[0] + self.obj_box[2]) / 2, (self.obj_box[1] + self.obj_box[3]) / 2
+        else:
+            return None
+        x0, y0, x1, y1 = cfg["induction_roi"]
+        fx, fy = (u / w - x0) / (x1 - x0), (v / h - y0) / (y1 - y0)
+        return ("back " if fy < 0.2 else "front " if fy > 0.7 else "") + ("left" if fx < 1 / 3 else "right" if fx > 2 / 3 else "middle")  # perspective: the far band is thin
 
     def empty_frame(self, front):
         """The configured empty-table JPEG (empty_ref) resized to the frame, or None; read once (self._empty False = not tried yet)."""

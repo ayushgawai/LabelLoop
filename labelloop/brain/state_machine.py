@@ -58,6 +58,7 @@ class StateMachine:
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
+        self.where = None  # event_fast: "front left" ... (harness where_words), for {where}
         self.near = None  # event_fast: the arm nearest the detected object ("left" / "right"), for CENTER's wording
         self.landed = False  # event_fast: the action's success check held
         self.looked = self.showed = False  # LOOK / SHOW done
@@ -80,7 +81,7 @@ class StateMachine:
             key = "INSPECT_BIG" if s == "INSPECT" and self.big else s
             arm = self.near if s == "CENTER" and self.near else self._arm()  # CENTER: the arm nearest the object
             return instruction(key, self.cfg, self.tries.get("INSPECT", 1) - 1 if s == "INSPECT" else 0,
-                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm)
+                               mat=self.cfg["lanes"].get(self.lane, "black"), obj=self.obj, arm=arm, where=self.where or "middle")
 
     def _arm(self):  # the arm that puts the parcel in its bin: the lane's (handover: false) or the receiving right arm
         return "right" if self.cfg.get("handover") else self.cfg["arms"].get(self.lane or "reject", "right")
@@ -220,6 +221,7 @@ class StateMachine:
         cfg, sc, s = self.cfg, self.cfg["scene"], self.state
         self.transitions, self.flags = [], []
         self.near, self.calls = ev.get("near"), self.calls + 1
+        self.where = ev.get("where") or self.where  # event_fast: last known parcel place in words, for {where}
         self.spent += self._cost(s)
         over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
         f, codes = ev["presence"], sorted(c for c in ev["codes"] if c not in self.sorted)

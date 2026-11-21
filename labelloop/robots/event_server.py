@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 from websockets.asyncio.server import serve
 
+from labelloop.robots.trial_recorder import TrialRecorder, reduce_actions
 from labelloop.wallx_client import (WallxClient, WallxError, decode_jpeg_b64, hold_response, pack, unpack)
 
 MAX_FRAME_BYTES = 32 * 1024 * 1024
@@ -55,22 +56,40 @@ def _plain_state(state):
 
 
 class Relay:
-    """make_harness() -> Harness per downstream connection, or None for passthrough."""
+    """make_harness() -> Harness per downstream connection, or None for passthrough. `recorder` (TrialRecorder or None) stores
+    every trial: one line + the camera frames per request, a new trial per goal, ended when the connection ends."""
 
-    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None, hold=False):
+    def __init__(self, endpoint, headers, make_harness=None, make_client=None, save_dir=None, hold=False, recorder=None, record_meta=None):
         self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir, self.hold = endpoint, headers, make_harness, make_client, save_dir, hold
+        self.recorder, self.record_meta = recorder, dict(record_meta or {})
 
     async def handle_hold(self, downstream, cap=30):
         """Camera-capture mode: every request gets a hold reply (arms stay put), no WALLX, no harness; the first `cap` requests are saved."""
         await downstream.send(pack({"model": "hold"}))
-        ep, k = time.strftime("%Y%m%d_%H%M%S"), 0
-        async for frame in downstream:
-            req = unpack(frame)
-            validate_request(req)
-            if self.save_dir and k < cap:
-                save_request(self.save_dir, ep, k, req)
-            k += 1
-            await downstream.send(pack(hold_response(req["embodiment"], _plain_state(req["observation"]["state"]))))
+        ep, k, i, goal = time.strftime("%Y%m%d_%H%M%S"), 0, 0, None
+        try:
+            async for frame in downstream:
+                t0 = time.monotonic()
+                req = unpack(frame)
+                validate_request(req)
+                if self.save_dir and k < cap:
+                    save_request(self.save_dir, ep, k, req)
+                k += 1
+                state = _plain_state(req["observation"]["state"])
+                reply = hold_response(req["embodiment"], state)
+                if self.recorder is not None:  # hold sessions are recorded too (source "hold")
+                    if req["instruction"] != goal:
+                        goal, i = req["instruction"], 0
+                        self.recorder.start(goal, **self.record_meta)
+                    self.recorder.frame(i, req["observation"]["images"])
+                    self.recorder.record(t=time.time(), index=i, goal=goal, subgoal=None, source="hold", harness=None,
+                                         state=state, latency_ms=None, elapsed_ms=round((time.monotonic() - t0) * 1000, 1),
+                                         error=None, actions=reduce_actions(reply))
+                    i += 1
+                await downstream.send(pack(reply))
+        finally:
+            if self.recorder is not None:
+                self.recorder.end()
 
     async def handle(self, downstream):
         if self.hold:
@@ -80,6 +99,7 @@ class Relay:
     async def handle_wallx(self, downstream):
         wallx = self.make_client() if self.make_client else WallxClient(self.endpoint, self.headers)
         harness, goal, n, fresh, ep, k = None, None, 0, True, None, 0
+        trial, i = self.recorder is not None, 0  # i = row index within the current trial
         try:
             harness = self.make_harness() if self.make_harness else None
             await asyncio.to_thread(wallx.connect)
@@ -94,6 +114,9 @@ class Relay:
                     print(json.dumps({"event": "goal", "goal": goal}), flush=True)
                     if harness:
                         harness.reset()
+                    if trial:  # a new goal starts a new trial (the previous one is ended by start())
+                        i = 0
+                        self.recorder.start(goal, **self.record_meta)
                 if self.save_dir and k % 10 == 0:  # the 1st request of an episode, then every 10th (the instruction logged is the robot's)
                     save_request(self.save_dir, ep, k, req)
                 k += 1
@@ -103,11 +126,15 @@ class Relay:
                     images = {k: decode_jpeg_b64(v) for k, v in req["observation"]["images"].items()}
                     instruction = await asyncio.to_thread(harness.step, images, state)
                 scripted = harness.scripted_reply(req["embodiment"], state) if harness else None
+                reply, source, latency_ms, err = None, None, None, None
                 if scripted is not None:
-                    await downstream.send(pack(scripted))
+                    reply, source = scripted, "scripted"
+                    await downstream.send(pack(reply))
                 elif instruction is None:  # harness says hold still: don't spend a WALLX call
-                    await downstream.send(pack(hold_response(req["embodiment"], state)))
+                    reply, source = hold_response(req["embodiment"], state), "hold"
+                    await downstream.send(pack(reply))
                 else:
+                    source = "wallx"
                     if harness and (fresh or harness.subgoal_changed):
                         req["reset_history"] = True
                     fresh = False if harness else fresh
@@ -119,16 +146,28 @@ class Relay:
                         if e.reply is None:  # session closed by WALLX: nothing to pass through
                             raise
                         reply, err = e.reply, str(e)  # error replies also pass through unchanged
+                    latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
-                        harness.log_reply(time.monotonic() - t1, err)
+                        harness.log_reply(latency_ms / 1000, err)
                     await downstream.send(pack(reply))
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                if trial:
+                    self.recorder.frame(i, req["observation"]["images"])
+                    self.recorder.record(t=time.time(), index=i, goal=goal,
+                                         subgoal=instruction if source == "wallx" else None, source=source,
+                                         harness=getattr(harness, "last_log", None) if harness else None, state=state,
+                                         latency_ms=None if latency_ms is None else round(latency_ms, 1),
+                                         elapsed_ms=round(elapsed_ms, 1), error=err, actions=reduce_actions(reply))
+                    i += 1
                 print(json.dumps({"event": "chunk", "index": n, "instruction": instruction,
-                                  "elapsed_ms": round((time.monotonic() - t0) * 1000, 1)}), flush=True)
+                                  "elapsed_ms": round(elapsed_ms, 1)}), flush=True)
                 n += 1
         except Exception as e:  # never print keys/images
             print(f"Relay failed: {type(e).__name__}. Stop the session in WebUI.", flush=True)
             await downstream.close(code=1011, reason="Harness failure; stop in WebUI")
         finally:
+            if self.recorder is not None:
+                self.recorder.end()
             wallx.close()
 
 
@@ -140,6 +179,7 @@ async def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
+    p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
     p.add_argument("--passthrough", action="store_true", help="forward with the client's instruction, no harness")
     p.add_argument("--task", default="configs/task_qr_sort.yaml")
     p.add_argument("--log", default="runs/event.jsonl")
@@ -148,6 +188,8 @@ async def main():
     p.add_argument("--fast", action=argparse.BooleanOptionalAction, default=True, help="event_fast (with --profile real): WALLX-only, no scripted motion, retries skip HOME, real-time budget")
     p.add_argument("--hold", action="store_true", help="camera-capture mode: hold reply to every request, no WALLX / harness, save the first 30 requests' images")
     p.add_argument("--save-images", default="runs/event_images", help="dir for the 1st + every 10th request's camera JPEGs and state ('' = off)")
+    p.add_argument("--record", default="runs/trials", help="dir for trial recordings, one folder per trial ('' = off; see labelloop.dashboard.server)")
+    p.add_argument("--no-record", dest="record", action="store_const", const="", help="disable trial recording")
     a = p.parse_args()
     from labelloop.config import load_env, load_yaml
     load_env()
@@ -157,8 +199,13 @@ async def main():
         from labelloop.eval.runlog import RunLog
         from labelloop.harness import Harness
         task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
+        if a.wording:  # JSON {state: template or [templates]} overriding the WALLX instruction wording (scripts/trial_agent.py)
+            task["wording"] = json.loads(Path(a.wording).read_text() or "{}")
         make_harness = lambda: Harness(task, agent, runlog)  # noqa: E731
-    async with start(Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold), a.host, a.port):  # backend from configs/wallx.yaml
+    recorder = TrialRecorder(a.record) if a.record else None
+    meta = {"profile": a.profile, "real_safe": a.real_safe, "fast": a.fast, "hold": a.hold, "passthrough": a.passthrough}
+    relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta)  # backend from configs/wallx.yaml
+    async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
 

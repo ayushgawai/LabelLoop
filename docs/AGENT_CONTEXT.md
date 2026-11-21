@@ -28,3 +28,8 @@ workbench (black bin on the table, no floor drops). 8 min per case. Score = sum 
 ## Log
 - 2026-11-21 11:50 Trial 1 on the real robot: harness never left IDLE: the parcel was already on the table at start (became the empty
   reference) and sat half under the left gripper (QR hidden). Fixes requested from Codex (see task below in git history).
+- 2026-11-21 12:25 Trial 2: harness left IDLE, CENTER x2, flip x2, REJECT x2, never read the label (60 px taped QR on the head cam) ->
+  fixed (x3 + unsharp retry in qr.locate). "flip the box over" made WALLX grab the RED BIN (bins are shoe boxes): wording must name
+  the parcel unambiguously. Added {where} (parcel place on the table in words) and `--wording FILE` overrides; scripts/trial_agent.py
+  (gpt-6.2-sol) runs bounded trial-and-error on the robot and writes results/agent/REPORT_*.md. Dashboard: trial recorder
+  (runs/trials/<ts>/) + `python -m labelloop.dashboard.server` on 127.0.0.1:8095.

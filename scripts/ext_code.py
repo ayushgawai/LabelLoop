@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ENV = {k: v.strip().strip('"').strip("'") for k, v in (l.strip().split("=", 1) for l in open(ROOT / ".env") if "=" in l and not l.lstrip().startswith("#"))}
 SYSTEM = ("You are a senior Python engineer editing a robotics repo. Make the minimal correct change. Return ONLY the files you change, each as\n"
-          "<<<FILE relative/path.py>>>\n<the COMPLETE new file content>\n<<<END>>>\nNo diffs, no prose outside the blocks except one short summary line at the end.")
+          "<<<FILE relative/path.py>>>\n<the COMPLETE new file content>\n<<<END>>>\nNo diffs, no prose outside the blocks except one short summary line at the end. Do NOT use any tools (no web search): everything you need is in this message; answer directly.")
 
 
 def call(provider, prompt):
@@ -67,7 +67,7 @@ def main():
             path = path.strip()
             if path not in o.files and not path.startswith("tests/"):
                 print(f"  skipped non-editable {path}"); continue
-            (ROOT / path).write_text(content.rstrip("\n") + "\n"); print(f"  wrote {path}")
+            (ROOT / path).parent.mkdir(parents=True, exist_ok=True); (ROOT / path).write_text(content.rstrip("\n") + "\n"); print(f"  wrote {path}")
         t = subprocess.run([str(ROOT / ".venv/bin/python"), "-m", "pytest", *o.test.split()], cwd=ROOT, capture_output=True, text=True, timeout=1500)
         tail = (t.stdout + t.stderr).strip().splitlines()[-60:]
         print(f"round {rnd}: {tail[-1] if tail else '?'}")
