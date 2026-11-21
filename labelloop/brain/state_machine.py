@@ -11,9 +11,12 @@ from labelloop.brain.instructions import instruction
 # PLACE/REJECT/LIFT2 -> HOME -> VERIFY -> IDLE (parcel counted) | retry the plan | IDLE after the last try (failure logged)
 # Budget: estimated REAL seconds per CASE (every call: WALLX ~wallx_call_s, scripted / hold / IDLE ~scripted_call_s); a search try or WALLX step
 #   needs its cost + deliver_reserve + home to fit, else route (budget).
+# SLIDE (slide.enabled, not big, no handover): scripted (no WALLX) hand-off before PLACE / REJECT: the harness checks whether the delivery arm can
+#   grasp the parcel where it lies; if not, the other arm pushes it toward the delivery arm's hand-off point (a stroke per SLIDE entry, up to
+#   slide.max_strokes, each re-fitted by the head camera); then the delivery arm places as usual (also when the slide failed).
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
-COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER")  # tries counted per parcel
+COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER", "SLIDE")  # tries counted per parcel
 WALLX = ACTIONS + ("INSPECT", "HANDOVER")  # states that send an instruction to WALLX (HOME too unless scripted_home)
 
 
@@ -91,11 +94,23 @@ class StateMachine:
         bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
         return ev["presence"] < sc["presence_min"] and ev["bins"][bin_] >= sc["bin_gain"]
 
-    def _route(self, lane, reason, code=None, obj="block"):
+    def _route(self, lane, reason, code=None, obj="block", slide=True):
         self.lane, self.code, self.reason, self.obj = lane, code, reason, obj
         last = "LIFT2" if self.big else "PLACE" if lane else "REJECT"
         self.plan = [last] if self.big or not self.cfg.get("handover") else ["HANDOVER", last]
-        self._go(self.plan[0], reason)
+        hand = slide and self.cfg.get("slide", {}).get("enabled") and not self.big and not self.cfg.get("handover") \
+            and reason != "budget" and self._admit("SLIDE")
+        self._go("SLIDE" if hand else self.plan[0], reason)
+
+    def end_slide(self, why="slide done"):  # no (further) stroke: the delivery arm acts
+        self._go(self.plan[0], why)
+
+    def reroute_wide(self):  # the narrow side does not fit the gripper: both arms if allowed, else reject
+        if self.cfg["tries"].get("LIFT2", 0) > 0:
+            self.big, self.plan, self.reason = True, ["LIFT2"], "too_wide"
+            self._go("LIFT2", "too_wide")
+        else:
+            self._route(None, "too_wide", self.code, self.obj, slide=False)
 
     def _read(self, codes):
         codes = sorted(codes, key=lambda c: not self.pattern.match(c))  # parcel-format codes first
@@ -142,6 +157,13 @@ class StateMachine:
                 self._read(codes)
             elif self.calls >= ev.get("spin_calls", 0):
                 self._search_next()
+        elif s == "SLIDE":  # a stroke is done (arm home, parcel re-fitted next entry); 0 = nothing planned
+            n = ev.get("slide_calls", 0)
+            if self.calls >= n:
+                if n and self.tries["SLIDE"] < cfg["slide"]["max_strokes"] and self._admit("SLIDE"):
+                    self._go("SLIDE", "next stroke")
+                else:
+                    self.end_slide()
         elif s == "LOOK":
             if codes or self.calls >= ev.get("look_calls", 0):
                 self.pend = codes

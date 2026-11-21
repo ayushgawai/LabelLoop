@@ -25,6 +25,7 @@ class Harness:
         self.views, self.point, self.look_info = [], None, None  # LOOK viewpoints / point_test pose, built at SCAN -> LOOK
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])  # items are (camera, text): same text in N consecutive frames of ONE camera
         self.spin, self.spin_info, self.spin_sigma = None, None, None  # the planned push of the current SPIN try; the yaw direction all tries keep
+        self.slide, self.slide_info = None, None  # the planned stroke of the current SLIDE entry (None = nothing to push)
         self.calib, self.cal_n, self.cal_cur = None, 0, None  # calib_test schedule, calls consumed, entry of the current call
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
@@ -64,11 +65,17 @@ class Harness:
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
         instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
-                              "spin_push": push, "spin_calls": push + sc if self.spin else 1})  # no feasible push: the try is skipped
+                              "spin_push": push, "spin_calls": push + sc if self.spin else 1,
+                              "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0})  # no feasible push: the try is skipped
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
         if self.sm.state == "SPIN" and self.sm.calls == 0:  # a new SPIN try (arm home, parcel as it lies now)
             self.plan_spin(front, cfg)
+        if self.sm.state == "SLIDE" and self.sm.calls == 0:  # a new stroke (arm home, parcel as it lies now): nothing to push -> the delivery arm acts
+            self.plan_slide(front, cfg)
+            if self.sm.state == "SLIDE" and not self.slide:
+                self.sm.end_slide()
+            instr = self.sm.instruction()
         if before == "IDLE":  # a new parcel starts with no QR history and no preferred yaw direction
             self.confirmer.counts.clear()
             self.spin_sigma = None
@@ -82,7 +89,7 @@ class Harness:
                               left_gripper=state["left_ee"]["gripper"],
                               right_gripper=state["right_ee"]["gripper"], transitions=self.sm.transitions,
                               flags=self.sm.flags, parcels=self.sm.parcels, look_view=self.look_index, look=self.look_info,
-                              spent_s=self.sm.spent, spin=self.spin_info)
+                              spent_s=self.sm.spent, spin=self.spin_info, slide=self.slide_info)
         return instr
 
     def parcel_hw(self, front, cfg, lc):
@@ -111,16 +118,48 @@ class Harness:
             self.log(warning="LOOK: no feasible view of the parcel at %s (hw %.3f): the look-around will hold still" % (p.round(3).tolist(), hw))
         self.look_info = {"point": p.tolist(), "hw": hw, "views": [(a, ee.tolist(), i["ik_err"], i["clear"]) for a, ee, _, i in self.views]}
 
-    def plan_spin(self, front, cfg):
-        """Fit the parcel's oriented footprint to the head-camera change mask and plan the face-normal push; no plan (the try is skipped)
-        when the fit is implausible or no face has a feasible full path. Later tries keep the first plan's yaw direction."""
+    def fit(self, front, cfg, sc):
+        """Oriented parcel footprint from the head-camera change mask (None: nothing there / a stale reference / implausible)."""
         assert self.ref is not None
-        sc, wh = {**self.cfg["look"], **self.cfg["spin"]}, front.shape[1::-1]
         mask = scene.changed_mask(front, self.ref, cfg)
         x0, y0, x1, y1 = scene.roi_box(front, cfg)
         frac = (mask > 0).sum() / ((x1 - x0) * (y1 - y0))
-        fit = look.fit_parcel(mask, wh, sc) if 0.02 <= frac <= 0.9 else None  # outside: nothing there / a stale reference
-        home = {a: (np.asarray(self.home[a]["position"], float), np.asarray(self.home[a]["rotation_rpy"], float)) for a in look.SIGN}
+        return look.fit_parcel(mask, front.shape[1::-1], sc) if 0.02 <= frac <= 0.9 else None
+
+    def homes(self):
+        return {a: (np.asarray(self.home[a]["position"], float), np.asarray(self.home[a]["rotation_rpy"], float)) for a in look.SIGN}
+
+    def plan_slide(self, front, cfg):
+        """Delivery arm = the lane's arm. Fit the parcel; the delivery arm can grasp it -> nothing to do; too wide for the gripper -> reroute
+        (LIFT2 / reject); else the OTHER arm's face-normal stroke toward the delivery arm's hand-off point (None if no stroke is feasible:
+        the delivery arm then tries anyway)."""
+        sc = {**self.cfg["look"], **self.cfg["spin"], **self.cfg["grasp"], **self.cfg["slide"]}
+        side = self.sm._arm()
+        arm, fit, home, self.slide = side + "_ee", None, self.homes(), None
+        fit = self.fit(front, cfg, sc)
+        info = {"stroke": self.sm.tries["SLIDE"], "delivery": arm, "target": sc["handoff"][side],
+                "fit": fit and {"c": fit["c"].tolist(), "half": fit["half"].tolist(), "yaw": fit["yaw"]}}
+        if fit is None:
+            info["why"] = "no fit"
+        elif look.grasp_plan(arm, fit, sc, home):
+            info["why"] = "graspable"
+        elif look.too_wide(fit, sc):
+            info["why"] = "too_wide"
+            self.slide_info = info
+            if sc["reroute_wide"]:
+                self.sm.reroute_wide()
+            return
+        else:
+            self.slide = look.slide_plan(fit, sc["handoff"][side], arm, sc, home)
+            info.update(why="stroke" if self.slide else "no stroke", arm=self.slide and self.slide["arm"],
+                        tips=self.slide and self.slide["tips"], c_after=self.slide and self.slide["c_after"])
+        self.slide_info = info
+
+    def plan_spin(self, front, cfg):
+        """Fit the parcel's oriented footprint to the head-camera change mask and plan the face-normal push; no plan (the try is skipped)
+        when the fit is implausible or no face has a feasible full path. Later tries keep the first plan's yaw direction."""
+        sc = {**self.cfg["look"], **self.cfg["spin"]}
+        fit, home = self.fit(front, cfg, sc), self.homes()
         self.spin = fit and look.spin_plan(fit, sc, self.spin_sigma, home)
         self.spin_sigma = self.spin["sigma"] if self.spin else self.spin_sigma
         self.spin_info = {"try": self.sm.tries["SPIN"], "fit": fit and {"c": fit["c"].tolist(), "half": fit["half"].tolist(), "yaw": fit["yaw"]},
@@ -188,8 +227,9 @@ class Harness:
                 return home_response(embodiment, state, self.home)
             other = "right_ee" if e["arm"] == "left_ee" else "left_ee"
             return move_response(embodiment, state, {e["arm"]: {"position": e["ee"].tolist(), "rotation_rpy": e["rpy"].tolist()}, other: self.home[other]})
-        if self.sm.state == "SPIN":  # push waypoints (gripper closed), then home; the read calls after that hold still
-            sp, i, n = self.spin, self.sm.calls, self.spin and len(self.spin["wps"])
+        if self.sm.state in ("SPIN", "SLIDE"):  # push waypoints (gripper closed), then home; the read calls after that hold still
+            sp, i = (self.spin if self.sm.state == "SPIN" else self.slide), self.sm.calls
+            n = sp and len(sp["wps"])
             if sp and i < n:
                 ee, rpy = sp["wps"][i]
                 other = "right_ee" if sp["arm"] == "left_ee" else "left_ee"

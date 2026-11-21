@@ -161,11 +161,11 @@ def point_pose(arm, tip, cfg):
     return best[:3]
 
 
-def reach(arm, tip, pitch, cfg, q0=None):
+def reach(arm, tip, pitch, cfg, q0=None, yaw=None):
     """(ee in arm frame, rpy, q, ik_err) holding the fingertips at root point `tip` at `pitch` (90 deg = pointing down), yaw toward
-    the point; None if IK fails, a joint limit binds or the tip is under TABLE_Z + 0.01. Never returns an infeasible pose."""
+    the point (or the given yaw); None if IK fails, a joint limit binds or the tip is under TABLE_Z + 0.01. Never returns an infeasible pose."""
     d = to_arm(arm, tip, cfg)
-    rpy = np.array([0.0, pitch, np.arctan2(d[1], d[0])])
+    rpy = np.array([0.0, pitch, np.arctan2(d[1], d[0]) if yaw is None else yaw])
     ee = d - rpy_to_matrix(rpy) @ TCP
     q, e, er = ik(ee, rpy, q0=q0)
     if e < 0.01 and er < 0.05 and tip[2] >= TABLE_Z + 0.01 and np.all(q >= LO - 1e-6) and np.all(q <= HI + 1e-6):
@@ -254,3 +254,89 @@ def spin_plan(fit, cfg, sigma=None, home=None):
                         if commanded_ok(arm, [h, *wps, h], cfg, ok_tip):
                             return {"arm": arm, "pitch": float(pitch), "tips": tips, "wps": wps, "contact": P, "normal": n,
                                     "tip_z": float(zt), "sigma": int(sg)}
+
+
+def _home(arm, home):
+    return (np.array(fk(np.zeros(6))[0]), np.zeros(3)) if home is None else home[arm]
+
+
+def too_wide(fit, cfg):
+    """True if the parcel's narrow side does not fit between the fingers (grip_max minus grip_margin)."""
+    return 2 * fit["half"].min() > cfg["grip_max"] - cfg["grip_margin"]
+
+
+def grasp_plan(arm, fit, cfg, home=None):
+    """Can `arm` GRASP the fitted parcel where it lies? Pregrasp (fingertips straight above the centre at approach_h) + grasp (fingertips at
+    the top-face height minus grasp_depth), gripper pointing down within grasp_pitches_deg, yaw so the fingers close across the NARROW
+    side (ponytail: jaw axis = EE y, so the tool y axis is set parallel to the narrow axis, either sign; CONFIRM on the robot), the narrow
+    side <= grip_max - grip_margin, and home -> pregrasp -> grasp passing commanded_ok. -> {"arm","pitch","yaw","pre","grasp"} or None."""
+    if too_wide(fit, cfg):
+        return None
+    n, c = fit["axes"][int(np.argmin(fit["half"]))], fit["c"]
+    pre, grasp = (*c, TABLE_Z + cfg["approach_h"]), (*c, TABLE_Z + cfg["parcel_h"] - cfg["grasp_depth"])
+    y0 = np.arctan2(-n[0], n[1])  # tool y = (-sin yaw, cos yaw) at pitch 90 (horizontal for any pitch, roll 0)
+    for pitch in np.radians(cfg["grasp_pitches_deg"]):
+        for yaw in sorted((y0, (y0 + np.pi + np.pi) % (2 * np.pi) - np.pi), key=lambda y: abs(y - np.arctan2(c[1] - frame(arm, cfg)[1], c[0]))):
+            rs = [reach(arm, t, pitch, cfg, yaw=yaw) for t in (pre, grasp)]
+            if all(rs) and commanded_ok(arm, [_home(arm, home), *(r[:2] for r in rs)], cfg):
+                return {"arm": arm, "pitch": float(pitch), "yaw": float(yaw), "pre": np.array(pre), "grasp": np.array(grasp)}
+
+
+def footprint_clear(c, fit, cfg):
+    """True if the fitted parcel footprint centred at c stays table_margin inside the table and bin_margin outside every bin (root xy
+    boxes [x0, x1, y0, y1] in cfg["table"] / cfg["bins"]); the outline is sampled every ~1 cm."""
+    a, h = fit["axes"], fit["half"]
+    k = np.linspace(-1, 1, 9)
+    pts = []
+    for s in (-1, 1):
+        pts += [c + s * h[0] * a[0] + t * h[1] * a[1] for t in k] + [c + t * h[0] * a[0] + s * h[1] * a[1] for t in k]
+    x0, x1, y0, y1 = cfg["table"]
+    m = cfg["table_margin"]
+    for p in pts:
+        if not (x0 + m <= p[0] <= x1 - m and y0 + m <= p[1] <= y1 - m):
+            return False
+        for bx0, bx1, by0, by1 in cfg["bins"].values():
+            if np.hypot(max(bx0 - p[0], 0, p[0] - bx1), max(by0 - p[1], 0, p[1] - by1)) < cfg["bin_margin"]:
+                return False
+    return True
+
+
+def slide_plan(fit, target, delivery, cfg, home=None):
+    """Hand-off push by the arm that is NOT `delivery`: a face-normal push through the parcel's centre (contact at the face centre, so no
+    yaw torque) on the face opposite the way to `target` (root xy), strokes of up to slide.stroke m along the normal (>= dir_min_dot cos
+    to the target direction). None if no face is aligned, the predicted footprint (halfway and at the end) would come within bin_margin of a
+    bin / table_margin of the table edge, or no pitch gives a feasible full commanded path (home, above, down, in, push, out, up, home).
+    -> {"arm","pitch","tips","wps","contact","normal","dist","tip_z","c_after"}."""
+    arm = next(a for a in SIGN if a != delivery)
+    c, ax, hf = fit["c"], fit["axes"], fit["half"]
+    v = np.asarray(target, float) - c
+    L = np.linalg.norm(v)
+    if L < 1e-3:
+        return None
+    d, dist = v / L, min(cfg["stroke"], L)
+    n, i = max(((s * ax[i], i) for i in (0, 1) for s in (1, -1)), key=lambda f: -f[0] @ d)  # outward normal of the face behind the parcel
+    if -n @ d < cfg["dir_min_dot"] or not all(footprint_clear(c - f * dist * n, fit, cfg) for f in (0.5, 1.0)):
+        return None
+    zt, za, top = TABLE_Z + np.clip(0.3 * cfg["parcel_h"], 0.015, 0.03), TABLE_Z + cfg["approach_h"], TABLE_Z + cfg["parcel_h"]
+
+    def inside(tip, m, c=c):
+        loc = ax @ (tip[:2] - c)
+        return abs(loc[0]) < hf[0] + m and abs(loc[1]) < hf[1] + m and tip[2] < top + m
+
+    def ok_tip(k, tip):  # legs: 0 home->above, 1 down, 2 final approach, 3 push, 4 retract, 5 up, 6 home
+        if k in (3, 4):
+            return True
+        return not inside(tip, -0.005 if k == 2 else 0.01, c - dist * n if k > 4 else c)  # after the push the parcel sits at c_after
+
+    P = c + hf[i] * n
+    S, E = P + cfg["out"] * n, P - dist * n
+    R = E + cfg["out"] * n
+    tips = np.array([(*S, za), (*S, zt), (*P, zt), (*E, zt), (*R, zt), (*R, za)])
+    h = _home(arm, home)
+    for pitch in np.radians((90, 75, 60, 45)):
+        rs = [reach(arm, tp, pitch, cfg) for tp in tips]
+        if all(rs):
+            wps = [r[:2] for r in rs]
+            if commanded_ok(arm, [h, *wps, h], cfg, ok_tip):
+                return {"arm": arm, "pitch": float(pitch), "tips": tips, "wps": wps, "contact": P, "normal": n, "dist": float(dist),
+                        "tip_z": float(zt), "c_after": c - dist * n}

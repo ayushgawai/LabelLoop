@@ -26,7 +26,8 @@ ROOT = Path(__file__).parent.parent
 BASE = load_yaml(ROOT / "configs/task_qr_sort.yaml")
 ROBOT = load_yaml(ROOT / "configs/ex001_6r.yaml")
 BIG = {"case_s": 1e9, "deliver_reserve_s": 0, "wallx_call_s": 11.0, "scripted_call_s": 2.2}
-NOSPIN = {**BASE, "spin": {"enabled": False}, "budget": BIG}
+NOSLIDE = {**BASE, "slide": {**BASE["slide"], "enabled": False}}  # the hand-off (SLIDE) has its own tests in test_v7
+NOSPIN = {**NOSLIDE, "spin": {"enabled": False}, "budget": BIG}
 GAIN = 0.05
 LC = {**BASE["look"], **BASE["spin"]}
 
@@ -190,7 +191,7 @@ def test_arm_roles_without_handover_and_the_handover_path_when_enabled():
 
 
 # --- SPIN in the mock ---------------------------------------------------------------------------------------------------------
-def run_spin(objs, cfg=BASE, runlog=None):
+def run_spin(objs, cfg=NOSLIDE, runlog=None):
     h, sc, sent = Harness({**cfg, "max_parcels": 1}, runlog=runlog), FakeScene(objs), []
     h.entered = []
     for _ in range(600):
@@ -227,17 +228,17 @@ def test_spin_never_shows_a_label_then_no_label_reject_with_right_arm():
 
 
 def test_spin_inspect_after_spin_and_big_parcels_skip_spin():
-    h, sc, sent = run_spin([nolabel()], {**BASE, "tries": {**BASE["tries"], "INSPECT": 1}})
+    h, sc, sent = run_spin([nolabel()], {**NOSLIDE, "tries": {**BASE["tries"], "INSPECT": 1}})
     ss = [s for i, (s, _) in enumerate(sent) if not i or s != sent[i - 1][0]]
     assert ss[:5] == ["IDLE", "SCAN", "SPIN", "INSPECT", "REJECT"]
     h, sc, sent = run_spin([parcel(A, big=True, hidden=99)])  # big: no SPIN, INSPECT tries 0 -> reject
     assert "SPIN" not in [s for s, _ in sent] and h.sm.results[0]["reason"] == "no_label"
-    h, sc, sent = run_spin([parcel(A, big=True, hidden=99)], {**BASE, "tries": {**BASE["tries"], "INSPECT": 1}})
+    h, sc, sent = run_spin([parcel(A, big=True, hidden=99)], {**NOSLIDE, "tries": {**BASE["tries"], "INSPECT": 1}})
     assert [i for s, i in sent if s == "INSPECT"][0] == "lift the block with both arms and turn it over"
 
 
 def test_unreachable_parcel_spin_tries_are_skipped_quickly_to_reject():
-    h = Harness({**BASE, "max_parcels": 1})
+    h = Harness({**NOSLIDE, "max_parcels": 1})
     h.ref = np.zeros((10, 10), np.uint8)
     sm, spin_cfg = h.sm, {**BASE["look"], **BASE["spin"]}
     assert look.spin_plan({"c": np.array([1.5, 0.0]), "axes": np.eye(2), "half": np.array([0.06, 0.04])}, spin_cfg) is None

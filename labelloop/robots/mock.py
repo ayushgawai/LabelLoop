@@ -1,9 +1,12 @@
 """Scripted fake scene for offline tests: no simulator, no robot. Front image is 1280x720 so QR codes decode."""
 import functools
 
+import cv2
 import numpy as np
 import qrcode
 from PIL import Image
+
+from labelloop import look
 
 A, B, UNKNOWN, BAD = "420/95123/001", "420/90001/002", "420/10001/003", "LL|ZONE-A|001"
 # bin_rois of the config on 1280x720: x0, y0, x1, y1; zone (induction_roi) is x 179..1075, y 324..705
@@ -17,9 +20,9 @@ def qr_image(code, size=70):
     return np.asarray(qrcode.make(code).convert("RGB").resize((size, size), Image.NEAREST))
 
 
-def parcel(code, fail_places=0, hidden=0, big=False, look=None, spin=None):
-    """spin = K: the label shows on the head camera once K scripted pushes were done (call FakeScene.push(); the test loop does it when the harness reaches the push end). look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
-    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look, "spin": spin, "pushes": 0}
+def parcel(code, fail_places=0, hidden=0, big=False, look=None, spin=None, xy=None, half=(0.06, 0.04)):
+    """spin = K: the label shows on the head camera once K scripted pushes were done (call FakeScene.push(); the test loop does it when the harness reaches the push end). look = K: the label shows on the left wrist while the scripted look-around is at view K (set FakeScene.view). xy = root (x, y) of the parcel centre: drawn as a yaw-0 box of face half-extents `half` (m) at that point (default: a square at ZONE), scripted slides move it (FakeScene.slide). hidden = N: the label is off the head camera and shows on the left wrist only once the Nth INSPECT try has started."""
+    return {"kind": "parcel", "code": code, "fail_places": fail_places, "hidden": hidden, "big": big, "inspects": 0, "look": look, "spin": spin, "pushes": 0, "xy": xy and np.array(xy, float), "half": half}
 
 
 def nolabel(big=False):
@@ -58,7 +61,14 @@ class FakeScene:
         o = self.zone
         if o:
             (x, y), h = (BIG, 190) if o["big"] else (ZONE, 60)  # big: ~40% of the zone
-            front[y - h:y + h, x - h:x + h] = RED if o["kind"] == "garbage" else KRAFT
+            col = RED if o["kind"] == "garbage" else KRAFT
+            if o["xy"] is not None:
+                hx, hy = o["half"]
+                px = [look.table_to_pixel((*(o["xy"] + [sx * hx, sy * hy]), look.TABLE_Z + 0.08)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+                cv2.fillPoly(front, [np.array(px, np.int32)], col)
+                x, y = (int(v) for v in look.table_to_pixel((*o["xy"], look.TABLE_Z + 0.08)))
+            else:
+                front[y - h:y + h, x - h:x + h] = col
             if o["code"] and not o["hidden"] and (o["spin"] is None or o["pushes"] >= o["spin"]):
                 front[y - 35:y + 35, x - 35:x + 35] = qr_image(o["code"])
         wrist = {k: np.full((480, 640, 3), 128, np.uint8) for k in ("left_wrist", "right_wrist")}
@@ -69,6 +79,11 @@ class FakeScene:
         ee = {"position": [0.1185, 0, 0.181], "rotation_rpy": [0, 0, 0]}  # the home pose (q = 0)
         return ({"front": front, **wrist},
                 {"left_ee": {**ee, "gripper": 0.2}, "right_ee": {**ee, "gripper": self.grip}})
+
+    def slide(self, plan):
+        """A scripted slide stroke was driven: the parcel moves along the push by plan["dist"] (to plan["c_after"])."""
+        if self.zone and self.zone["xy"] is not None:
+            self.zone["xy"] = np.array(plan["c_after"], float)
 
     def push(self):
         if self.zone:

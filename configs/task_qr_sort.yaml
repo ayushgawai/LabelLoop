@@ -41,6 +41,32 @@ spin:                     # scripted label search (SCAN -> SPIN): face-normal pu
   est_calls: 12           # budget estimate of one SPIN try in scripted calls (6 waypoints + home + re-read)
   gripper_closed: 0.0     # WALLX gripper units while pushing
   scan_calls: 3           # head re-read calls after the arm is home (qr_confirm_frames needs >= 2)
+grasp:                    # can the delivery arm grasp the parcel where it lies? (look.grasp_plan: IK + commanded path; WALLX still does the grasp)
+  grip_max: 0.0975        # gripper opening (m); the narrow side must be <= grip_max - grip_margin
+  grip_margin: 0.01
+  grasp_depth: 0.02       # fingertips this far below the top face at the grasp (m)
+  grasp_pitches_deg: [90, 85, 80, 75, 70]   # steepest first (90 = straight down), as calib
+  reroute_wide: true      # narrow side too wide for the gripper -> LIFT2 (both arms) if tries.LIFT2 > 0, else reject
+slide:                    # scripted hand-off (SLIDE before PLACE / REJECT): if the delivery arm cannot grasp the parcel but the OTHER arm can push it,
+                          # that arm pushes it toward the delivery arm's hand-off point, re-fitting with the head camera after each stroke, no WALLX call
+  enabled: true
+  stroke: 0.08            # push distance per stroke (m)
+  max_strokes: 4
+  est_calls: 12           # budget estimate of one stroke in scripted calls (6 waypoints + home + re-fit)
+  settle_calls: 1         # head re-fit calls after the arm is home
+  dir_min_dot: 0.5        # a face is pushed only if its inward normal is within 60 deg of the direction to the hand-off point
+  bin_margin: 0.03        # the predicted parcel footprint stays this far from a bin and ...
+  table_margin: 0.03      # ... inside the table by this much (m)
+  handoff: {left: [0.30, 0.10], right: [0.30, -0.10]}   # root xy of the DELIVERY arm's hand-off point (keyed by the delivery arm)
+  # Root-frame boxes [x0, x1, y0, y1] from sim/qr_sort_task/build_task.py (CALIBRATE with the real layout). Derivation: the tabletop-local frame
+  # is the env frame rotated 180 deg about the table centre TABLE_C = (0.2047, -0.2682) (env = TABLE_C - local), the robot root sits at env
+  # (-0.322, -0.259) with the same axes as env (+x far, +y left), so root = (0.5267 - local_x, -0.0092 - local_y). Local footprints (footprints()):
+  # blue (-.3275, .0281, -.2316, -.0284), red (-.3275, .0281, .00935, .25065), reject (-.1651, .1651, .3164, .545); tabletop half (0.3425, 0.555).
+  table: [0.184, 0.869, -0.564, 0.546]
+  bins:
+    blue: [0.499, 0.854, 0.019, 0.222]
+    red: [0.499, 0.854, -0.260, -0.019]
+    black: [0.362, 0.692, -0.554, -0.326]
 look:                     # scripted no-contact look-around (SCAN -> LOOK): the wrist camera takes oblique views, each gated by IK on the URDF chain, no WALLX call
   enabled: false          # off by default (SPIN replaces it); true = also try LOOK after SPIN, before INSPECT
   est_calls: 20           # budget estimate of LOOK in scripted calls
