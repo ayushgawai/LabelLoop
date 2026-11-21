@@ -66,7 +66,7 @@ class FakeScene:
             wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
         if o and o["look"] is not None and self.view == o["look"]:
             wrist["left_wrist"][100:380, 180:460] = qr_image(o["code"], 280)
-        ee = {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0]}
+        ee = {"position": [0.1185, 0, 0.181], "rotation_rpy": [0, 0, 0]}  # the home pose (q = 0)
         return ({"front": front, **wrist},
                 {"left_ee": {**ee, "gripper": 0.2}, "right_ee": {**ee, "gripper": self.grip}})
 

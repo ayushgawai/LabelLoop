@@ -52,6 +52,14 @@ def changed_box(img, ref, cfg):
     return (x0 + xs.min(), y0 + ys.min(), x0 + xs.max(), y0 + ys.max()) if len(xs) else None
 
 
+def changed_mask(img, ref, cfg):
+    """Full-image uint8 mask (255) of the changed pixels of the induction zone."""
+    x0, y0, x1, y1 = roi_box(img, cfg)
+    m = np.zeros(img.shape[:2], np.uint8)
+    m[y0:y1, x0:x1] = _changed(img, ref, cfg) * 255
+    return m
+
+
 def kraft_in_roi(img, cfg):
     """Fraction of the induction zone that is kraft-coloured (parcel vs garbage)."""
     x0, y0, x1, y1 = roi_box(img, cfg)

@@ -17,7 +17,7 @@ calib: {tip_h: 0.10, hold_calls: 4, move_calls: 2, pitches_deg: [90, 85, 80, 75,
 max_parcels: null         # null = endless stream; N = DONE after N parcels (sim single-parcel cases use 1)
 
 # Counts are MODEL CALLS (~2.1 s of motion each; WALLX takes ~9 s/call on top); the case budget is in ESTIMATED REAL SECONDS.
-budget: {case_s: 480, deliver_reserve_s: 130, wallx_call_s: 11.0, scripted_call_s: 2.2}   # per parcel, same in sim and on the robot
+budget: {case_s: 480, deliver_reserve_s: 130, wallx_call_s: 11.0, scripted_call_s: 2.2, sim_case_s: null}   # per CASE / episode (every call counts, IDLE holds too); sim_case_s = the sim episode length when shorter (the sim batch sets it)
 qr_confirm_frames: 2      # same value must decode in N consecutive calls
 stable_calls: 2           # IDLE -> SCAN once the object has sat in the zone this many calls (the hand is gone)
 settle_tol: 0.02          # ... and its presence fraction moved <= this between calls
@@ -25,18 +25,25 @@ scan_max_calls: 6         # kraft object, no confirmed decode after this many SC
 home_calls: 2             # HOME calls (scripted: no WALLX call), then VERIFY holds
 scripted_home: true       # HOME drives back to the episode-start pose without a WALLX call; false = let WALLX do it
 verify_calls: 2
-spin:                     # scripted label search (SCAN -> SPIN): push the parcel so it yaws, re-read with the head camera, no WALLX call
+spin:                     # scripted label search (SCAN -> SPIN): face-normal push near one end of a fitted face so the parcel yaws, re-read with the head camera, no WALLX call
   enabled: true
-  tries: 4                # pushes per parcel, alternating the push side (and the arm when only one reaches)
-  push_len: 0.07          # tangential push along the near face (m)
-  out: 0.04               # the push starts this far outside the near face, then goes in to touch it (m)
-  offset: 0.35            # push point offset from the parcel centre line, x parcel half-width
-  parcel_h: 0.08          # parcel height (m) when not estimable; fingertips at table + clamp(h/2, 0.02, 0.05)
+  tries: 4                # pushes per parcel; every try keeps turning the parcel the same way
+  push_len: 0.04          # inward push along the face normal (m)
+  out: 0.03               # the push starts this far outside the face, along its normal (m)
+  reach_frac: 0.7         # contact point: this x the face half-length from the face centre (near a corner = yaw torque)
+  face_min_dot: 0.3       # only faces whose normal points at the arm at least this much (cos)
+  parcel_h: 0.08          # parcel height (m), not estimable: top-face height of the footprint fit; fingertips at table + clip(0.3 h, 0.015, 0.03)
   approach_h: 0.15        # via height above the table for the straight-down approach / retreat (m)
+  fit_min: 0.04           # footprint fit refused (no push) unless both sides are in [fit_min, fit_max] m, aspect <= fit_aspect, blob fill >= fit_fill
+  fit_max: 0.35
+  fit_aspect: 5.0
+  fit_fill: 0.6
+  est_calls: 12           # budget estimate of one SPIN try in scripted calls (6 waypoints + home + re-read)
   gripper_closed: 0.0     # WALLX gripper units while pushing
   scan_calls: 3           # head re-read calls after the arm is home (qr_confirm_frames needs >= 2)
 look:                     # scripted no-contact look-around (SCAN -> LOOK): the wrist camera takes oblique views, each gated by IK on the URDF chain, no WALLX call
   enabled: false          # off by default (SPIN replaces it); true = also try LOOK after SPIN, before INSPECT
+  est_calls: 20           # budget estimate of LOOK in scripted calls
   arm_y: 0.29             # arm base = root + (0, +-arm_y, arm_z). From stock G-asset hints (sim quotes a right EE at (0.1185, -0.29, 0.211)); the URDF says 0.266 / 0.
   arm_z: 0.03             # CONFIRM both with point_test below
   point_test: false       # true = at SCAN -> LOOK hold the LEFT fingertips 0.10 m above the estimated parcel point (no WALLX): shows in the head image whether the frame is right

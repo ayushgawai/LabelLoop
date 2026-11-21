@@ -24,7 +24,7 @@ class Harness:
         self.home = None  # episode-start pose, captured on the first step()
         self.views, self.point, self.look_info = [], None, None  # LOOK viewpoints / point_test pose, built at SCAN -> LOOK
         self.confirmer = Confirmer(self.cfg["qr_confirm_frames"])  # items are (camera, text): same text in N consecutive frames of ONE camera
-        self.spin, self.spin_info = None, None  # the planned push of the current SPIN try
+        self.spin, self.spin_info, self.spin_sigma = None, None, None  # the planned push of the current SPIN try; the yaw direction all tries keep
         self.calib, self.cal_n, self.cal_cur = None, 0, None  # calib_test schedule, calls consumed, entry of the current call
         self.ref, self.empty, self.bin_refs = None, 0, {}  # empty-zone reference frame; bin snapshots
         self.calls, self.subgoal_changed, self.done, self.state_name = 0, False, False, self.sm.state
@@ -35,7 +35,7 @@ class Harness:
         self.calls += 1
         if self.cfg.get("calib_test") and self.calib is None:
             self.calib = self.plan_calib(images["front"].shape[1::-1])
-        if self.calib and self.cal_n < len(self.calib):  # calibration first: scripted arms, no state machine, no WALLX
+        if self.calib is not None:  # calibration latches: the schedule, then hold still for the rest of the episode (never sorts)
             return self.calib_step(state)
         self.cal_cur = None
         before, cfg = self.sm.state, self.cfg["scene"]
@@ -49,8 +49,10 @@ class Harness:
         if not codes and before not in ("LOOK", "INSPECT", "HANDOVER"):  # small QR missed on this frame: retry on the ROI crop at 2x
             crop = cv2.resize(front[box[1]:box[3], box[0]:box[2]], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
             codes = [(t, (box[0] + x / 2, box[1] + y / 2)) for t, (x, y) in locate(crop)]
-        wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k != "front"})}
-        confirmed = {t for _, t in self.confirmer.update({("front", t) for t, _ in codes} | wrist)}
+        wrist = {(v, t) for t, v in decode({k: v for k, v in images.items() if k != "front"})} \
+            if before in ("SPIN", "LOOK", "INSPECT", "HANDOVER") else set()  # SCAN counts head ROI codes only
+        seen = {("front", t) for t, _ in codes} | wrist
+        confirmed = {t for _, t in self.confirmer.update(seen)}
         pres = 0.0 if self.ref is None else scene.presence(front, self.ref, cfg)
         if before == "IDLE":  # arms are home: keep the reference current whenever the zone has been empty a while
             self.empty = self.empty + 1 if pres < cfg["presence_min"] else 0
@@ -61,14 +63,15 @@ class Harness:
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
-        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n,
+        instr = self.sm.step({"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
                               "spin_push": push, "spin_calls": push + sc if self.spin else 1})  # no feasible push: the try is skipped
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)
         if self.sm.state == "SPIN" and self.sm.calls == 0:  # a new SPIN try (arm home, parcel as it lies now)
             self.plan_spin(front, cfg)
-        if before == "IDLE":  # a new parcel starts with no QR history
+        if before == "IDLE":  # a new parcel starts with no QR history and no preferred yaw direction
             self.confirmer.counts.clear()
+            self.spin_sigma = None
         if before == "IDLE" and self.sm.state == "SCAN":  # object arrived, arms home: snapshot every bin
             self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
@@ -104,18 +107,26 @@ class Harness:
             return
         p[2] = look.TABLE_Z
         self.views = look.views(p, lc, hw)
+        if not self.views:
+            self.log(warning="LOOK: no feasible view of the parcel at %s (hw %.3f): the look-around will hold still" % (p.round(3).tolist(), hw))
         self.look_info = {"point": p.tolist(), "hw": hw, "views": [(a, ee.tolist(), i["ik_err"], i["clear"]) for a, ee, _, i in self.views]}
 
     def plan_spin(self, front, cfg):
-        """Parcel centre (head ray at table + parcel_h / 2) and footprint, then the push for try `tries["SPIN"] - 1`."""
+        """Fit the parcel's oriented footprint to the head-camera change mask and plan the face-normal push; no plan (the try is skipped)
+        when the fit is implausible or no face has a feasible full path. Later tries keep the first plan's yaw direction."""
         assert self.ref is not None
-        sc = {**self.cfg["look"], **self.cfg["spin"]}
-        sc["target_h"] = sc["parcel_h"] / 2
-        c = look.pixel_to_table(*scene.centroid(front, self.ref, cfg), front.shape[1::-1], look.TABLE_Z + sc["target_h"])[:2]
-        hw = self.parcel_hw(front, cfg, sc)
-        self.spin = look.spin_plan(c, hw, sc, self.sm.tries["SPIN"] - 1)
-        self.spin_info = {"centre": c.tolist(), "hw": hw, "try": self.sm.tries["SPIN"], "arm": self.spin and self.spin["arm"],
-                          "pitch": self.spin and self.spin["pitch"], "tips": self.spin and self.spin["tips"]}
+        sc, wh = {**self.cfg["look"], **self.cfg["spin"]}, front.shape[1::-1]
+        mask = scene.changed_mask(front, self.ref, cfg)
+        x0, y0, x1, y1 = scene.roi_box(front, cfg)
+        frac = (mask > 0).sum() / ((x1 - x0) * (y1 - y0))
+        fit = look.fit_parcel(mask, wh, sc) if 0.02 <= frac <= 0.9 else None  # outside: nothing there / a stale reference
+        home = {a: (np.asarray(self.home[a]["position"], float), np.asarray(self.home[a]["rotation_rpy"], float)) for a in look.SIGN}
+        self.spin = fit and look.spin_plan(fit, sc, self.spin_sigma, home)
+        self.spin_sigma = self.spin["sigma"] if self.spin else self.spin_sigma
+        self.spin_info = {"try": self.sm.tries["SPIN"], "fit": fit and {"c": fit["c"].tolist(), "half": fit["half"].tolist(), "yaw": fit["yaw"]},
+                          "arm": self.spin and self.spin["arm"], "pitch": self.spin and self.spin["pitch"], "tips": self.spin and self.spin["tips"],
+                          "contact": self.spin and self.spin["contact"], "normal": self.spin and self.spin["normal"],
+                          "tip_z": self.spin and self.spin["tip_z"], "sigma": self.spin_sigma}
 
     def plan_calib(self, wh):
         """Schedule of calls: per arm, per table point (refused if no pitch of calib.pitches_deg, i.e. pointing (nearly) down, is reachable): move_calls + hold_calls, then home.
@@ -137,7 +148,7 @@ class Harness:
         return sched
 
     def calib_step(self, state):
-        e = self.cal_cur = self.calib[self.cal_n]
+        e = self.cal_cur = self.calib[self.cal_n] if self.cal_n < len(self.calib) else {"hold": True}  # latched: hold still
         self.cal_n += 1
         self.state_name = "CALIB"
         if "info" in e:  # last hold: where the arm actually is vs where the head image should show the tip
@@ -171,6 +182,8 @@ class Harness:
         """WALLX-shaped reply for a scripted step (home, look-around), or None when WALLX should answer."""
         if self.cal_cur:  # calib_test: one arm over the table point, the other home, never WALLX
             e = self.cal_cur
+            if e.get("hold"):
+                return move_response(embodiment, state, {})
             if e.get("home"):
                 return home_response(embodiment, state, self.home)
             other = "right_ee" if e["arm"] == "left_ee" else "left_ee"

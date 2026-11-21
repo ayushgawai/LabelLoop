@@ -9,7 +9,8 @@ from labelloop.brain.instructions import instruction
 # route: PLACE (lane arm: A left, B right) | REJECT (right arm) | LIFT2 (big, both arms); with handover: true a HANDOVER precedes
 #   PLACE / REJECT. A code routes immediately, even mid-INSPECT. garbage / bad code -> REJECT.
 # PLACE/REJECT/LIFT2 -> HOME -> VERIFY -> IDLE (parcel counted) | retry the plan | IDLE after the last try (failure logged)
-# Budget: spent estimated REAL seconds per parcel (WALLX call ~wallx_call_s, scripted / hold call ~scripted_call_s).
+# Budget: estimated REAL seconds per CASE (every call: WALLX ~wallx_call_s, scripted / hold / IDLE ~scripted_call_s); a search try or WALLX step
+#   needs its cost + deliver_reserve + home to fit, else route (budget).
 # PUSH stays an action state but no plan routes to it. DONE only when max_parcels is set.
 ACTIONS = ("PUSH", "PLACE", "REJECT", "LIFT2")  # success-checked
 COUNTED = ACTIONS + ("INSPECT", "SPIN", "HANDOVER")  # tries counted per parcel
@@ -20,7 +21,7 @@ class StateMachine:
     """step(ev) -> instruction | None (None = hold still).
     ev = {"presence": zone changed fraction, "kroi": kraft fraction of the zone, "codes": confirmed code texts,
           "bins": {bin colour incl. black: ROI changed fraction vs the snapshot at SCAN}, optional "big": bool override of the presence test,
-          "spin_push" / "spin_calls": calls of the scripted push (codes are ignored until it is done) / of the whole spin try}."""
+          "raw": decoded texts this call, confirmed or not, "spin_push" / "spin_calls": calls of the scripted push (codes are ignored until it is done) / of the whole spin try}."""
 
     def __init__(self, cfg):
         self.cfg, self.pattern = cfg, re.compile(cfg["code_pattern"])
@@ -28,16 +29,18 @@ class StateMachine:
         self.reset()
 
     def reset(self):
-        self.state, self.calls, self.parcels, self.results = "IDLE", 0, 0, []
+        self.state, self.calls, self.parcels, self.results, self.spent = "IDLE", 0, 0, [], 0.0
         self.transitions, self.flags, self.rebase, self.sorted = [], [], False, set()  # sorted: codes done this run
         self._fresh()
 
     def _fresh(self):
         self.code = self.lane = self.reason = self.plan = self.pend = None
         self.big, self.obj, self.tries, self.ok, self.seen, self.prev = False, "block", {}, 0, 0, 0.0
-        self.spent, self.looked = 0.0, False  # estimated real seconds spent on this parcel; LOOK done
+        self.looked = False  # LOOK done
 
     def _go(self, state, why):
+        if state in WALLX and self.remaining() < self.cfg["budget"]["wallx_call_s"]:  # not even one more WALLX call fits
+            state, why = "HOME", "budget"
         self.transitions.append((self.state, state, why))
         self.state, self.calls, self.ok = state, 0, 0
         if state in COUNTED:
@@ -58,23 +61,28 @@ class StateMachine:
         return b["wallx_call_s"] if s in WALLX or (s == "HOME" and not self.cfg.get("scripted_home")) else b["scripted_call_s"]
 
     def remaining(self):
-        return self.cfg["budget"]["case_s"] - self.spent
+        b = self.cfg["budget"]
+        return min(b["case_s"], b.get("sim_case_s") or b["case_s"]) - self.spent
+
+    def _admit(self, s):  # a search try fits: its estimated cost + the deliver reserve + the way home remain
+        b, c = self.cfg["budget"], self.cfg
+        cost = c["max_calls"]["INSPECT"] * b["wallx_call_s"] if s == "INSPECT" else c[s.lower()]["est_calls"] * b["scripted_call_s"]
+        return self.remaining() - cost - c["home_calls"] * b["scripted_call_s"] >= b["deliver_reserve_s"]
 
     def _next_action(self):  # retry the plan only while EVERY step of it has tries left (HANDOVER too) and time for a delivery remains
         ok = all(self.tries.get(a, 0) < self.cfg["tries"].get(a, 1 << 30) for a in self.plan)
         return self.plan[0] if ok and self.remaining() >= self.cfg["budget"]["deliver_reserve_s"] else None
 
-    def _search_next(self):  # the current label-search step is exhausted: the next enabled one, else reject
+    def _search_next(self):  # the current label-search step is exhausted: the next enabled one if it is affordable, else reject
         c, sp, lk = self.cfg, self.cfg.get("spin", {}), self.cfg.get("look", {})
-        if self.remaining() < c["budget"]["deliver_reserve_s"]:
+        nxt = ("SPIN" if sp.get("enabled") and not self.big and self.tries.get("SPIN", 0) < sp["tries"] else
+               "LOOK" if lk.get("enabled") and not self.big and not self.looked else
+               "INSPECT" if self.tries.get("INSPECT", 0) < c["tries"].get("INSPECT", 0) else None)
+        if nxt and not self._admit(nxt):
             self._route(None, "budget")
-        elif sp.get("enabled") and not self.big and self.tries.get("SPIN", 0) < sp["tries"]:
-            self._go("SPIN", "no code")
-        elif lk.get("enabled") and not self.big and not self.looked:
-            self.looked = True
-            self._go("LOOK", "no code")
-        elif self.tries.get("INSPECT", 0) < c["tries"].get("INSPECT", 0):
-            self._go("INSPECT", "no code")
+        elif nxt:
+            self.looked |= nxt == "LOOK"
+            self._go(nxt, "no code")
         else:
             self._route(None, "no_label")
 
@@ -107,8 +115,8 @@ class StateMachine:
         cfg, sc, s = self.cfg, self.cfg["scene"], self.state
         self.transitions, self.flags = [], []
         self.calls += 1
-        self.spent += self._cost(s) if s not in ("IDLE", "DONE") else 0
-        over = self.spent + cfg["budget"]["wallx_call_s"] > cfg["budget"]["case_s"]  # one more WALLX call would exceed the case budget
+        self.spent += self._cost(s)
+        over = self.remaining() < cfg["budget"]["wallx_call_s"]  # one more WALLX call would exceed the case budget
         f, codes = ev["presence"], sorted(c for c in ev["codes"] if c not in self.sorted)
         if s == "IDLE":
             if f < sc["presence_min"]:
@@ -122,7 +130,8 @@ class StateMachine:
             self.big = ev.get("big", f >= sc["big_presence"])
             if any(self.pattern.match(c) for c in codes):  # a valid parcel-format decode is never overridden by the kraft test
                 self._read(codes)
-            elif ev["kroi"] < sc["kraft_min"]:
+            elif ev["kroi"] < sc["kraft_min"] and self.calls >= cfg["qr_confirm_frames"] \
+                    and not any(self.pattern.match(c) for c in ev.get("raw", ())):  # garbage only once the confirmation window ran out, no raw valid decode in sight
                 self._route(None, "garbage", obj="object")
             elif codes:
                 self._read(codes)

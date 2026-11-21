@@ -119,7 +119,8 @@ def test_big_parcel_both_arms_lane_and_reject_no_handover():
 
 def test_garbage_rejects_via_handover():
     sm = StateMachine(CFG)
-    assert parcel(sm, None, kroi=0.0) == "hand the object from the left arm to the right arm" and sm.reason == "garbage"
+    assert parcel(sm, None, kroi=0.0) is None and sm.state == "SCAN"  # garbage waits out the QR confirmation window (2 SCAN calls)
+    assert sm.step(ev(0.06, 0.0)) == "hand the object from the left arm to the right arm" and sm.reason == "garbage"
     assert sm.plan == ["HANDOVER", "REJECT"]
 
 

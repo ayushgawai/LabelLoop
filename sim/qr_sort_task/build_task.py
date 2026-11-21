@@ -1,4 +1,4 @@
-"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort cases 18-30.
+"""Emit LabelLoop scene/task/suite YAML into an X2Real checkout: the lane-sort cases 18-31 (31 = empty calibration case).
 
   python sim/qr_sort_task/build_task.py --x2real $X2REAL_ROOT
 
@@ -58,6 +58,7 @@ CASES = {
     23: dict(late={"z95112": 6.0, "z90210": 156.0, "z10001": 306.0, "nolabel": 456.0, "garbage": 606.0}, timeout=780),
     **{n: dict(late={b: 6.0}, timeout=150) for n, b in zip(range(24, 30), ("z94110", "z90015", "z60601", "z95014", "wallet", "plainbox"))},
     30: dict(late={b: 6.0 + 150 * i for i, b in enumerate(STREAM)}, timeout=6 + 150 * (len(STREAM) - 1) + 174),  # all 11 parcels
+    31: dict(late={}, timeout=90),  # CALIBRATION (harness calib_test: true): no parcels, no events, no success term - time-out only
 }
 BG = {"id": "booth", "asset": {"type": "asset_id", "id": "green_booth_mesh"}, "asset_module": MOD,
       "pose": {"position": [-0.452, -0.271, -0.985], "orientation": [0.0, 0.0, -0.704, 0.709]},
@@ -195,7 +196,7 @@ def dag(n, c):
         "_func": f"{MOD}.disturb", "mode": "interval", "interval_range_s": [t, t], "is_global_time": True, "object_name": [f"box_{v}" for v in variants(b)],
         "to_xy_range": zone(b), "slide_v": SLIDE_V, "yaw_range": [-spec(b)["yaw"], spec(b)["yaw"]], "z": SURFACE_Z + spec(b)["size"][2] / 2,
         "avoid": [f"box_{v}" for o in late if o != b for v in variants(o)]} for b, t in late.items()}
-    sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, "event_component": {"terms": events}}
+    sections = {"instruction_component": {"instruction": INSTR, "topic": "qr_sort"}, **({"event_component": {"terms": events}} if events else {})}
     longer = {"episode_length_s": float(c["timeout"]), "max_steps_per_episode": c["timeout"] * 15}  # stage_base is 180 s
     tags = [{"mode": 0, "tags": SCENE(n)}]
     success = {"_func": f"{MOD}.lanes_sorted", "assignments": assign, "bins": {b: success_region(b) for b in BINS},
@@ -209,7 +210,7 @@ def dag(n, c):
             {"id": "sort", "include": "labelloop/task/stage_base.yaml", "score": 8,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_sort", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
-                    "termination_component": {"terms": {"success": success}}}}},
+                    "termination_component": {"terms": {"success": success} if assign else {}}}}},  # empty case: stage_base's time_out only
             {"id": "return", "include": "labelloop/task/stage_base.yaml", "score": 2,
              "direct_task_generator": {"definition": {"task_type": f"labelloop_qr_sort_case{n}_return", **longer},
                 "component_sections": {"scene_constraint_component": {"constraints": tags},
