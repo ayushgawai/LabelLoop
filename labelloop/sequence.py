@@ -117,8 +117,13 @@ class Sequence:
                       and all(0.08 < float(state[a + "_ee"]["gripper"]) < 0.7 for a in s.get("hold", [])))  # ... and the claw(s) grip something
             self.liftcount = getattr(self, "liftcount", 0) + 1 if lifted else 0
             lifted = self.liftcount >= s.get("lift_calls", 2)  # held for 2 calls (h1 run 1: a one-call false positive)
-            if self.calls >= s.get("calls", 10) or lifted:
+            if lifted:
                 self.i, self.calls = self.i + 1, 0
+            elif self.calls >= s.get("calls", 10):  # timed out: an "until lifted" step that never lifted skips to the last step (home)
+                self.i = len(self.spec["steps"]) - 1 if s.get("until") == "lifted" else self.i + 1
+                self.calls = 0
+                if s.get("until") == "lifted" and self.runlog:
+                    self.runlog.write(flag="not_lifted: skipped to home")
         self.subgoal_changed = self.i != before or self.calls == 1
         self.done = s is None
         self.state_name = "SEQ%d" % before
