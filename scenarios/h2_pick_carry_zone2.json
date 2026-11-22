@@ -1,0 +1,8 @@
+{
+ "name": "h2_pick_carry_zone2",
+ "goal": "Hybrid, slow: WALLX right-arm pick of the standing IQBAR (left locked) until held, scripted carry to zone 2, lower, open, retreat, home.",
+ "setup": "Tape zones; IQBAR standing on its narrow side, front-to-back, middle or right of centre; arms at rest.",
+ "relay": "--sequence scenarios/h2_steps.json",
+ "seconds": 130,
+ "wording": {}
+}

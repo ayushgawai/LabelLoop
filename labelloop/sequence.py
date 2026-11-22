@@ -113,7 +113,10 @@ class Sequence:
             instr = s["say"].format(mat=self.mat)
             self.calls += 1
             lifted = (s.get("until") == "lifted" and self.spot is not None and self.spot0
-                      and self._nonmat(images["front"], self.spot) <= 0.3 * self.spot0)  # the box left its table spot: next step now
+                      and self._nonmat(images["front"], self.spot) <= 0.3 * self.spot0  # the box left its table spot ...
+                      and all(0.08 < float(state[a + "_ee"]["gripper"]) < 0.7 for a in s.get("hold", [])))  # ... and the claw(s) grip something
+            self.liftcount = getattr(self, "liftcount", 0) + 1 if lifted else 0
+            lifted = self.liftcount >= s.get("lift_calls", 2)  # held for 2 calls (h1 run 1: a one-call false positive)
             if self.calls >= s.get("calls", 10) or lifted:
                 self.i, self.calls = self.i + 1, 0
         self.subgoal_changed = self.i != before or self.calls == 1
