@@ -2,7 +2,7 @@
   "name": "s5_read_pick_place",
   "goal": "Atomic: read label (demo code if unreadable) -> pick until lifted -> put it into the chosen bin -> home. Idle arm locked, bin watchdog.",
   "setup": "IQBAR standing on its long narrow side, long axis front-to-back, right of centre, about 15 cm in front of the red bin; bins on their marks; arms at rest.",
-  "relay": "--sequence scenarios/s5_steps.json --open-wide 0.85",
+  "relay": "--sequence scenarios/s5_steps.json --open-wide 1.5",
   "seconds": 100,
   "wording": {},
   "notes": "s4 without the turn step: WALLX cannot 'show the other side to the camera' (s4 run 2 dropped it into the black bin)."

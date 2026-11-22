@@ -254,7 +254,7 @@ async def main():
     p.add_argument("--assume-after-search", action="store_true", help="DEMO: use --assume-code only after reading + turning the parcel (INSPECT) failed")
     p.add_argument("--sequence", default="", help="JSON atomic step list (labelloop/sequence.py) instead of the harness state machine")
     p.add_argument("--reset-on-subgoal", action=argparse.BooleanOptionalAction, default=True, help="reset WALLX history on every sub-goal change / retry (off: only at the episode start)")
-    p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open ~0.85; 0 = off)")
+    p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")

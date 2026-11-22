@@ -1,0 +1,9 @@
+{
+ "name": "t_tip_B",
+ "goal": "Tip the box up to vertical with both grippers (one presses down, the other lifts) - raw WALLX.",
+ "setup": "IQBAR flat on the table, arms at rest.",
+ "relay": "--passthrough",
+ "instruction": "tilt the box up until it stands vertically, pressing down on one end with the left gripper and lifting the other end with the right gripper",
+ "seconds": 50,
+ "wording": {}
+}
