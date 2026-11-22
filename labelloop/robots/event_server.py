@@ -280,7 +280,8 @@ class Relay:
                             a = reply["actions"].get(arm, {})  # every claw value -> 1.5 (open) or 0.0 (closed, tight)
                             if isinstance(a.get("gripper"), list):
                                 g_meas = float(state[arm]["gripper"])
-                                holding = self.closed_cmd.get(arm, True) and 0.08 < g_meas < 1.2  # fingers stopped by an object (also when the
+                                holding = (getattr(harness, "holding_arm", None) == arm[:-3]) or (self.closed_cmd.get(arm, True) and 0.08 < g_meas < 1.2)  # (the
+                                # harness picked it: hold, even a squashed soft bag that reads 'closed') or fingers stopped by an object (also when the
                                 # harness handed WALLX an arm that already holds the parcel: the first WALLX call must not drop it)
                                 a["gripper"] = [0.0 if holding else (1.5 if float(v) >= self.grip_binary else 0.0) for v in a["gripper"]]
                                 self.closed_cmd[arm] = a["gripper"][-1] == 0.0  # latch: WALLX never lets go of what it holds (release = harness step)

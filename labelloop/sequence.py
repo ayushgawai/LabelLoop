@@ -364,6 +364,7 @@ class Sequence:
                 if self.calls >= sum(p[3] for p in self.pick_plan):
                     self.i, self.calls = self.i + 1, 0
                     self.pick_plan_done = self.pick_plan
+                    self.holding_arm = self.pick_arm  # the relay keeps this claw shut (a soft bag reads 'closed' even when held)
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
@@ -558,6 +559,8 @@ class Sequence:
             g = s.get("to", 1.5) if s.get("open", True) else float(state[k]["gripper"])  # "open": false = lift clear, claw as it is
             if s.get("open", True):
                 self.hold_grip.pop(arm, None)  # let go: no more hold command for this arm
+                if getattr(self, "holding_arm", None) == arm:
+                    self.holding_arm = None
             return move_response(embodiment, state, self._with_grips(state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}}))
         if s and "autopick" in s and getattr(self, "pick_plan", None):
             k, n = getattr(self, "pick_k", self.calls), 0
