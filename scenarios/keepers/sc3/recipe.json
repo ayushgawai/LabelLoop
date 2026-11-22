@@ -1,0 +1,8 @@
+{
+ "name": "sc3_final",
+ "goal": "Scenario 3 (FINAL): Amazon soft mailer label down: left arm picks it and turns it to the head camera, sets it down label up, right arm picks it and places it in zone 2 (red; labels.csv LL-09). Path-keeping smooth replay of Ayush's controller demo slowed 2x (accidental left-claw blip removed), then home. 3/3 on 2026-11-22.",
+ "setup": "Mailer label-down on its taped start marks; arms at rest.",
+ "relay": "--sequence scenarios/keepers/sc3/steps.json",
+ "seconds": 110,
+ "wording": {}
+}
