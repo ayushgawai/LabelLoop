@@ -1,8 +1,8 @@
 {
  "name": "case4_position",
- "goal": "Case 4 position change: WALLX puts the hat into the right corner bin; the harness sees it there and homes the arm; a person takes it out and puts it elsewhere; the harness sees it back on the table and WALLX gets the task again (up to 3 rounds in the 8 minutes).",
- "setup": "White mailer bag on the open table (not in a bin / tape area), label up; arms at rest.",
- "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+ "goal": "Case 4 position change: round 1 = scenario 1 recording (left arm puts the white bag from the centre into zone 1); a person takes it out and puts it back in the centre; the harness sees it on the table and WALLX (scenario 1 prompt, left arm, head camera only, faster) puts it back into zone 1; the harness sees it in the bin and homes; repeated once more.",
+ "setup": "White mailer bag in the centre (scenario 1 start marks), label up; arms at rest. After each put-back (arms home), take it out and put it in the centre again.",
+ "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.6 --no-reset-on-subgoal --front-only",
  "seconds": 470,
  "wording": {}
 }

@@ -208,94 +208,65 @@
   "trial": null,
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
-  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
-  "title": "Case 4, position change: the white mailer is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; repeated each time it is taken out",
+  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.6 --no-reset-on-subgoal --front-only",
+  "title": "Case 4, position change: the bag goes into zone 1; a person takes it out again and puts it back in the centre; the harness sees it and WALLX puts it back into zone 1",
   "steps": [
    {
-    "who": "harness",
-    "title": "Read the label, choose zone + arm",
-    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm.",
-    "detail": "Cap label 90291 → zone 2 → right arm."
-   },
-   {
-    "who": "harness",
-    "title": "Locate the cap on the 3x3 table grid",
-    "prompt": "Find the cap on the head camera and name its grid cell.",
-    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
-   },
-   {
-    "who": "wallx",
-    "title": "WALLX puts the white bag into the right corner bin",
-    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
-   },
-   {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Left arm puts the bag into zone 1",
+    "prompt": "Left arm: pick up the white bag and put it into zone 1.",
     "detail": ""
    },
    {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Watch: is the hat back on the table?",
+    "title": "Watch: is the bag back on the table?",
     "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
-    "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
-   },
-   {
-    "who": "harness",
-    "title": "Locate the cap on the 3x3 table grid",
-    "prompt": "Find the cap on the head camera and name its grid cell.",
-    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+    "detail": "A person takes it out and puts it in the centre; after 3 calls of seeing it on the table, WALLX gets the task."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the white bag into the right corner bin",
-    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
+    "title": "WALLX puts the bag back into zone 1",
+    "detail": "Left arm, head camera only. The harness watches the bin; when the bag is in it for 3 calls, WALLX is stopped."
    },
    {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Watch: is the hat back on the table?",
+    "title": "Watch: is the bag back on the table?",
     "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
-    "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
-   },
-   {
-    "who": "harness",
-    "title": "Locate the cap on the 3x3 table grid",
-    "prompt": "Find the cap on the head camera and name its grid cell.",
-    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+    "detail": "A person takes it out and puts it in the centre; after 3 calls of seeing it on the table, WALLX gets the task."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the white bag into the right corner bin",
-    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
+    "title": "WALLX puts the bag back into zone 1",
+    "detail": "Left arm, head camera only. The harness watches the bin; when the bag is in it for 3 calls, WALLX is stopped."
    },
    {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
     "who": "robot",
-    "title": "Release + right arm home",
-    "prompt": "Open the claw, lift, back to rest.",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
     "detail": ""
    },
    {
