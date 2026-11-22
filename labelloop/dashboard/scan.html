@@ -50,7 +50,7 @@
 <div id="pkg"><div class="muted">no package scanned yet</div></div>
 <div class="bar">
   <span class="muted">zoom</span>
-  <button data-zoom="1" class="on">1×</button><button data-zoom="2">2×</button><button data-zoom="3">3×</button>
+  <button data-zoom="1">1×</button><button data-zoom="2">2×</button><button data-zoom="3" class="on">3×</button>
   <span class="muted" id="rate"></span>
 </div>
 <form class="bar" id="manual" autocomplete="off">
@@ -68,7 +68,7 @@
   };
   const $ = function (id) { return document.getElementById(id); };
   const video = $('video'), canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
-  let running = false, zoom = 1, wake = null, lastVer = -1, lastCode = null, sent = 0, t0 = 0;
+  let running = false, zoom = Number(Q.get('zoom')) || 3, wake = null, lastVer = -1, lastCode = null, sent = 0, t0 = 0;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
   function status(text, kind) { $('status').textContent = text; $('dot').className = kind || ''; }
@@ -80,12 +80,17 @@
       '<span class="lane ' + esc(p.lane) + '">' + esc(p.lane) + '</span>' +
       '<span>zone ' + esc(p.zone) + ' · ' + esc(p.where) + '</span>' +
       (p.zip5 ? '<span>ZIP ' + esc(p.zip5) + '</span>' : '<span>not a 420/ZIP/seq label</span>') + '</div>';
-    if (isNew || p.code !== lastCode) {
+    if (isNew || p.code !== lastCode || Date.now() - (window._lastShow || 0) > 4000) {
+      window._lastShow = Date.now();
       $('pkg').classList.add('flash');
       setTimeout(function () { $('pkg').classList.remove('flash'); }, 700);
       if (navigator.vibrate) navigator.vibrate(80);
     }
     lastCode = p.code;
+    clearTimeout(window._clr);
+    window._clr = setTimeout(function () {  // forwarded: don't keep it on the phone screen
+      $('pkg').innerHTML = '<div class="muted">sent to the robot ✓ · ready for the next label</div>';
+    }, 3000);
   }
 
   async function post(path, body, type) {
@@ -94,14 +99,15 @@
     return r.json();
   }
 
-  function cropRect() {  // the centre 1/zoom of the frame, in video pixels
-    const vw = video.videoWidth, vh = video.videoHeight, w = vw / zoom, h = vh / zoom;
+  function cropRect() {  // the centre 1/zoom of the frame, in video pixels (whole frame when the camera zooms itself)
+    const z = window._hwZoom ? 1 : zoom;
+    const vw = video.videoWidth, vh = video.videoHeight, w = vw / z, h = vh / z;
     return { x: (vw - w) / 2, y: (vh - h) / 2, w: w, h: h };
   }
 
   function drawCropBox() {
     const box = $('crop');
-    if (!running || zoom === 1 || !video.videoWidth) { box.style.display = 'none'; return; }
+    if (!running || zoom === 1 || window._hwZoom || !video.videoWidth || video.style.transform) { box.style.display = 'none'; return; }
     const st = $('stage').getBoundingClientRect(), vw = video.videoWidth, vh = video.videoHeight;
     const s = Math.min(st.width / vw, st.height / vh), ox = (st.width - vw * s) / 2, oy = (st.height - vh * s) / 2, c = cropRect();
     box.style.display = 'block';
@@ -169,12 +175,27 @@
     loop();
   }
 
-  $('start').addEventListener('click', start);
+  async function applyZoom() {
+    const track = video.srcObject && video.srcObject.getVideoTracks()[0];
+    let hw = false;
+    try {
+      const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.zoom) {  // the camera zooms itself: full-resolution frames of the zoomed view, no crop needed
+        await track.applyConstraints({ advanced: [{ zoom: Math.min(zoom, caps.zoom.max) }] });
+        hw = true;
+      }
+    } catch (e) { /* not supported: fall back to the crop */ }
+    window._hwZoom = hw;
+    video.style.transform = hw || zoom === 1 ? '' : 'scale(' + zoom + ')';  // the preview shows what is sent
+    drawCropBox();
+  }
+
+  $('start').addEventListener('click', function () { start().then(applyZoom); });
   document.querySelectorAll('[data-zoom]').forEach(function (b) {
     b.addEventListener('click', function () {
       zoom = Number(b.dataset.zoom) || 1;
       document.querySelectorAll('[data-zoom]').forEach(function (x) { x.classList.toggle('on', x === b); });
-      drawCropBox();
+      if (running) applyZoom(); else drawCropBox();
     });
   });
   $('manual').addEventListener('submit', async function (e) {

@@ -37,7 +37,7 @@ def norm_code(text):
 BOARD = __import__("pathlib").Path(__file__).resolve().parents[1] / "runs" / "package" / "board.json"  # the phone scanner's board
 
 
-def phone_code(max_age=180.0, path=None):
+def phone_code(max_age=180.0, path=None, since=None):
     """The code the phone scanner read last (dashboard /scan -> runs/package/board.json), if seen within max_age seconds; else None."""
     import json
     import time
@@ -46,6 +46,8 @@ def phone_code(max_age=180.0, path=None):
     except (OSError, ValueError):
         return None
     t = float(cur.get("last_seen") or cur.get("scanned") or 0)
+    if since is not None and t < since:  # an old scan (an earlier parcel) never counts
+        return None
     return norm_code(cur.get("code")) if cur.get("code") and time.time() - t <= max_age else None
 
 
@@ -209,7 +211,8 @@ class Sequence:
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
         while self.step_spec is not None and ("read" in self.step_spec or "locate" in self.step_spec):  # cost no robot call
             if self.step_spec.get("from_phone"):  # the label comes from the phone scanner: hold (arms still) until it has read one
-                code = phone_code(self.step_spec.get("max_age", 180))
+                self._phone_since = getattr(self, "_phone_since", None) or __import__("time").time() - 2.0
+                code = phone_code(self.step_spec.get("max_age", 180), since=self._phone_since)  # a scan made for THIS parcel only
                 if not code and self.calls < self.step_spec.get("wait_calls", 0):
                     self.calls += 1
                     self.waiting_phone = True
