@@ -16,13 +16,14 @@
   },
   {
    "say": "The cap is at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
-   "calls": 25,
+   "calls": 40,
    "arm": "lane"
   },
   {
    "release": "lane",
-   "calls": 4,
-   "open_calls": 2,
+   "open": false,
+   "calls": 3,
+   "open_calls": 0,
    "lift": 0.1
   },
   {
@@ -37,8 +38,7 @@
       0,
       0,
       0
-     ],
-     "gripper": 1.5
+     ]
     }
    },
    "calls": 8,
@@ -50,7 +50,7 @@
   },
   {
    "say": "The cap has been moved. It is now at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
-   "calls": 65,
+   "calls": 100,
    "arm": "lane"
   },
   {
@@ -61,19 +61,6 @@
   },
   {
    "move": {
-    "left": {
-     "position": [
-      0,
-      0,
-      0
-     ],
-     "rotation_rpy": [
-      0,
-      0,
-      0
-     ],
-     "gripper": 0.0
-    },
     "right": {
      "position": [
       0,

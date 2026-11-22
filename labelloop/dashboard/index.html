@@ -877,8 +877,12 @@
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
     const other = /^\(replay/.test(String(h.instruction || '')) ? 'harness call'
       : { harness: 'harness call', scripted: 'harness call', done: 'home' }[sp.who] || 'idle';
-    html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : other, lock.indexOf('left') >= 0) +
-      armBox('right', row, wallx ? acting.indexOf('right') >= 0 : other, lock.indexOf('right') >= 0) + '</div>';
+    const atRest = function (arm) {  // an arm the harness is not moving (still at home) is shown at rest, not as a harness call
+      const p = (((row && row.state) || {})[arm + '_ee'] || {}).position || [0, 0, 0];
+      return Math.hypot(p[0], p[1], p[2]) < 0.02 ? 'at rest' : other;
+    };
+    html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : atRest('left'), lock.indexOf('left') >= 0) +
+      armBox('right', row, wallx ? acting.indexOf('right') >= 0 : atRest('right'), lock.indexOf('right') >= 0) + '</div>';
     $('stepNow').innerHTML = html;
     if (h.where && S.id && $('gridSlot')) {  // one persistent <img>: re-attached after each panel rebuild, src load-gated
       if (!S.gridImg) { S.gridImg = new Image(); S.gridImg.className = 'gridShot'; S.gridImg.alt = 'harness grid'; }

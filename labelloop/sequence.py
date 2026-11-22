@@ -101,7 +101,8 @@ class Sequence:
         return {"blue": "left"}.get(self.mat, "right") if a == "lane" else a
 
     def lock_arms(self):
-        s = self.step_spec
+        s = getattr(self, "active", None) or self.step_spec  # the step that produced THIS call's instruction: on a say step's last call
+        # the index has already advanced, and locking by step_spec let WALLX move the idle arm for that one call (sc5i left-claw bug)
         arm = self._arm(s) if s and "say" in s else None
         return tuple(x for x in ("left", "right") if arm and x != arm)
 
@@ -279,7 +280,8 @@ class Sequence:
             pos = np.asarray(state[k]["position"], float)
             if self.calls == 0 or self.calls > s.get("open_calls", 2):  # step advanced (calls reset) or lifting phase
                 pos = pos + np.array([0, 0, min(0.04, s.get("lift", 0.08))])
-            return move_response(embodiment, state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": 1.5}})
+            g = 1.5 if s.get("open", True) else float(state[k]["gripper"])  # "open": false = just lift clear, claw as it is
+            return move_response(embodiment, state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}})
         if s and "carry" in s:
             return self._carry(embodiment, state, s)
         if s and "replay" in s:

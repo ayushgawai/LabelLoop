@@ -275,18 +275,18 @@
    {
     "who": "wallx",
     "title": "WALLX prompt 1: go for the cap at its cell (a person moves it now)",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the head camera AND both gripper cameras + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call, opens the claw fully when WALLX opens it and sinks it 4 cm before it may close. 25 calls."
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the head camera AND both gripper cameras + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call, opens the claw fully when WALLX opens it and sinks it 4 cm before it may close. 40 calls."
    },
    {
     "who": "harness",
     "title": "Harness call (lift straight up)",
-    "prompt": "Right arm: open the claw and lift straight up.",
-    "detail": "Clears the cap wherever it is now."
+    "prompt": "Right arm: lift straight up.",
+    "detail": "Lifts clear of the cap wherever it is now; the claw stays as it is."
    },
    {
     "who": "harness",
     "title": "Harness call (back to rest so the camera sees the table)",
-    "prompt": "Right arm: back to rest, claw open.",
+    "prompt": "Right arm: back to rest.",
     "detail": "The head camera gets a clear view of the whole table."
    },
    {
@@ -298,7 +298,7 @@
    {
     "who": "wallx",
     "title": "WALLX prompt 2: the cap's NEW cell, same target zone 2",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the head camera AND both gripper cameras + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call, opens the claw fully when WALLX opens it and sinks it 4 cm before it may close. 65 calls."
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the head camera AND both gripper cameras + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call, opens the claw fully when WALLX opens it and sinks it 4 cm before it may close. 100 calls."
    },
    {
     "who": "harness",
@@ -308,9 +308,9 @@
    },
    {
     "who": "harness",
-    "title": "Harness call (both arms home)",
-    "prompt": "Both arms: go to rest.",
-    "detail": "Both arms go to rest."
+    "title": "Harness call (right arm home)",
+    "prompt": "Right arm: go to rest.",
+    "detail": "The right arm goes to rest; the left arm never moved."
    },
    {
     "who": "done",
