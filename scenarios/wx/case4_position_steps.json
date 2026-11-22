@@ -22,13 +22,15 @@
    "default": "the centre"
   },
   {
-   "say": "Pick up the hat and put it into the right corner bin.",
-   "say_moved": "Pick up the hat and put it into the right corner bin.",
-   "relocate": true,
+   "say": "Pick up the white bag and put it into the right corner bin.",
+   "say_moved": "Pick up the white bag and put it into the right corner bin.",
+   "relocate": false,
    "relocate_calls": 230,
    "calls": 150,
-   "arm": "lane",
-   "until": "in_bin"
+   "arm": "right",
+   "until": "in_bin",
+   "bin_box": 1,
+   "bin_area": 3500
   },
   {
    "release": "lane",
@@ -64,13 +66,15 @@
    "default": "the centre"
   },
   {
-   "say": "Pick up the hat and put it into the right corner bin.",
-   "say_moved": "Pick up the hat and put it into the right corner bin.",
-   "relocate": true,
+   "say": "Pick up the white bag and put it into the right corner bin.",
+   "say_moved": "Pick up the white bag and put it into the right corner bin.",
+   "relocate": false,
    "relocate_calls": 230,
    "calls": 150,
-   "arm": "lane",
-   "until": "in_bin"
+   "arm": "right",
+   "until": "in_bin",
+   "bin_box": 1,
+   "bin_area": 3500
   },
   {
    "release": "lane",
@@ -106,13 +110,15 @@
    "default": "the centre"
   },
   {
-   "say": "Pick up the hat and put it into the right corner bin.",
-   "say_moved": "Pick up the hat and put it into the right corner bin.",
-   "relocate": true,
+   "say": "Pick up the white bag and put it into the right corner bin.",
+   "say_moved": "Pick up the white bag and put it into the right corner bin.",
+   "relocate": false,
    "relocate_calls": 230,
    "calls": 150,
-   "arm": "lane",
-   "until": "in_bin"
+   "arm": "right",
+   "until": "in_bin",
+   "bin_box": 1,
+   "bin_area": 3500
   },
   {
    "release": "lane",
@@ -158,5 +164,6 @@
    "calls": 2,
    "max_step": 0.05
   }
- ]
+ ],
+ "parcel": "light"
 }

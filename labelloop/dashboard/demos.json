@@ -209,7 +209,7 @@
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
   "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
-  "title": "Case 4, position change: the parcel is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; the harness ends the run when it is in the bin",
+  "title": "Case 4, position change: the white mailer is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; repeated each time it is taken out",
   "steps": [
    {
     "who": "harness",
@@ -225,7 +225,7 @@
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the hat into the right corner bin",
+    "title": "WALLX puts the white bag into the right corner bin",
     "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
    },
    {
@@ -243,7 +243,7 @@
    {
     "who": "harness",
     "title": "Watch: is the hat back on the table?",
-    "prompt": "Keep looking at the table; when the hat is out of the bin, give WALLX the task again.",
+    "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
     "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
    },
    {
@@ -254,7 +254,7 @@
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the hat into the right corner bin",
+    "title": "WALLX puts the white bag into the right corner bin",
     "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
    },
    {
@@ -272,7 +272,7 @@
    {
     "who": "harness",
     "title": "Watch: is the hat back on the table?",
-    "prompt": "Keep looking at the table; when the hat is out of the bin, give WALLX the task again.",
+    "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
     "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
    },
    {
@@ -283,7 +283,7 @@
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the hat into the right corner bin",
+    "title": "WALLX puts the white bag into the right corner bin",
     "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
    },
    {

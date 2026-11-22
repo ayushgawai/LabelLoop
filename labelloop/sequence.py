@@ -110,6 +110,39 @@ def dark_in_box(img_rgb, box, vmax=70):
     return int(st[1:, 4].max()) if n > 1 else 0
 
 
+def light_mask(img_rgb):
+    """White / light parcel (the mailer bag): low saturation, bright."""
+    import cv2
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    return ((hsv[..., 1] < 60) & (hsv[..., 2] > 170)).astype(np.uint8)
+
+
+def locate_parcel(img_rgb, kind="dark", min_area=1500):
+    """(x, y) image fractions of the parcel on the free table: 'dark' (the cap) or 'light' (the white mailer)."""
+    if kind != "light":
+        return locate_dark(img_rgb, min_area=min_area)
+    import cv2
+    H, W = img_rgb.shape[:2]
+    m = cv2.morphologyEx(light_mask(img_rgb) & table_free_mask(img_rgb), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    n, _, st, cen = cv2.connectedComponentsWithStats(m)
+    if n < 2:
+        return None
+    i = 1 + int(np.argmax(st[1:, 4]))
+    return None if st[i][4] < min_area else (float(cen[i][0] / W), float(cen[i][1] / H))
+
+
+def parcel_in_box(img_rgb, box, kind="dark"):
+    """Area (px) of the parcel's largest blob inside a zone box."""
+    if kind != "light":
+        return dark_in_box(img_rgb, box)
+    import cv2
+    H, W = img_rgb.shape[:2]
+    x0, y0, x1, y1 = box
+    m = cv2.morphologyEx(light_mask(img_rgb[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)]), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+    n, _, st, _ = cv2.connectedComponentsWithStats(m)
+    return int(st[1:, 4].max()) if n > 1 else 0
+
+
 def where_words(x, y):
     """Image fractions -> table grid words for the WALLX prompt: rows back / middle / front, columns left / middle / right."""
     col = "left" if x < 0.38 else "middle" if x < 0.62 else "right"
@@ -227,7 +260,7 @@ class Sequence:
                     self.i, self.calls = len(self.spec["steps"]) - 1, 0
                     continue
             if "locate" in self.step_spec:  # where is the parcel now (it may have been moved): grid words for {where}
-                xy = locate_dark(images["front"])
+                xy = locate_parcel(images["front"], self.spec.get("parcel", "dark"))
                 self.where = where_words(*xy) if xy else self.step_spec.get("default", "the centre")
                 self.where_xy = [round(v, 3) for v in xy] if xy else None
             else:
@@ -260,7 +293,7 @@ class Sequence:
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
-            self.seen_n = getattr(self, "seen_n", 0) + 1 if locate_dark(images["front"]) else 0
+            self.seen_n = getattr(self, "seen_n", 0) + 1 if locate_parcel(images["front"], self.spec.get("parcel", "dark")) else 0
             if self.seen_n >= 3:
                 self.seen_n, self.i, self.calls, self.parcel_back = 0, self.i + 1, 0, True
             elif self.calls >= s.get("calls", 120):  # nobody took it out: finish (skip the remaining steps)
@@ -284,7 +317,7 @@ class Sequence:
             claw = float(state.get((self._arm(s) or "right") + "_ee", {}).get("gripper", 1.0) or 0.0)
             if s.get("relocate") and self.calls < s.get("relocate_calls", 45) and claw >= 0.3:  # (claw closed = holding it: no re-target)
                 # the harness keeps watching the parcel: if it was
-                xy = locate_dark(images["front"])  # moved to another grid cell (same cell 3 calls in a row), the prompt is cancelled
+                xy = locate_parcel(images["front"], self.spec.get("parcel", "dark"))  # moved to another grid cell (same cell 3 calls in a row), the prompt is cancelled
                 cell = where_words(*xy) if xy else None  # and WALLX gets a new one with the new location (history reset)
                 self._cand, self._candn = (cell, getattr(self, "_candn", 0) + 1) if cell and cell == getattr(self, "_cand", None) else (cell, 1)
                 if cell and cell != getattr(self, "where", None) and self._candn >= 3:
@@ -301,8 +334,12 @@ class Sequence:
             self.calls += 1
             if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
                 box = ZONE_BOXES[s["bin_box"] if "bin_box" in s else {"blue": 0, "red": 1}.get(self.mat, 2)]  # bin_box: fixed target
-                area = dark_in_box(images["front"], box)
-                self.bincount = getattr(self, "bincount", 0) + 1 if area >= s.get("bin_area", 7000) and not locate_dark(images["front"]) else 0
+                kind = self.spec.get("parcel", "dark")
+                area = parcel_in_box(images["front"], box, kind)
+                if self.calls == 1 or getattr(self, "bin_base", None) is None:  # how the bin looked when this round started
+                    self.bin_base = area if kind == "light" else 0  # (white tape / wall already in the box: count only what is new)
+                self.bincount = (getattr(self, "bincount", 0) + 1 if area - self.bin_base >= s.get("bin_area", 7000)
+                                 and not locate_parcel(images["front"], kind) else 0)
                 if self.bincount >= s.get("bin_calls", 3):  # 3 calls in a row: done, stop WALLX, release + home
                     self.i, self.calls, self.bincount, self.task_done = self.i + 1, 0, 0, True
                     self.subgoal_changed = True
