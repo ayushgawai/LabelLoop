@@ -1,8 +1,8 @@
 {
-  "name": "m1_mailer_sort",
-  "goal": "Harness: read the mailer's label (QR -> printed ZIP -> demo code 420/94043/001) -> blue lane -> zone 1; WALLX 'pick up the bag and put it into the square marked 1 at the back left' with the left arm (right locked) -> home.",
-  "setup": "Tape zones 1 (back left), 2 (back right), 3 (right edge); padded mailer (LL-09, 94043) flat in the middle; arms at rest.",
-  "relay": "--sequence scenarios/m1_steps.json",
-  "seconds": 75,
-  "wording": {}
+ "name": "m1_mailer_sort",
+ "goal": "Harness: read the mailer's label (QR -> printed ZIP -> demo code 420/94043/001) -> blue lane -> zone 1; WALLX 'pick up the bag and put it into the square marked 1 at the back left' with the left arm (right locked) -> home.",
+ "setup": "Tape zones 1 (back left), 2 (back right), 3 (right edge); padded mailer (LL-09, 94043) flat in the middle; arms at rest.",
+ "relay": "--sequence scenarios/m1_steps.json --open-wide 1.5",
+ "seconds": 75,
+ "wording": {}
 }
