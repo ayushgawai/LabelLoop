@@ -39,3 +39,10 @@
 - 2026-11-21 21:55 | finaldemo1 run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 21:59 | finaldemo1 run_4 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 22:04 | finaldemo1 run_6/ | KEEPER (user: not bad) | recipe scenarios/finaldemo1.json + finaldemo1_steps.json at commit b532622 | video runs/scenarios/finaldemo1/run_6/demo.mp4
+- 2026-11-21 22:06 | finaldemo1 run_6 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:29 | sc1_pick_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:33 | sc1_pick_place run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:38 | sc1_pick_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:42 | sc1_pick_place run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:45 | sc1_pick_place run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:46 | SCENARIO 1 FINAL 3/3 (sc1_pick_place run_1..3) | recipe scenarios/keepers/sc1/recipe.json | videos runs/scenarios/sc1_pick_place/run_*/demo.mp4

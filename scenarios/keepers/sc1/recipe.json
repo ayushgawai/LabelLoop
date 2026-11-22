@@ -1,0 +1,8 @@
+{
+ "name": "sc1_final",
+ "goal": "Scenario 1 pick and place (FINAL): keyframe replay of Ayush's controller demo (claw moments verbatim, smooth min-jerk moves between), then home. 3/3 on 2026-11-22.",
+ "setup": "Mailer bag on its taped start marks in the middle of the table; arms at rest.",
+ "relay": "--sequence scenarios/keepers/sc1/steps.json",
+ "seconds": 75,
+ "wording": {}
+}
