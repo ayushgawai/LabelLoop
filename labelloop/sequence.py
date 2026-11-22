@@ -433,7 +433,12 @@ class Sequence:
                         H, W = images["front"].shape[:2]
                         self.bin_img = images["front"][int(box[1] * H):int(box[3] * H), int(box[0] * W):int(box[2] * W)].copy()
                     hit = area - self.bin_base >= s.get("bin_area", 7000) and not locate_parcel(images["front"], kind)
-                    if s.get("also_change"):  # OR: the bin looks different and the arm is lowered into it (parcel being put there)
+                    if s.get("drop_at"):  # strongest: the arm holding the parcel is AT the bin (recorded drop point) and lowered
+                        p_ = state.get((self._arm(s) or "right") + "_ee", {}).get("position", [9, 9, 9])
+                        near = (np.hypot(p_[0] - s["drop_at"][0], p_[1] - s["drop_at"][1]) < s.get("drop_r", 0.12)
+                                and p_[2] < s.get("drop_z", 0.15))
+                        hit = near  # (camera checks gave false stops: arm low near the table centre looked like 'in the box')
+                    elif s.get("also_change"):  # OR: the bin looks different and the arm is lowered into it (parcel being put there)
                         z = float(state.get((self._arm(s) or "right") + "_ee", {}).get("position", [0, 0, 1])[2])
                         hit = hit or (parcel_in_box(images["front"], box, "change", self.bin_img) >= s.get("change_area", 6000)
                                       and z < s.get("bin_z", 0.10))

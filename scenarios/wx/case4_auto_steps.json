@@ -21,7 +21,7 @@
   },
   {
    "say": "Put the white bag into the box at the top left corner of the table.",
-   "calls": 160,
+   "calls": 200,
    "arm": "picked",
    "until": "in_bin",
    "bin_box": 0,
@@ -29,7 +29,13 @@
    "also_change": true,
    "change_area": 6000,
    "bin_z": 0.1,
-   "bin_calls": 3
+   "bin_calls": 3,
+   "drop_at": [
+    0.4,
+    0.02
+   ],
+   "drop_r": 0.12,
+   "drop_z": 0.15
   },
   {
    "release": "picked",
@@ -83,7 +89,7 @@
   },
   {
    "say": "Put the white bag into the box at the top left corner of the table.",
-   "calls": 160,
+   "calls": 200,
    "arm": "picked",
    "until": "in_bin",
    "bin_box": 0,
@@ -91,7 +97,13 @@
    "also_change": true,
    "change_area": 6000,
    "bin_z": 0.1,
-   "bin_calls": 3
+   "bin_calls": 3,
+   "drop_at": [
+    0.4,
+    0.02
+   ],
+   "drop_r": 0.12,
+   "drop_z": 0.15
   },
   {
    "release": "picked",
@@ -145,7 +157,7 @@
   },
   {
    "say": "Put the white bag into the box at the top left corner of the table.",
-   "calls": 160,
+   "calls": 200,
    "arm": "picked",
    "until": "in_bin",
    "bin_box": 0,
@@ -153,7 +165,13 @@
    "also_change": true,
    "change_area": 6000,
    "bin_z": 0.1,
-   "bin_calls": 3
+   "bin_calls": 3,
+   "drop_at": [
+    0.4,
+    0.02
+   ],
+   "drop_r": 0.12,
+   "drop_z": 0.15
   },
   {
    "release": "picked",
