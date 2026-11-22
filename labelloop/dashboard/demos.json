@@ -9,14 +9,14 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Read the label and route the parcel",
+    "title": "Harness call (read the label, route to zone 1)",
     "detail": "Code 420/95126/001 = ZIP 951 → blue lane → zone 1 (left). The harness tries the QR, then the printed ZIP; this run used the preset demo code for the Bhindi box (source 'demo').",
     "what": "label → lane → acting arm → target zone"
    },
    {
     "who": "harness",
-    "title": "Pick + handover (recorded trajectory, replayed by the harness)",
-    "detail": "The harness replays a recorded scenario-4 trajectory (59 s, 32 rows per call): right arm picks the box and hands it to the left claw in the air.",
+    "title": "Harness call (pick + handover)",
+    "detail": "The harness runs a stored scenario-4 trajectory (59 s, 32 rows per call): right arm picks the box and hands it to the left claw in the air.",
     "sub": [
      {
       "call": 1,
@@ -49,14 +49,14 @@
     ]
    },
    {
-    "who": "scripted",
-    "title": "Right arm backs off",
-    "detail": "Scripted slow move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."
+    "who": "harness",
+    "title": "Harness call (right arm backs off)",
+    "detail": "Slow harness move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."
    },
    {
-    "who": "scripted",
-    "title": "Right arm goes home",
-    "detail": "Scripted slow move to home, claw closed. From here the right arm stays parked."
+    "who": "harness",
+    "title": "Harness call (right arm home)",
+    "detail": "Slow harness move to home, claw closed. From here the right arm stays parked."
    },
    {
     "who": "wallx",
@@ -65,14 +65,14 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
    },
    {
-    "who": "scripted",
-    "title": "Release",
-    "detail": "Scripted: the left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."
+    "who": "harness",
+    "title": "Harness call (release)",
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."
    },
    {
-    "who": "scripted",
-    "title": "Both arms home",
-    "detail": "Scripted slow move of both arms to home (≤ 5 cm per call)."
+    "who": "harness",
+    "title": "Harness call (both arms home)",
+    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
    },
    {
     "who": "done",
@@ -81,5 +81,68 @@
    }
   ],
   "run": "scenarios/keepers/sc4_wallx/recipe.json"
+ },
+ {
+  "id": "sc3",
+  "label": "Scenario 3",
+  "trial": "20261122_080641",
+  "run": "scenarios/wx/sc3b_wallx.json",
+  "recipe": "scenarios/wx/sc3b_wallx.json",
+  "relay": "--sequence scenarios/wx/sc3b_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "title": "Scenario 3: the harness flips the label-down mailer label up, WALLX picks it up and puts it into zone 1",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Harness call (flip the bag label up)",
+    "detail": "The harness runs a stored scenario-3 trajectory (34 s, 32 rows per call) with the left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "left arm moves to the bag"
+     },
+     {
+      "call": 9,
+      "text": "left claw opens and lowers onto the bag"
+     },
+     {
+      "call": 13,
+      "text": "left claw closes on the bag (grasp)"
+     },
+     {
+      "call": 14,
+      "text": "left arm lifts and turns the bag over"
+     },
+     {
+      "call": 25,
+      "text": "bag set down label up, claw opens"
+     },
+     {
+      "call": 26,
+      "text": "left arm lifts away (WALLX starts from here)"
+     }
+    ]
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks the bag up and puts it into zone 1 (left arm)",
+    "prompt": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (release)",
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (both arms home)",
+    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
  }
 ]

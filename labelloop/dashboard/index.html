@@ -543,7 +543,7 @@
     $('pose').innerHTML = html || '<div class="muted">waiting…</div>';
   }
 
-  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Scripted'],
+  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Harness call'],
                  ['hold', 'HOLD'], ['lock', 'Arm lock'], ['qr', 'QR decode'], ['verify', 'Verify']];
 
   function buildChips() {
@@ -779,7 +779,15 @@
     if (r.source === 'wallx') return 'wallx';
     if (/^\(replay/.test(ins)) return 'harness';
     if (r.source === 'hold' || !ins) return 'done';
-    return 'scripted';
+    return 'harness';
+  }
+
+  function harnessTitle(ins) {  // '(replay 1)' / '(scripted move 2)' / '(release 5)' -> 'Harness call (...)'
+    if (!ins) return null;
+    if (/^\(replay/.test(ins)) return 'Harness call (trajectory)';
+    if (/^\(scripted move/.test(ins)) return 'Harness call (move)';
+    if (/^\(release/.test(ins)) return 'Harness call (release)';
+    return ins;
   }
 
   function buildSteps() {  // step list + the row range of each step (from harness.step); null when the trial has no steps
@@ -798,7 +806,7 @@
     for (let k = 0; k < n; k++) {
       const d = demo ? demo.steps[k] || {} : {}, r = rng[k];
       const ins = r ? (r.row.harness || {}).instruction : null;
-      S.steps.push({ who: d.who || (r ? whoOf(r.row) : 'scripted'), title: d.title || (r && r.row.source === 'wallx' ? 'WALLX' : ins || 'step ' + (k + 1)),
+      S.steps.push({ who: d.who || (r ? whoOf(r.row) : 'harness'), title: d.title || (r && r.row.source === 'wallx' ? 'WALLX' : harnessTitle(ins) || 'step ' + (k + 1)),
         detail: d.detail || '', prompt: d.prompt || (r && r.row.source === 'wallx' ? ins : null), sub: d.sub || null,
         from: r ? r.from : null, to: r ? r.to : null });
     }
@@ -850,8 +858,8 @@
     }
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → ' + esc(h.bin || '?') + ' bin / zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' (source ' + esc(h.source || '?') + ')</p>';
-    const other = /^\(replay/.test(String(h.instruction || '')) ? 'replaying the trajectory'
-      : { replay: 'replaying the trajectory', scripted: 'scripted move', harness: 'at rest', done: 'home' }[sp.who] || 'idle';
+    const other = /^\(replay/.test(String(h.instruction || '')) ? 'harness trajectory'
+      : { harness: 'harness call', scripted: 'harness call', done: 'home' }[sp.who] || 'idle';
     html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : other, lock.indexOf('left') >= 0) +
       armBox('right', row, wallx ? acting.indexOf('right') >= 0 : other, lock.indexOf('right') >= 0) + '</div>';
     $('stepNow').innerHTML = html;
@@ -987,7 +995,7 @@
       '<span>' + (it.duration_s != null ? Math.round(it.duration_s) + ' s' : '—') + '</span>' +
       '<span>' + (it.retries || 0) + ' retr' + (it.retries === 1 ? 'y' : 'ies') + '</span>' +
       '<span class="muted">' + (it.wallx_calls || 0) + ' WALLX / ' + (it.calls || 0) + ' calls</span><span class="grow"></span>' +
-      '<button data-replay="' + esc(it.id) + '">replay ▶</button></div>' +
+      '<button data-replay="' + esc(it.id) + '">view ▶</button></div>' +
       '<div class="stMeta">' + meta.join(' · ') + '</div>' + storyBar(it.blocks, it.flags) + '</div>';
   }
 
@@ -997,7 +1005,7 @@
         '<span>' + (t.seconds_to_verdict != null ? Math.round(t.seconds_to_verdict) + ' s' : '—') + '</span>' +
         '<span>' + (t.retries || 0) + ' retries</span><span class="muted">overlay ' + esc(t.overlay || 'none') +
         (t.stage ? ' · staged' : '') + '</span><span class="grow"></span>' +
-        (t.replay ? '<button data-replay="' + esc(t.replay) + '">replay ▶</button>'
+        (t.replay ? '<button data-replay="' + esc(t.replay) + '">view ▶</button>'
                   : '<button disabled title="no recorded trial matches this run">no recording</button>') + '</div>' +
         '<div class="stMeta">' + (t.note ? esc(t.note) + ' · ' : '') + wordingText(t.wording) + '</div>' +
         storyBar(t.blocks, t.flags) + '</div>';
