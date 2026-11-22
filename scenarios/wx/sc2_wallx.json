@@ -1,0 +1,9 @@
+{
+ "name": "sc2_wallx_v1",
+ "goal": "Scenario 2 with WALLX: replayed right-arm pick + lift (slice of the locked keeper), then WALLX (right arm, other locked, 40 calls): 'Put the box into the square on the right side of the table.'; scripted release + home. Same pattern as scenarios/w4x/saved/sc4_wallx_v1.",
+ "setup": "Miro box on its taped start marks (standing on its long edge, label facing the camera); arms at rest.",
+ "relay": "--sequence scenarios/wx/sc2_wallx_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 200,
+ "wording": {},
+ "prompt": "Put the box into the square on the right side of the table."
+}

@@ -1,0 +1,9 @@
+{
+ "name": "sc3_wallx_v1",
+ "goal": "Scenario 3 with WALLX: replayed right-arm pick + lift (slice of the locked keeper), then WALLX (right arm, other locked, 40 calls): 'Put the bag into the square on the right side of the table.'; scripted release + home. Same pattern as scenarios/w4x/saved/sc4_wallx_v1.",
+ "setup": "Mailer label-down on its taped start marks; arms at rest.",
+ "relay": "--sequence scenarios/wx/sc3_wallx_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 200,
+ "wording": {},
+ "prompt": "Put the bag into the square on the right side of the table."
+}

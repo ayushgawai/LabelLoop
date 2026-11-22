@@ -1,0 +1,56 @@
+{
+ "watchdog": false,
+ "zones": {
+  "blue": "1",
+  "red": "2",
+  "black": "3"
+ },
+ "steps": [
+  {
+   "replay": "scenarios/wx/sc3_pick.json"
+  },
+  {
+   "say": "Put the bag into the square on the right side of the table.",
+   "calls": 40,
+   "arm": "right"
+  },
+  {
+   "release": "right",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ]
+}
