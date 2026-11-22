@@ -1,0 +1,1 @@
+{"name": "sc1_pick_place", "goal": "Scenario 1 pick and place: replay of Ayush's controller demo (record_teleop, 2x, smoothed), then home.", "setup": "Bag on its taped start marks; arms at rest.", "relay": "--sequence scenarios/sc1_steps.json", "seconds": 75, "wording": {}}

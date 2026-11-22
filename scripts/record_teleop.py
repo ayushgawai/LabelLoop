@@ -81,6 +81,15 @@ def convert(name, speed="2", smooth="0.5"):
         P = smooth_cols(P, max(1, int(round(smooth / DT))))
         g = GRIP_SCALE * np.interp(ts, grip[a][:, 0], grip[a][:, 1]) if len(grip[a]) else np.zeros(len(ts))
         out[a] = np.column_stack([P, g]).round(5).tolist()
+    moving = np.zeros(len(ts), bool)  # trim idle start / end (both arms within 3 mm of their first / last pose, grippers unchanged)
+    for a in ("left", "right"):
+        X = np.asarray(out[a])
+        moving |= (np.linalg.norm(X[:, :3] - X[0, :3], axis=1) > 0.003) | (np.linalg.norm(X[:, :3] - X[-1, :3], axis=1) > 0.003)
+        moving |= (np.abs(X[:, 6] - X[0, 6]) > 0.05) & (np.abs(X[:, 6] - X[-1, 6]) > 0.05)
+    idx = np.flatnonzero(moving)
+    lo, hi = (max(idx[0] - 10, 0), min(idx[-1] + 10, len(ts))) if len(idx) else (0, len(ts))
+    out = {a: out[a][lo:hi] for a in out}
+    ts = ts[lo:hi]
     p = ROOT / "runs/demos" / (name + ".json")
     p.write_text(json.dumps({"dt": DT, "source": "record_teleop", "speed": speed, "smooth_s": smooth, "left": out["left"], "right": out["right"]}))
     print(f"{p}: {len(ts)} rows = {len(ts) * DT:.1f} s")
