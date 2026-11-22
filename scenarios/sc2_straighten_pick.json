@@ -1,1 +1,0 @@
-{"name": "sc2_straighten_pick", "goal": "Scenario 2: straighten the Bhindi box, pick it, place it in zone 1 (keyframe replay of Ayush's controller demo), then home.", "setup": "Bhindi box on its taped (angled) start marks; arms at rest.", "relay": "--sequence scenarios/sc2_steps.json", "seconds": 90, "wording": {}}
