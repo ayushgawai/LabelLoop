@@ -93,7 +93,13 @@ class Sequence:
             self.calls = 0
         s = self.step_spec
         instr, self.active = None, s
-        if s is not None and "move" in s:  # scripted move (organisers allowed simple scripted steps): scripted_reply drives it
+        if s is not None and "replay" in s:  # teach and repeat: the recorded demo, 32 rows per call
+            instr = "(replay %d)" % self.i
+            self.calls += 1
+            self.replay = (s, self._demo_rows(s, self.calls))
+            if self.replay[1] is None or self.calls >= s.get("calls", 10**6) or self._demo_rows(s, self.calls + 1) is None:
+                self.i, self.calls = self.i + 1, 0
+        elif s is not None and "move" in s:  # scripted move (organisers allowed simple scripted steps): scripted_reply drives it
             instr = "(scripted move %d)" % self.i
             self.calls += 1
             if self.calls >= s.get("calls", 3):
@@ -114,8 +120,26 @@ class Sequence:
             self.runlog.write(**self.last_log)
         return instr
 
+    def _demo_rows(self, s, k):
+        import json as _json
+        if "_demo" not in s:
+            s["_demo"] = _json.loads(open(s["replay"]).read())
+        d = s["_demo"]
+        a = 32 * (k - 1)
+        return None if a >= len(d["right"]) else (a, min(a + 32, len(d["right"])))
+
     def scripted_reply(self, embodiment, state):
         s = self.active
+        if s and "replay" in s:
+            span = self.replay[1] if getattr(self, "replay", None) and self.replay[0] is s else None
+            if span is None:
+                return None
+            d, (a, b) = s["_demo"], span
+            acts = {}
+            for arm in ("left", "right"):
+                rows = d[arm][a:b] + [d[arm][b - 1]] * (32 - (b - a))
+                acts[arm + "_ee"] = {"position": [r[:3] for r in rows], "rotation_rpy": [r[3:6] for r in rows], "gripper": [r[6] for r in rows]}
+            return {"embodiment": embodiment, "actions": acts}
         if not s or "move" not in s:
             return None
         cap, targets = s.get("max_step", 0.10), {}
