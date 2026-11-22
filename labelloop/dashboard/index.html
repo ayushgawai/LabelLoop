@@ -135,6 +135,7 @@
   .stepNow{border:1.6px solid var(--ink);border-radius:12px 8px 13px 7px / 8px 13px 7px 12px;background:#fff;padding:9px 11px}
   .stepNow h3{margin:0 0 4px;font-size:15px} .stepNow .big{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2)}
   .prompt{margin:8px 0;padding:9px 11px;border-left:5px solid #e67e22;background:#fff4e6;font-size:16px;font-weight:700;border-radius:4px}
+  .gridShot{width:100%;border:1.4px solid var(--ink);border-radius:8px;margin:6px 0 2px;display:block}
   .prompt.hp{border-left-color:#7c6ce0;background:#f1eefc}
   .prompt small{display:block;font-size:10.5px;font-weight:400;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
   .stepNow p{margin:6px 0;font-size:12.5px}
@@ -858,6 +859,8 @@
         return '<li class="' + (n < cur ? 'done' : n === cur ? 'active' : '') + '">call ' + s.call + ': ' + esc(s.text) + '</li>';
       }).join('') + '</ul>';
     }
+    if (h.where && S.id) html += '<img class="gridShot" alt="harness grid" src="/api/trials/' + encodeURIComponent(S.id) + '/frame/' +
+      (Number.isFinite(row.index) ? row.index : i) + '/front?track=1"><div class="muted">harness view: parcel tracking + 3x3 table grid, located cell in orange</div>';
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
     const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', demo: 'preset label (no reader hit)' };
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
