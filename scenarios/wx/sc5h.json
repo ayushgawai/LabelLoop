@@ -1,0 +1,8 @@
+{
+ "name": "sc5h",
+ "goal": "Scenario 5 H (Ayush's plan): label read; harness call = Ayush's trajectory to the cap, claw opens to grab (person moves the cap now); harness lifts the arm and backs it to rest with the claw open; harness LOCATES the cap on the head camera -> grid words in the prompt; WALLX (all cameras, 90 calls) grabs it and puts it into zone 2; release, home.",
+ "setup": "Cap upright in the middle, label to the camera; arms at rest. Move the cap as soon as the claw opens over it.",
+ "relay": "--sequence scenarios/wx/sc5h_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04",
+ "seconds": 260,
+ "wording": {}
+}

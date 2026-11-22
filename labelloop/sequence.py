@@ -49,6 +49,36 @@ def any_barcodes(img):
     return out
 
 
+def locate_dark(img_rgb, vmax=70, min_area=1500):
+    """(x, y) image fractions of the largest dark object ON THE TABLE (inside the convex hull of the green mat; parked-claw corners
+    masked), e.g. the black cap; None if nothing big enough."""
+    import cv2
+    H, W = img_rgb.shape[:2]
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(mat)
+    if n < 2:
+        return None
+    k = 1 + int(np.argmax(st[1:, 4]))
+    inside = np.zeros((H, W), np.uint8)
+    cv2.fillConvexPoly(inside, cv2.convexHull(np.column_stack(np.nonzero(lab == k)[::-1]).astype(np.int32)), 1)
+    inside[int(0.60 * H):, :int(0.20 * W)] = 0  # parked left claw
+    inside[int(0.55 * H):, int(0.78 * W):] = 0  # parked right claw
+    m = cv2.morphologyEx(((hsv[..., 2] < vmax) & (inside > 0)).astype(np.uint8), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+    n, _, st, cen = cv2.connectedComponentsWithStats(m)
+    if n < 2:
+        return None
+    i = 1 + int(np.argmax(st[1:, 4]))
+    return None if st[i][4] < min_area else (float(cen[i][0] / W), float(cen[i][1] / H))
+
+
+def where_words(x, y):
+    """Image fractions -> table grid words for the WALLX prompt: rows back / middle / front, columns left / middle / right."""
+    col = "left" if x < 0.38 else "middle" if x < 0.62 else "right"
+    row = "back" if y < 0.42 else "middle" if y < 0.62 else "front"
+    return "the centre" if (row, col) == ("middle", "middle") else "the %s %s" % (row, col)
+
+
 class Sequence:
     def __init__(self, spec, runlog=None):
         self.spec, self.runlog = spec, runlog
@@ -139,8 +169,13 @@ class Sequence:
         if self.spot is None and self.spec.get("mat"):  # the parcel's start spot, once
             self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
-        while self.step_spec is not None and "read" in self.step_spec:  # reads cost no robot call
-            self._read(images, self.step_spec)
+        while self.step_spec is not None and ("read" in self.step_spec or "locate" in self.step_spec):  # cost no robot call
+            if "locate" in self.step_spec:  # where is the parcel now (it may have been moved): grid words for {where}
+                xy = locate_dark(images["front"])
+                self.where = where_words(*xy) if xy else self.step_spec.get("default", "the centre")
+                self.where_xy = [round(v, 3) for v in xy] if xy else None
+            else:
+                self._read(images, self.step_spec)
             self.i += 1
             self.calls = 0
         s = self.step_spec
@@ -167,7 +202,8 @@ class Sequence:
             if self.calls >= s.get("calls", 3):
                 self.i, self.calls = self.i + 1, 0
         elif s is not None:
-            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right")
+            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
+                                    where=getattr(self, "where", "the centre"))
             self.calls += 1
             if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
                 inside, c = self._bag_in_zone(images["front"])
@@ -194,7 +230,7 @@ class Sequence:
         self.done = s is None
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
-                         "lock": list(self.lock_arms()), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
+                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr
