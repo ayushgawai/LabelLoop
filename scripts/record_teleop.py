@@ -158,5 +158,81 @@ def convert_claw_exact(name, speed="2", heavy="1.0", out_name=None):
     print(f"{p}: {int(keep.sum())} rows = {keep.sum() * DT:.1f} s (from {(hi - lo) * DT:.1f} s of motion)")
 
 
+def convert_keyframes(name, out_name=None, v="0.06", lift="0.06"):
+    """Keyframe replay: claw events (gripper changing) are kept verbatim at the hand's pace; between them the arms make direct
+    minimum-jerk moves (lift `lift` m, travel, lower) at ~v m/s, so the hand's wobbles and stops disappear."""
+    v, lift = float(v), float(lift)
+    rows = [json.loads(l) for l in (ROOT / "runs/demos" / (name + ".raw.jsonl")).read_text().splitlines() if l.strip()]
+    pose = {a: np.array([[r["t"], *r["p"], *quat_rpy(*r["q"])] for r in rows if r["k"] == a]) for a in ("left", "right")}
+    grip = {a: np.array([[r["t"], r["g"]] for r in rows if r["k"] == a + "_g"]) for a in ("left", "right")}
+    t0, t1 = max(pose[a][0, 0] for a in pose), min(pose[a][-1, 0] for a in pose)
+    ts = np.arange(t0, t1, DT)
+    X = {}
+    for a in ("left", "right"):
+        P = np.column_stack([np.interp(ts, pose[a][:, 0], np.unwrap(pose[a][:, k]) if k >= 4 else pose[a][:, k]) for k in range(1, 7)])
+        g = GRIP_SCALE * np.interp(ts, grip[a][:, 0], grip[a][:, 1]) if len(grip[a]) else np.zeros(len(ts))
+        X[a] = np.column_stack([P, g])
+    n = len(ts)
+    chg = np.zeros(n, bool)
+    for a in X:
+        chg |= np.r_[False, np.abs(np.diff(X[a][:, 6])) > 0.01]
+    # claw intervals: changing rows, gaps < 0.5 s merged, padded 0.3 s
+    idx = np.flatnonzero(chg)
+    iv = []
+    for i in idx:
+        if iv and i - iv[-1][1] <= int(0.5 / DT):
+            iv[-1][1] = i
+        else:
+            iv.append([i, i])
+    pad = int(0.3 / DT)
+    iv = [[max(0, a - pad), min(n - 1, b + pad)] for a, b in iv]
+    def minjerk(Pa, Pb, ga, rows_out):
+        d = np.linalg.norm(Pb[:3] - Pa[:3])
+        m = max(int(round(max(1.0, d / v) / DT)), 2)
+        u = np.linspace(0, 1, m)
+        sm = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5
+        for e in sm[1:]:
+            rows_out.append(np.r_[Pa + e * (Pb - Pa), ga])
+    out = {a: [X[a][0].copy()] for a in X}
+    cur = {a: X[a][0, :6].copy() for a in X}
+    keys = [(b0, b1) for b0, b1 in iv] + [(n - 1, n - 1)]
+    for b0, b1 in keys:
+        tgt = {a: X[a][b0, :6] for a in X}
+        moved = [a for a in X if np.linalg.norm(tgt[a][:3] - cur[a][:3]) > 0.01]
+        legs = []  # (pose per arm) waypoints: up from current, over, down to target
+        if moved:
+            up_c = {a: cur[a] + np.r_[0, 0, lift if a in moved else 0, 0, 0, 0] for a in X}
+            up_t = {a: tgt[a] + np.r_[0, 0, lift if a in moved else 0, 0, 0, 0] for a in X}
+            legs = [up_c, up_t, tgt]
+        for wp in legs:
+            seg = {a: [] for a in X}
+            m = 0
+            for a in X:  # same duration for both arms: the longer move sets it
+                tmp = []
+                minjerk(out[a][-1][:6], wp[a], out[a][-1][6], tmp)
+                seg[a] = tmp
+                m = max(m, len(tmp))
+            for a in X:
+                last = out[a][-1]
+                tmp = []
+                d = np.linalg.norm(wp[a][:3] - last[:3])
+                mm = m
+                u = np.linspace(0, 1, mm + 1)[1:]
+                sm = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5
+                for e in sm:
+                    tmp.append(np.r_[last[:6] + e * (wp[a] - last[:6]), last[6]])
+                out[a].extend(tmp)
+            cur = {a: out[a][-1][:6].copy() for a in X}
+        if b1 > b0:  # the claw event itself, verbatim (hand's pace and pose)
+            for i in range(b0, b1 + 1):
+                for a in X:
+                    out[a].append(X[a][i].copy())
+            cur = {a: out[a][-1][:6].copy() for a in X}
+    res = {a: np.round(np.asarray(out[a]), 5).tolist() for a in X}
+    p = ROOT / "runs/demos" / ((out_name or name) + ".json")
+    p.write_text(json.dumps({"dt": DT, "source": "record_teleop/keyframes", "v": v, "lift": lift, "claw_events": len(iv), "left": res["left"], "right": res["right"]}))
+    print(f"{p}: {len(res['left'])} rows = {len(res['left']) * DT:.1f} s, {len(iv)} claw events")
+
+
 if __name__ == "__main__":
-    {"start": start, "stop": stop, "convert": convert, "claw_exact": convert_claw_exact}[sys.argv[1]](*sys.argv[2:])
+    {"start": start, "stop": stop, "convert": convert, "claw_exact": convert_claw_exact, "keyframes": convert_keyframes}[sys.argv[1]](*sys.argv[2:])
