@@ -10,7 +10,7 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label, choose zone + arm, build the WALLX prompt)",
+    "title": "Read the label, choose zone + arm, build the WALLX prompt",
     "detail": "Barcode reader first, pincode OCR reader as fallback. Pincode 940/941/950/951 → zone 1 → left arm; 900-902 → zone 2 → right arm; else zone 3. The zone number and arm are written into the WALLX sentence.",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
@@ -20,15 +20,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts from rest. Every call it gets the HEAD camera image (black wrist images) + both arms' state + the sentence above and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone does the grasp, the lift, the carry and the set-down."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -45,12 +45,12 @@
   "run": "scenarios/wx/sc2_wallx.json",
   "recipe": "scenarios/wx/sc2_wallx.json",
   "relay": "--sequence scenarios/wx/sc2_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Scenario 2: the harness picks up the Miro box with the right arm, WALLX puts it into zone 2",
+  "title": "Scenario 2: the right arm picks up the Miro box, WALLX puts it into zone 2",
   "steps": [
    {
-    "who": "harness",
-    "title": "Harness call (right arm picks up the box)",
-    "detail": "Harness call (32 rows per call) with the right arm: reach over the standing Miro box, grasp it from the top, lift it.",
+    "who": "robot",
+    "title": "Right arm picks up the box",
+    "detail": "Right arm: reach over the standing Miro box, grasp it from the top, lift it.",
     "sub": [
      {
       "call": 1,
@@ -78,15 +78,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm, holding the box. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to carry the box and where to set it down."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -103,12 +103,12 @@
   "run": "scenarios/wx/sc3b_wallx.json",
   "recipe": "scenarios/wx/sc3b_wallx.json",
   "relay": "--sequence scenarios/wx/sc3b_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Scenario 3: the harness flips the label-down mailer label up, WALLX picks it up and puts it into zone 1",
+  "title": "Scenario 3: the left arm flips the label-down mailer label up, WALLX picks it up and puts it into zone 1",
   "steps": [
    {
-    "who": "harness",
-    "title": "Harness call (flip the bag label up)",
-    "detail": "Harness call (32 rows per call) with the left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
+    "who": "robot",
+    "title": "Flip the bag label up",
+    "detail": "Left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
     "sub": [
      {
       "call": 1,
@@ -144,15 +144,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -172,15 +172,15 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label, route to zone 1)",
+    "title": "Read the label, route to zone 1",
     "detail": "Barcode reader first, pincode OCR reader as fallback. Code 420/95126/001 = pincode 951 → zone 1 → left arm.",
     "what": "label → lane → acting arm → target zone",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
-    "who": "harness",
-    "title": "Harness call (pick + handover)",
-    "detail": "Harness call (32 rows per call): the right arm picks the box and hands it to the left claw in the air.",
+    "who": "robot",
+    "title": "Pick + handover",
+    "detail": "the right arm picks the box and hands it to the left claw in the air.",
     "sub": [
      {
       "call": 1,
@@ -214,15 +214,15 @@
     "prompt": "Right arm: pick up the purple box and hand it to the left arm in the air."
    },
    {
-    "who": "harness",
-    "title": "Harness call (right arm backs off)",
-    "detail": "Harness call (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
+    "who": "robot",
+    "title": "Right arm backs off",
+    "detail": "Move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
     "prompt": "Right arm: let go and move up and away from the box."
    },
    {
-    "who": "harness",
-    "title": "Harness call (right arm home)",
-    "detail": "Harness call to home, claw closed. From here the right arm stays parked.",
+    "who": "robot",
+    "title": "Right arm home",
+    "detail": "Home, claw closed. From here the right arm stays parked.",
     "prompt": "Right arm: go to rest."
    },
    {
@@ -232,15 +232,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -262,13 +262,13 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label, choose zone + arm)",
+    "title": "Read the label, choose zone + arm",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm.",
     "detail": "Cap label 90291 → zone 2 → right arm."
    },
    {
     "who": "harness",
-    "title": "Harness call (locate the cap on the 3x3 table grid)",
+    "title": "Locate the cap on the 3x3 table grid",
     "prompt": "Find the cap on the head camera and name its grid cell.",
     "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
    },
@@ -278,14 +278,14 @@
     "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 110 calls). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the current prompt is cancelled, WALLX's history is reset and it gets a new sentence with the new location (same target zone 2). Red marks on the timeline = re-targets."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "prompt": "Open the claw fully and lift straight up.",
     "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
    },
    {
-    "who": "harness",
-    "title": "Harness call (right arm home)",
+    "who": "robot",
+    "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": "The right arm goes to rest; the left arm never moved."
    },
@@ -307,7 +307,7 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt) — left parcel",
+    "title": "Read the label (barcode reader, pincode OCR fallback), choose zone + arm — left parcel",
     "detail": "Reads only the left half of the table. Bag: pincode 94043 → zone 1 → left arm.",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
@@ -317,20 +317,20 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
     "who": "harness",
-    "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt) — right parcel",
+    "title": "Read the label (barcode reader, pincode OCR fallback), choose zone + arm — right parcel",
     "detail": "Reads only the right half of the table. Cap: pincode 90291 → zone 2 → right arm.",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
@@ -340,15 +340,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -369,7 +369,7 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt)",
+    "title": "Read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt",
     "detail": "Pincode 10001 is not in zone 1 (940/941/950/951) or zone 2 (900-902) → zone 3 (exceptions) → right arm.",
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
@@ -379,15 +379,15 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
    },
    {
@@ -404,30 +404,42 @@
   "run": "scenarios/wx/phone_wallx.json",
   "recipe": "scenarios/wx/phone_wallx.json",
   "relay": "--sequence scenarios/wx/phone_wallx_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",
-  "title": "Handheld phone scanner: the phone reads the label, the harness routes it to a zone and arm, WALLX delivers the parcel there",
+  "title": "Phone scanner in the left hand: the left arm scans the label with the phone, the harness routes it, WALLX delivers the parcel with the right arm",
   "steps": [
    {
+    "who": "robot",
+    "title": "Left arm brings the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": "The left claw holds the phone (3x camera) about 24 cm above the middle of the table, camera on the label."
+   },
+   {
     "who": "harness",
-    "title": "Harness call (wait for the phone scanner, route the code)",
-    "prompt": "Wait for the handheld scanner to read the label, then choose the zone and the arm.",
-    "detail": "The phone (dashboard /scan page) sends camera frames; the dashboard decodes the barcode / QR / pincode and puts it on the package board. The harness takes the newest scan, routes it (940/941/950/951 → zone 1 / left arm, 900-902 → zone 2 / right arm, else zone 3) and writes the zone and arm into the WALLX sentence. The arms hold still until a scan arrives."
+    "title": "Phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "The phone sends camera frames to the dashboard, which decodes the barcode / QR / pincode and puts it on the package board. The harness takes the newest scan, routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold still until a scan arrives."
+   },
+   {
+    "who": "robot",
+    "title": "Left arm takes the phone back to rest",
+    "prompt": "Left arm: back to rest with the phone.",
+    "detail": "The left claw keeps the phone."
    },
    {
     "who": "wallx",
-    "title": "WALLX picks up the parcel and puts it into the scanned zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call. The harness LOCKS the arm the zone does not use. 90 calls."
+    "title": "WALLX picks up the parcel with the right arm and puts it into the scanned zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call. The left arm (holding the phone) is locked. 90 calls."
    },
    {
-    "who": "harness",
-    "title": "Harness call (release)",
+    "who": "robot",
+    "title": "Release",
     "prompt": "Open the claw fully and lift straight up.",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm."
+    "detail": "The right claw opens where WALLX left it, then lifts 8 cm."
    },
    {
-    "who": "harness",
-    "title": "Harness call (both arms home)",
-    "prompt": "Both arms: go to rest.",
-    "detail": "Both arms go to rest."
+    "who": "robot",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": "The right arm goes to rest."
    },
    {
     "who": "done",

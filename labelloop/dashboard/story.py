@@ -98,7 +98,7 @@ def trial_item(d):
     meta, summary, rows = _json(d / "meta.json") or {}, _json(d / "summary.json"), read_rows(d)
     hs = [r.get("harness") if isinstance(r.get("harness"), dict) else {} for r in rows]
     verdict, outcomes, retries, flags = judge(hs, live=summary is None)
-    name = {"scripted": "HARNESS", "hold": "DONE"}
+    name = {"scripted": "ROBOT", "hold": "DONE"}
     states = [(h.get("state") or name.get(r.get("source"), str(r.get("source") or "—").upper()), _num(r.get("t"))) for h, r in zip(hs, rows)]
     words = []
     for r in rows:

@@ -144,7 +144,7 @@
   .stepItem.done{color:var(--ink)} .stepItem.done .n::after{content:" ✓";color:var(--green)}
   .stepItem.active{color:#111;background:#fff;border-color:var(--ink);box-shadow:0 0 0 3px rgba(230,126,34,.25);font-weight:600}
   .who{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:1px 6px;border-radius:8px;color:#fff;text-align:center}
-  .who.harness{background:#7c6ce0} .who.replay{background:#16a085} .who.scripted{background:#7f8c8d}
+  .who.harness{background:#7c6ce0} .who.robot{background:#3d7ea6} .who.replay{background:#16a085} .who.scripted{background:#7f8c8d}
   .who.wallx{background:#e67e22} .who.done{background:#2e8b57}
   .stepNow{border:1.6px solid var(--ink);border-radius:12px 8px 13px 7px / 8px 13px 7px 12px;background:#fff;padding:9px 11px}
   .stepNow h3{margin:0 0 4px;font-size:15px} .stepNow .big{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2)}
@@ -274,7 +274,7 @@
   };
 
   const $ = (id) => document.getElementById(id);
-  const srcName = (s) => ({ scripted: 'HARNESS', hold: 'DONE', wallx: 'WALLX' }[s] || String(s || '—').toUpperCase());
+  const srcName = (s) => ({ scripted: 'ROBOT', hold: 'DONE', wallx: 'WALLX' }[s] || String(s || '—').toUpperCase());
   const n1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const lerp = (a, b, t) => a + (b - a) * t;
   const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
@@ -566,7 +566,7 @@
     $('pose').innerHTML = html || '<div class="muted">waiting…</div>';
   }
 
-  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Harness call'],
+  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Robot motion'],
                  ['hold', 'Harness hold'], ['lock', 'Arm lock'], ['qr', 'QR decode'], ['verify', 'Verify']];
 
   function buildChips() {
@@ -807,21 +807,21 @@
   }
 
   /* ------------------------------------------------------------------ steps (sequence trials + one-click demos) */
-  const WHO_COLORS = { harness: '#7c6ce0', replay: '#16a085', scripted: '#7f8c8d', wallx: '#e67e22', done: '#2e8b57' };
+  const WHO_COLORS = { harness: '#7c6ce0', robot: '#3d7ea6', replay: '#16a085', scripted: '#7f8c8d', wallx: '#e67e22', done: '#2e8b57' };
 
   function whoOf(r) {
     const h = r.harness || {}, ins = String(h.instruction || '');
     if (r.source === 'wallx') return 'wallx';
-    if (/^\(replay/.test(ins)) return 'harness';
+    if (/^\(replay/.test(ins)) return 'robot';
     if (r.source === 'hold' || !ins) return 'done';
-    return 'harness';
+    return 'robot';
   }
 
-  function harnessTitle(ins) {  // '(replay 1)' / '(scripted move 2)' / '(release 5)' -> 'Harness call (...)'
+  function harnessTitle(ins) {  // '(replay 1)' / '(scripted move 2)' / '(release 5)' -> step titles
     if (!ins) return null;
-    if (/^\(replay/.test(ins)) return 'Harness call';
-    if (/^\(scripted move/.test(ins)) return 'Harness call (move)';
-    if (/^\(release/.test(ins)) return 'Harness call (release)';
+    if (/^\(replay/.test(ins)) return 'Robot motion';
+    if (/^\(scripted move/.test(ins)) return 'Move';
+    if (/^\(release/.test(ins)) return 'Release';
     return ins;
   }
 
@@ -886,7 +886,7 @@
       call + ' / ' + total + ' · ' + el.toFixed(1) + ' s</div><h3>' + esc(sp.title) + '</h3>' +
       '<div class="bar"><i style="width:' + (total ? call / total * 100 : 0).toFixed(1) + '%;background:' + WHO_COLORS[sp.who] + '"></i></div>';
     const prompt = wallx ? (row.subgoal || h.instruction || sp.prompt) : sp.prompt;
-    if (prompt) html += '<div class="prompt' + (wallx || sp.who === 'wallx' ? '' : ' hp') + '"><small>' + (wallx || sp.who === 'wallx' ? 'exact instruction sent to WALLX' + (wallx ? ' · this call' : '') : 'harness instruction') + '</small>“' + esc(prompt) + '”</div>';
+    if (prompt) html += '<div class="prompt' + (wallx || sp.who === 'wallx' ? '' : ' hp') + '"><small>' + (wallx || sp.who === 'wallx' ? 'exact instruction sent to WALLX' + (wallx ? ' · this call' : '') : 'step instruction') + '</small>“' + esc(prompt) + '”</div>';
     if (wallx) html += '<p class="muted">WALLX reply in ' + (typeof row.latency_ms === 'number' ? Math.round(row.latency_ms) + ' ms' : '—') +
       ' · inputs: ' + (S.demo && /front-only/.test(S.demo.relay || '') ? 'head camera only (wrist images blacked out)' : 'head + 2 wrist cameras') + ', both arms\' state, the sentence above · output: action chunk, 40% executed (--slow 0.4)</p>';
     if (sp.sub) {
@@ -900,8 +900,8 @@
     const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', phone: 'handheld phone scanner', demo: 'preset label (no reader hit)' };
     if (h.waiting_phone) html += '<p><b>Waiting for the handheld phone scanner…</b> scan the label with the phone.</p>';
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
-    const other = /^\(replay/.test(String(h.instruction || '')) ? 'harness call'
-      : { harness: 'harness call', scripted: 'harness call', done: 'home' }[sp.who] || 'idle';
+    const other = /^\(replay/.test(String(h.instruction || '')) ? 'moving'
+      : { robot: 'moving', harness: 'at rest', scripted: 'moving', done: 'home' }[sp.who] || 'idle';
     const atRest = function (arm) {  // an arm the harness is not moving (still at home) is shown at rest, not as a harness call
       const p = (((row && row.state) || {})[arm + '_ee'] || {}).position || [0, 0, 0];
       return Math.hypot(p[0], p[1], p[2]) < 0.02 ? 'at rest' : other;

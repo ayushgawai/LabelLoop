@@ -5,23 +5,31 @@
   "red": "2 at the top right corner of the table",
   "black": "3 at the bottom right corner of the table"
  },
+ "scan_pose_note": "tune 'position'/'rotation_rpy' of step 0 so the phone (3x camera) looks down at the label",
  "steps": [
+  {
+   "move": {
+    "left": {
+     "position": [
+      0.34,
+      -0.2,
+      0.22
+     ],
+     "rotation_rpy": [
+      0.0,
+      0.8,
+      0.0
+     ]
+    }
+   },
+   "calls": 12,
+   "max_step": 0.04
+  },
   {
    "read": true,
    "from_phone": true,
-   "max_age": 180,
-   "wait_calls": 90
-  },
-  {
-   "say": "Use the {arm} arm to pick up the package from the middle of the table, stretch and put it into zone {zone}.",
-   "calls": 90,
-   "arm": "lane"
-  },
-  {
-   "release": "lane",
-   "calls": 4,
-   "open_calls": 2,
-   "lift": 0.08
+   "max_age": 60,
+   "wait_calls": 60
   },
   {
    "move": {
@@ -35,9 +43,25 @@
       0,
       0,
       0
-     ],
-     "gripper": 0.0
-    },
+     ]
+    }
+   },
+   "calls": 10,
+   "max_step": 0.04
+  },
+  {
+   "say": "Use the right arm to pick up the package from the middle of the table, stretch and put it into zone {zone}.",
+   "calls": 90,
+   "arm": "right"
+  },
+  {
+   "release": "right",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
     "right": {
      "position": [
       0,
