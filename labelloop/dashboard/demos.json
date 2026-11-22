@@ -2,45 +2,66 @@
  {
   "id": "case1",
   "label": "1 · Roll & scan",
-  "trial": null,
-  "run": "scenarios/wx/case1_roll_scan.json",
-  "recipe": "scenarios/wx/case1_roll_scan.json",
-  "relay": "--sequence scenarios/wx/case1_roll_scan_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "trial": "20261122_080641",
+  "run": "scenarios/wx/sc3b_wallx.json",
+  "recipe": "scenarios/wx/sc3b_wallx.json",
+  "relay": "--sequence scenarios/wx/sc3b_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
   "title": "Case 1, roll & scan: the left arm rolls the label-down parcel label-up for the scan; WALLX picks it and puts it into its zone",
   "steps": [
    {
     "who": "robot",
-    "title": "Left arm rolls the parcel label-up",
-    "prompt": "Left arm: pick up the parcel, turn it over so the label faces up, set it down.",
-    "detail": ""
-   },
-   {
-    "who": "harness",
-    "title": "Scan the label, choose zone + arm",
-    "prompt": "Read the label (barcode reader, pincode OCR fallback), choose the zone and the arm.",
-    "detail": "An unreadable label goes to the reject zone 3, never a guessed bin."
+    "title": "Flip the bag label up",
+    "detail": "Left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "left arm moves to the bag"
+     },
+     {
+      "call": 9,
+      "text": "left claw opens and lowers onto the bag"
+     },
+     {
+      "call": 13,
+      "text": "left claw closes on the bag (grasp)"
+     },
+     {
+      "call": 14,
+      "text": "left arm lifts and turns the bag over"
+     },
+     {
+      "call": 25,
+      "text": "bag set down label up, claw opens"
+     },
+     {
+      "call": 26,
+      "text": "left arm lifts away (WALLX starts from here)"
+     }
+    ],
+    "prompt": "Left arm: pick up the white bag, turn it over so the label faces up, set it down."
    },
    {
     "who": "wallx",
-    "title": "WALLX picks the parcel up and puts it into its zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked; 90 calls."
+    "title": "WALLX picks the bag up and puts it into zone 1 (left arm)",
+    "prompt": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
    },
    {
     "who": "robot",
     "title": "Release",
-    "prompt": "Open the claw and lift.",
-    "detail": ""
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "robot",
     "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
-    "detail": ""
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call and the log are saved."
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
   ]
  },

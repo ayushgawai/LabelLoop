@@ -19,9 +19,8 @@
    "relocate": true,
    "relocate_calls": 230,
    "calls": 230,
-   "arm": "right",
-   "until": "in_bin",
-   "bin_box": 1
+   "arm": "lane",
+   "until": "in_bin"
   },
   {
    "release": "lane",
@@ -55,5 +54,6 @@
   0.98,
   1.0
  ],
- "zip_vote": true
+ "zip_vote": true,
+ "code_hint": "420/90291/001"
 }
