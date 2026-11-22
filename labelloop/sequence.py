@@ -78,6 +78,9 @@ class Sequence:
         source = "qr" if codes else None
         if not codes:
             zips = [z for z, _ in label_ocr.zips(front, self.spec.get("roi", [0.02, 0.48, 0.78, 1.0]))]
+            if not zips and self.spec.get("zip_vote"):  # small labels: multi-crop OCR vote, known pincodes preferred
+                v = label_ocr.zip_vote(front, self.spec.get("roi", [0.02, 0.48, 0.78, 1.0]))
+                zips = [v[0]] if v else []
             codes, source = (["420/%s/000" % zips[0]], "zip") if zips else ([], None)
         if not codes and self.spec.get("code_hint"):
             codes, source = [self.spec["code_hint"]], "demo"  # DEMO: the label counts as read
