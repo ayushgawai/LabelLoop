@@ -451,7 +451,7 @@
    {
     "who": "wallx",
     "title": "WALLX carries the parcel into the scanned zone (right arm)",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call; the left arm (phone) is locked and keeps its gentle grip. 50 calls."
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call and moves the right arm; it never opens or closes a claw: the left arm (phone) is locked with its gentle grip, the right claw keeps the parcel until the release step. 50 calls."
    },
    {
     "who": "robot",

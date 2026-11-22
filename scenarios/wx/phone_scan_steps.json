@@ -55,7 +55,10 @@
   {
    "say": "Put the package you are holding into zone {zone}.",
    "calls": 50,
-   "arm": "right"
+   "arm": "right",
+   "keep_claws": {
+    "right": 0.0
+   }
   },
   {
    "release": "right",

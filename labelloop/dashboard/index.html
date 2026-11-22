@@ -46,6 +46,14 @@
     grid-template-areas:"steps steps" "table pkg" "table pose" "table perf" "cams log" "time log" "story story"}
   #stepsCard{grid-area:steps} #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf} #pkgCard{grid-area:pkg}
   #pkgCard{transition:box-shadow .3s ease}
+  #scanToast{position:fixed;left:50%;top:18px;transform:translate(-50%,-140%);z-index:50;background:#fff;border:3px solid var(--green);
+    border-radius:16px;padding:14px 26px;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center;transition:transform .35s ease;min-width:340px}
+  #scanToast.show{transform:translate(-50%,0)}
+  #scanToast .t1{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink2)}
+  #scanToast .t2{font:700 30px ui-monospace,Menlo,Consolas,monospace;margin:4px 0}
+  #scanToast .t3{font-size:17px;font-weight:700}
+  .scanBanner{margin:8px 0;padding:10px 12px;border:2px solid var(--green);border-radius:10px;background:#eefaf2}
+  .scanBanner .c{font:700 22px ui-monospace,Menlo,Consolas,monospace}
   #pkgCard.flash{box-shadow:0 0 0 4px rgba(46,139,87,.45)}
   .pkgHead{display:flex;align-items:center;gap:6px}
   .pkgHead .grow{flex:1}
@@ -173,6 +181,7 @@
 </style>
 </head>
 <body>
+<div id="scanToast"><div class="t1">handheld scanner · new scan</div><div class="t2" id="toastCode"></div><div class="t3" id="toastZone"></div></div>
 <header>
   <h1>LabelLoop <span class="x">×</span> WALLX</h1>
   <div class="ctl">
@@ -900,6 +909,8 @@
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
     const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', phone: 'handheld phone scanner', demo: 'preset label (no reader hit)' };
     if (h.waiting_phone) html += '<p><b>Waiting for the handheld phone scanner…</b> scan the label with the phone.</p>';
+    if (h.code && h.source === 'phone') html += '<div class="scanBanner"><div class="muted">scanned by the handheld phone scanner</div><span class="c">' +
+      esc(h.code) + '</span> → <b>zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + '</b></div>';
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
     const other = /^\(replay/.test(String(h.instruction || '')) ? 'moving'
       : { robot: 'moving', harness: 'at rest', scripted: 'moving', done: 'home' }[sp.who] || 'idle';
@@ -1156,10 +1167,17 @@
       '<div class="kv"><span>scanned</span><b>' + t(cur.scanned) + ' · ' + esc(cur.source || '') + ' · seen ' + esc(cur.seen) + '×</b></div>' +
       '<div class="kv"><span>packages this run</span><b>' + esc(b.scans) + '</b></div>' +
       phone + (hist ? '<div class="pkgHist">' + hist + '</div>' : '');
-    if (PKG.loaded && cur.code !== PKG.code) {  // a new package (not the one already there when the page opened)
+    if (PKG.loaded && (cur.code !== PKG.code || cur.scanned !== PKG.scanned)) {  // a new scan: flash the card + a big pop-up for the room
       $('pkgCard').classList.add('flash');
       setTimeout(() => $('pkgCard').classList.remove('flash'), 900);
+      $('toastCode').textContent = cur.code;
+      $('toastZone').innerHTML = '<span class="lane ' + esc(cur.lane) + '">' + esc(cur.lane) + '</span> → zone ' + esc(cur.zone) +
+        (cur.zip5 ? ' · pincode ' + esc(cur.zip5) : '');
+      $('scanToast').classList.add('show');
+      clearTimeout(PKG.toastT);
+      PKG.toastT = setTimeout(() => $('scanToast').classList.remove('show'), 5000);
     }
+    PKG.scanned = cur.scanned;
     PKG.code = cur.code;
   }
 

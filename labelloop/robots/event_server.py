@@ -273,6 +273,12 @@ class Relay:
                             g = reply["actions"].get(arm, {}).get("gripper")
                             if isinstance(g, list) and g and float(g[-1]) > float(state[arm]["gripper"]) + 0.05:  # this chunk opens the gripper
                                 reply["actions"][arm]["gripper"] = [max(float(v), self.open_wide) for v in g]
+                    keep = (getattr(harness, "active", None) or {}).get("keep_claws") if harness else None
+                    if keep and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # WALLX moves the arm, never its claw
+                        for arm, g in keep.items():  # (e.g. the parcel stays gripped while WALLX carries it; released by a later step)
+                            a = reply["actions"].get(arm + "_ee")
+                            if isinstance(a, dict) and isinstance(a.get("gripper"), list):
+                                a["gripper"] = [float(g)] * len(a["gripper"])
                     locked = set(self.lock_arm) | set(harness.lock_arms() if harness and hasattr(harness, "lock_arms") else ())
                     if locked and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
                         held = hold_response(req["embodiment"], state)["actions"]
