@@ -37,8 +37,9 @@ def norm_code(text):
 BOARD = __import__("pathlib").Path(__file__).resolve().parents[1] / "runs" / "package" / "board.json"  # the phone scanner's board
 
 
-def phone_code(max_age=180.0, path=None, since=None):
-    """The code the phone scanner read last (dashboard /scan -> runs/package/board.json), if seen within max_age seconds; else None."""
+def phone_code(max_age=180.0, path=None, since=None, exclude=()):
+    """The code the phone scanner read last (dashboard /scan -> runs/package/board.json), if seen within max_age seconds; else None.
+    exclude: codes that never count (multi-parcel: the parcels already sorted, e.g. the phone sees one in its bin again)."""
     import json
     import time
     try:
@@ -48,7 +49,8 @@ def phone_code(max_age=180.0, path=None, since=None):
     t = float(cur.get("last_seen") or cur.get("scanned") or 0)
     if since is not None and t < since:  # an old scan (an earlier parcel) never counts
         return None
-    return norm_code(cur.get("code")) if cur.get("code") and time.time() - t <= max_age else None
+    code = norm_code(cur.get("code")) if cur.get("code") and time.time() - t <= max_age else None
+    return None if code in exclude else code
 
 
 def any_barcodes(img):
@@ -209,6 +211,7 @@ class Sequence:
         self.subgoal_changed, self.done, self.state_name, self.last_log = True, False, "SEQ0", None
         self.spot, self.spot0 = None, None  # the parcel's start box and its non-mat fraction (for "until": "lifted")
         self.bin_mat0, self.binhit, self.held = None, 0, False
+        self._phone_step, self.phone_codes = None, []  # the phone read step waiting now; codes the phone gave earlier parcels
         self.active = None  # the step executed this call (scripted_reply needs it)  # bin watchdog: mat uncovered where a bin stood -> hold for good
 
     @property
@@ -292,10 +295,19 @@ class Sequence:
         if self.spot is None and self.spec.get("mat"):  # the parcel's start spot, once
             self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
-        while self.step_spec is not None and ("read" in self.step_spec or "locate" in self.step_spec):  # cost no robot call
+        while self.step_spec is not None and ("read" in self.step_spec or "locate" in self.step_spec or "if_parcel" in self.step_spec):  # cost no robot call
+            if "if_parcel" in self.step_spec:  # multi-parcel: another parcel still on the table (head camera)? none -> last step (home)
+                if find_parcel_px(images["front"], self.step_spec.get("roi")) is None:
+                    self.all_sorted = True
+                    self.i, self.calls = max(self.i + 1, len(self.spec["steps"]) - 1), 0
+                else:
+                    self.i, self.calls = self.i + 1, 0
+                continue
             if self.step_spec.get("from_phone"):  # the label comes from the phone scanner: hold (arms still) until it has read one
-                self._phone_since = getattr(self, "_phone_since", None) or __import__("time").time() - 2.0
-                code = phone_code(self.step_spec.get("max_age", 180), since=self._phone_since)  # a scan made for THIS parcel only
+                if getattr(self, "_phone_step", None) != self.i:  # each read step waits for a scan made after IT started
+                    self._phone_step, self._phone_since = self.i, __import__("time").time() - 2.0  # (2nd parcel: never the 1st one's)
+                done = getattr(self, "phone_codes", []) if self.step_spec.get("new_code") else ()
+                code = phone_code(self.step_spec.get("max_age", 180), since=self._phone_since, exclude=done)  # a scan made for THIS parcel only
                 if not code and self.calls < self.step_spec.get("wait_calls", 0):
                     self.calls += 1
                     self.waiting_phone = True
@@ -303,6 +315,7 @@ class Sequence:
                 self.waiting_phone = False
                 if code:
                     self.code, self.source, self.mat = code, "phone", bin_for(code)
+                    self.phone_codes = getattr(self, "phone_codes", []) + [code]
                     self.i, self.calls = self.i + 1, 0
                     continue
                 if self.step_spec.get("required", True):  # no scan in time: never guess a zone; skip to the last step (home)
@@ -343,7 +356,8 @@ class Sequence:
         elif s is not None and "autopick" in s:  # find the parcel on the head camera, then: above it (claw open) -> down -> close -> lift
             c = s["autopick"]
             if self.calls == 0:
-                px = find_parcel_px(images["front"], c.get("roi"))
+                tb = self._scanned_parcel(images["front"], c) if c.get("target") == "scan" else None  # several parcels: the scanned one
+                px = (tb[0] + tb[2] / 2, tb[1] + tb[3] / 2) if tb else find_parcel_px(images["front"], c.get("roi"))
                 if px is None:  # nothing found: skip the pick (and the step after it, the WALLX place) to the end
                     self.no_parcel = True
                     self.i, self.calls = len(self.spec["steps"]) - 1, 0
@@ -358,7 +372,7 @@ class Sequence:
                     self.pick_arm, self.pick_px = arm, [round(px[0]), round(px[1])]
                     from labelloop.dashboard.track import find_parcel as _fp
                     import cv2 as _cv2
-                    bb = _fp(_cv2.cvtColor(images["front"], _cv2.COLOR_RGB2BGR))
+                    bb = tb or _fp(_cv2.cvtColor(images["front"], _cv2.COLOR_RGB2BGR))
                     self.pick_box = bb if bb else (int(px[0]) - 40, int(px[1]) - 30, 80, 60)
                     p0 = list(state[arm + "_ee"]["position"])
                     self.pick_plan = [([p0[0], p0[1], zh], rpy, 1.5, 3),  # straight up first (never sweep low across the table)
@@ -492,6 +506,7 @@ class Sequence:
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
+                                   else ["no parcel left on the table: all sorted, going home"] if getattr(self, "all_sorted", False) and self.i != before
                                    else ["parcel taken out of the bin: WALLX gets the task again"] if getattr(self, "parcel_back", False) and self.i != before
                                    else ["pick missed (parcel still on its spot): picking again"] if getattr(self, "pick_retry_flag", False)
                                    else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
@@ -499,6 +514,10 @@ class Sequence:
             self.task_done = False  # log it once
         if "parcel taken out of the bin: WALLX gets the task again" in self.last_log["flags"]:
             self.parcel_back = False
+        if "no parcel left on the table: all sorted, going home" in self.last_log["flags"]:
+            self.all_sorted = False
+        if getattr(self, "pick_match", None):  # which parcel the autopick chose as the scanned one (label / aim / largest)
+            self.last_log["pick_match"] = self.pick_match
         self.pick_retry_flag = False
         if self.runlog:
             self.runlog.write(**self.last_log)
@@ -566,6 +585,38 @@ class Sequence:
         mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).mean()
         self.pick_mat = round(float(mat), 2)
         return mat < 0.45
+
+    def _scanned_parcel(self, front, c):
+        """Several parcels on the table: the box (x, y, w, h) of the one the phone just scanned, or None if there is none.
+        1) the parcel under the head-camera label with the scanned pincode; 2) the one nearest c["aim"] ([x, y] image fractions:
+        where the phone points at the scan pose); 3) the largest. self.pick_match says which rule chose it."""
+        import cv2
+        from labelloop.dashboard.track import find_parcels
+        img = cv2.cvtColor(front, cv2.COLOR_RGB2BGR)
+        H, W = img.shape[:2]
+        roi = c.get("roi")
+        if roi:  # outside the x-range counts as mat (same as find_parcel_px)
+            img[:, :int(roi[0] * W)] = (90, 140, 40)
+            img[:, int(roi[1] * W):] = (90, 140, 40)
+        boxes = find_parcels(img)
+        if not boxes:
+            return None
+        gap = lambda b, p: np.hypot(max(b[0] - p[0], 0, p[0] - b[0] - b[2]), max(b[1] - p[1], 0, p[1] - b[1] - b[3]))  # 0 inside  # noqa: E731
+        zip5 = (self.code or "")[4:9]
+        if len(boxes) > 1 and zip5.isdigit():
+            labels = [xy for t, xy in locate(front) + any_barcodes(front) if (norm_code(t) or "")[4:9] == zip5]
+            if not labels:
+                labels = [xy for z, xy in label_ocr.zips(front, self.spec.get("roi", [0.02, 0.17, 0.98, 1.0])) if z == zip5]
+            hits = sorted((gap(b, p), k) for p in labels for k, b in enumerate(boxes))
+            if hits and hits[0][0] <= c.get("label_r", 0.05) * W:
+                self.pick_match = "label"
+                return boxes[hits[0][1]]
+        if len(boxes) > 1 and c.get("aim"):
+            ax, ay = c["aim"][0] * W, c["aim"][1] * H
+            self.pick_match = "aim"
+            return min(boxes, key=lambda b: gap(b, (ax, ay)))
+        self.pick_match = "largest" if len(boxes) > 1 else "only"
+        return boxes[0]
 
     def _with_grips(self, state, targets):
         """Every arm holding a delicate object keeps its hold command (a plain 'hold still' would command the measured opening:

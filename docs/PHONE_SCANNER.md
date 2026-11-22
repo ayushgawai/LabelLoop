@@ -64,6 +64,27 @@ history list.
 - "Cannot reach the laptop" on the phone: check that both are on the same Wi-Fi, that the IP matches what the dashboard printed, and
   the firewall.
 
+## Several parcels: case 2b (dashboard "▶ 2b · Phone multi-parcel")
+
+Recipe `scenarios/wx/case2_multi.json` (steps `case2_multi_steps.json`). It is case 2's steps with the same speeds and the same
+WALLX sentence, repeated for up to 3 parcels. The phone is loaded once.
+
+- **Setup:** 2–3 labelled parcels, labels up, on the middle / right half of the table, about 10 cm apart, each with a different label.
+  Phone on the scanner page with Start camera tapped; arms at rest. One parcel also works: the robot goes home after it.
+- **Each round:**
+  1. The left arm holds the phone at the scan pose until it reads a NEW code. A parcel sorted earlier never counts again, even if
+     the phone sees it in its bin.
+  2. The harness routes the code.
+  3. The right arm picks the scanned parcel, then WALLX carries it into that zone.
+- **Which parcel the pick takes:** the one under a head-camera label with the same pincode. If the head camera can't read the
+  label, the one nearest where the phone points (`aim`). The phone page also puts the label nearest the middle of its picture
+  first.
+- **Rounds 2 and 3:** each starts with a head-camera look at the table. If no parcel is left, the left arm goes home with the
+  phone.
+- **Tune on the bench:** `aim` in the autopick steps (`[0.62, 0.58]`, head image fractions, in front of zone 2's front-left
+  corner) is an estimate. Set it to where the phone actually points at the scan pose. The run log's `pick_match` says which rule
+  chose each parcel (`label` / `aim` / `largest` / `only`).
+
 ## Routing shown on the card
 
 Same rule as the relay (`labelloop.sequence.bin_for`) and the same zones as every scenario steps file:
@@ -85,4 +106,4 @@ Same rule as the relay (`labelloop.sequence.bin_for`) and the same zones as ever
 | `POST /api/package/clear` | empty the board |
 
 Code: `labelloop/dashboard/{package.py, tls.py, scan.html}`, routes in `server.py`, card in `index.html`. Tests:
-`tests/test_package_scanner.py`.
+`tests/test_package_scanner.py`, `tests/test_phone_multi.py` (case 2b).

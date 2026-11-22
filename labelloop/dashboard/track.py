@@ -22,8 +22,8 @@ def _table_mask(hsv):
     return inside, mat
 
 
-def find_parcel(img_bgr):
-    """(x, y, w, h) of the loose parcel (not a tray / bin in a zone, not the table edge), or None."""
+def find_parcels(img_bgr, min_area=1500):
+    """[(x, y, w, h)] of every loose parcel on the table (not a tray / bin in a zone, not the table edge), largest first."""
     from labelloop.sequence import ZONE_BOXES
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     inside, mat = _table_mask(hsv)  # the mat's hull (no wall), minus the zones (trays / bins) and parked claws
@@ -33,11 +33,13 @@ def find_parcel(img_bgr):
     m = ((mat == 0) & (inside > 0)).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((15, 15), np.uint8))  # thin tape lines and digits drop out
     n, _, st, _ = cv2.connectedComponentsWithStats(m)
-    if n < 2:
-        return None
-    i = 1 + int(np.argmax(st[1:, 4]))
-    x, y, w, h, a = st[i]
-    return (int(x), int(y), int(w), int(h)) if a > 1500 else None
+    return [(int(x), int(y), int(w), int(h)) for x, y, w, h, a in sorted(st[1:], key=lambda r: -r[4]) if a > min_area]
+
+
+def find_parcel(img_bgr):
+    """(x, y, w, h) of the loose parcel (the largest one), or None."""
+    boxes = find_parcels(img_bgr)
+    return boxes[0] if boxes else None
 
 
 _STATE, _LOCK = {}, threading.Lock()  # per trial: tracker state kept in memory, so a live trial only processes its NEW frames

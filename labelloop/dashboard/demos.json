@@ -147,6 +147,181 @@
   ]
  },
  {
+  "id": "case2m",
+  "label": "2b · Phone multi-parcel",
+  "trial": null,
+  "run": "scenarios/wx/case2_multi.json",
+  "recipe": "scenarios/wx/case2_multi.json",
+  "relay": "--sequence scenarios/wx/case2_multi_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
+  "title": "Case 2b, handheld scanner, several parcels: the left hand holds the phone and scans one label at a time; the harness routes each code; the right hand picks that parcel and WALLX sorts it; repeats until the table is clear",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (5 s, claw wide open). Hands off after that.",
+    "detail": "5 s."
+   },
+   {
+    "who": "harness",
+    "title": "Gentle grip on the phone",
+    "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
+    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
+   },
+   {
+    "who": "harness",
+    "title": "Parcel 1: left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home quickly (scan done)",
+    "prompt": "Left arm: straight back to rest, keep the phone.",
+    "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
+   },
+   {
+    "who": "harness",
+    "title": "Pick the scanned parcel",
+    "prompt": "Of the parcels on the head camera, pick the one the phone read: move above it, open, go down, close tight, lift.",
+    "detail": "The parcel under the head-camera label with the same pincode; if the head camera cannot read it, the one nearest where the phone points; middle / right of the table."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX carries the parcel into the scanned zone",
+    "detail": "Right arm; the left (phone) arm is locked."
+   },
+   {
+    "who": "harness",
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Another parcel on the table?",
+    "prompt": "Look at the table on the head camera.",
+    "detail": "None left: all sorted, go home with the phone. Otherwise scan the next one."
+   },
+   {
+    "who": "harness",
+    "title": "Parcel 2: left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "A NEW scan only: a parcel already sorted never counts again (the phone may see it in its bin). The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home quickly (scan done)",
+    "prompt": "Left arm: straight back to rest, keep the phone.",
+    "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
+   },
+   {
+    "who": "harness",
+    "title": "Pick the scanned parcel",
+    "prompt": "Of the parcels on the head camera, pick the one the phone read: move above it, open, go down, close tight, lift.",
+    "detail": "The parcel under the head-camera label with the same pincode; if the head camera cannot read it, the one nearest where the phone points; middle / right of the table."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX carries the parcel into the scanned zone",
+    "detail": "Right arm; the left (phone) arm is locked."
+   },
+   {
+    "who": "harness",
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Another parcel on the table?",
+    "prompt": "Look at the table on the head camera.",
+    "detail": "None left: all sorted, go home with the phone. Otherwise scan the next one."
+   },
+   {
+    "who": "harness",
+    "title": "Parcel 3: left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "A NEW scan only: a parcel already sorted never counts again (the phone may see it in its bin). The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home quickly (scan done)",
+    "prompt": "Left arm: straight back to rest, keep the phone.",
+    "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
+   },
+   {
+    "who": "harness",
+    "title": "Pick the scanned parcel",
+    "prompt": "Of the parcels on the head camera, pick the one the phone read: move above it, open, go down, close tight, lift.",
+    "detail": "The parcel under the head-camera label with the same pincode; if the head camera cannot read it, the one nearest where the phone points; middle / right of the table."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX carries the parcel into the scanned zone",
+    "detail": "Right arm; the left (phone) arm is locked."
+   },
+   {
+    "who": "harness",
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home with the phone",
+    "prompt": "Left arm: back to rest, keep holding the phone.",
+    "detail": "The phone stays gripped; take it out after the run."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
+ },
+ {
   "id": "case3",
   "label": "3 · Multi-parcel",
   "trial": null,

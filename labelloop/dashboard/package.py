@@ -30,7 +30,7 @@ def parse(code):
 
 
 def decode_jpeg(data):
-    """QR texts in one JPEG/PNG (bytes); [] if it is not an image or has no readable QR."""
+    """QR / barcode texts in one JPEG/PNG (bytes), nearest the image centre first; [] if it is not an image or has no readable code."""
     import cv2
     import numpy as np
     from labelloop.perception.qr import locate
@@ -38,12 +38,14 @@ def decode_jpeg(data):
     if img is None:
         return []
     from labelloop.sequence import any_barcodes, norm_code  # also 1D barcodes and bare pincodes (90291 -> 420/90291/000)
-    rgb, seen = cv2.cvtColor(img, cv2.COLOR_BGR2RGB), []
-    for text, _ in locate(rgb) + any_barcodes(rgb):
+    rgb, dist = cv2.cvtColor(img, cv2.COLOR_BGR2RGB), {}
+    h, w = rgb.shape[:2]
+    for text, (cx, cy) in locate(rgb) + any_barcodes(rgb):
         text = norm_code(text) or text
-        if text and text not in seen:
-            seen.append(text)
-    return seen
+        if text:
+            d = (cx - w / 2) ** 2 + (cy - h / 2) ** 2
+            dist[text] = min(d, dist.get(text, d))
+    return sorted(dist, key=dist.get)  # nearest the frame centre first: several labels in view -> the one the phone points at
 
 
 class PackageBoard:
