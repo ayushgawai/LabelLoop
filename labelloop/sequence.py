@@ -220,8 +220,12 @@ class Sequence:
                 return None
             d, (a, b) = s["_demo"], span
             acts = {}
+            u = np.linspace(0, 1, 32)
+            ease = u * u * (3 - 2 * u) if s.get("ease", True) else u  # each chunk eases in / out: the client pauses between chunks, no hard stop
             for arm in ("left", "right"):
-                rows = d[arm][a:b] + [d[arm][b - 1]] * (32 - (b - a))
+                seg = np.asarray(d[arm][a:b], float)
+                src = np.linspace(0, 1, len(seg)) if len(seg) > 1 else np.zeros(1)
+                rows = [[float(np.interp(e, src, seg[:, k])) for k in range(seg.shape[1])] for e in ease] if len(seg) > 1 else [seg[0].tolist()] * 32
                 acts[arm + "_ee"] = {"position": [r[:3] for r in rows], "rotation_rpy": [r[3:6] for r in rows], "gripper": [r[6] for r in rows]}
             return {"embodiment": embodiment, "actions": acts}
         if not s or "move" not in s:

@@ -134,14 +134,14 @@ def convert_claw_exact(name, speed="2", heavy="1.0", out_name=None):
     idx = np.flatnonzero(moving | gchg)
     lo, hi = (max(idx[0] - 10, 0), min(idx[-1] + 10, n)) if len(idx) else (0, n)
     claw = np.convolve(gchg.astype(float), np.ones(2 * W + 1), mode="same") > 0  # +-1 s around every gripper change
-    vmax = 0.18  # m/s cap on playback speed outside the claw segments
+    vmax = float(os.environ.get("LL_VMAX", "0.18"))  # m/s cap on playback speed outside the claw segments
     fast = np.clip(vmax / np.maximum(step / DT, 1e-6), 1.0, speed)  # up to `speed`, never faster than vmax
     rate = np.where(claw, 1.0, np.where(step > 0.0005, fast, 10.0))  # playback rate per recorded row: claw 1x, moving <=2x, pauses 10x
     seg = slice(lo, hi)
     tnew = np.r_[0, np.cumsum(1.0 / rate[seg][1:])]  # warped time in rows (continuous: no jumps)
     m = int(np.floor(tnew[-1])) + 1
     grid = np.arange(m, dtype=float)
-    hw, lw = max(1, int(round(heavy / DT))), max(1, int(round(0.2 / DT)))
+    hw, lw = max(1, int(round(heavy / DT))), max(1, int(round(float(os.environ.get("LL_CLAW_SMOOTH", "0.2")) / DT)))
     wclaw = np.interp(grid, tnew, np.convolve(claw[seg].astype(float), np.ones(15) / 15, mode="same"))
     out = {}
     for a in X:
