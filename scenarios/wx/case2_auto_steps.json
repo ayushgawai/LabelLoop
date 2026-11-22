@@ -29,8 +29,8 @@
      "gripper": 1.5
     }
    },
-   "calls": 6,
-   "max_step": 0.04
+   "calls": 3,
+   "max_step": 0.08
   },
   {
    "wait": "Put the phone in the LEFT claw now (scanner page open, 3x, camera facing out of the claw tip).",
@@ -69,17 +69,17 @@
      ]
     }
    },
-   "calls": 7,
-   "max_step": 0.06
+   "calls": 3,
+   "max_step": 0.12
   },
   {
    "autopick": {
     "arm": "right",
     "z": 0.02,
     "tries": 8,
-    "max_step": 0.09,
-    "approach_calls": 5,
-    "down_calls": 3
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
    }
   },
   {
@@ -96,7 +96,7 @@
   },
   {
    "release": "right",
-   "calls": 4,
+   "calls": 3,
    "open_calls": 2,
    "lift": 0.08
   },
@@ -116,8 +116,8 @@
      "gripper": 0.0
     }
    },
-   "calls": 8,
-   "max_step": 0.05
+   "calls": 4,
+   "max_step": 0.1
   },
   {
    "move": {
@@ -134,8 +134,8 @@
      ]
     }
    },
-   "calls": 10,
-   "max_step": 0.04
+   "calls": 5,
+   "max_step": 0.08
   }
  ]
 }

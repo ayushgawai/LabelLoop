@@ -2,7 +2,7 @@
  "name": "case2_auto",
  "goal": "Case 2 phone scanner, parcel anywhere: phone in the left claw scans the label; the harness routes it; the right arm picks the parcel where the head camera sees it; WALLX carries it into the scanned zone.",
  "setup": "Phone (scanner page, Start camera) ready; parcel anywhere on the right half of the table, label up; arms at rest.",
- "relay": "--sequence scenarios/wx/case2_auto_steps.json --slow 0.6 --no-reset-on-subgoal --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/case2_auto_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
  "seconds": 470,
  "wording": {},
  "quick": true
