@@ -127,8 +127,15 @@ class Harness:
             codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
             if codes:
                 self.code_px = codes[0][1]
-        if not codes and self.cfg.get("assume_code") and before in ("SCAN", "CENTER") and self.obj_box is not None:  # PRACTICE ONLY (relay --assume-code): manipulation trials without label reading
-            codes = [(self.cfg["assume_code"], ((self.obj_box[0] + self.obj_box[2]) / 2, (self.obj_box[1] + self.obj_box[3]) / 2))]
+        if not codes and self.cfg.get("assume_code"):  # DEMO ONLY (relay --assume-code): the label counts as read
+            c = self.cfg
+            if c.get("assume_after_search"):  # read first; turn the parcel (INSPECT); only after the last look use the demo code
+                last = before == "INSPECT" and self.sm.tries.get("INSPECT", 0) >= c["tries"].get("INSPECT", 0) and self.sm.calls >= c["max_calls"]["INSPECT"] - 1 - c["qr_confirm_frames"]  # confirmed over qr_confirm_frames frames
+                if last:
+                    codes = [(c["assume_code"], self.code_px or (front.shape[1] / 2, front.shape[0] * 0.7))]
+                    self.log(demo="assumed code after the label search failed")
+            elif before in ("SCAN", "CENTER") and self.obj_box is not None:
+                codes = [(c["assume_code"], ((self.obj_box[0] + self.obj_box[2]) / 2, (self.obj_box[1] + self.obj_box[3]) / 2))]
         if not codes and self.cfg.get("event_fast") and self.cfg.get("zip_ocr", True) and before in ("SCAN", "CENTER"):  # QR too small: OCR the printed ZIP (confirmed over frames)
             codes = [("420/%s/000" % z, p) for z, p in label_ocr.zips(qf, cfg["induction_roi"]) if on(p)]
             if codes:
@@ -230,7 +237,12 @@ class Harness:
         return instr
 
     def _spot_presence(self, front, cfg, spot):
-        x0, y0, x1, y1 = spot
+        """Non-mat fraction of the parcel's start spot (no reference image: s2 run 2, 0.91 with the box, 0.0 once it left; the inpainted
+        reference left a patch that still read as changed). Falls back to the reference change without a mat colour."""
+        x0, y0, x1, y1 = [int(v) for v in spot]
+        if cfg.get("mat"):
+            m = scene._mask(front, [cfg["mat"]], max(2, front.shape[1] // 200))[y0:y1, x0:x1]
+            return float(1 - (m > 0).mean()) if m.size else 0.0
         changed = scene.changed_mask(front, self.ref, cfg)
         return np.count_nonzero(changed[y0:y1, x0:x1]) / ((x1 - x0) * (y1 - y0))
 

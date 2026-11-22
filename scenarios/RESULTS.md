@@ -13,3 +13,4 @@
 - 2026-11-21 17:18 | a3_right_place_red | parcel_moved True gone False | bin_moved [] | runs/atomic/a3_right_place_red_20261121_171747 | observed: (fill in)
 - 2026-11-21 17:20 | a3_right_place_red | parcel_moved True gone False | bin_moved [] | runs/atomic/a3_right_place_red_20261121_171923 | observed: (fill in)
 - 2026-11-21 17:26 | s2_sort_red run_1 | harness no verdict in None s | observed: - | states {'IDLE': 1, 'SCAN': 2, 'PLACE': 59} | flags []
+- 2026-11-21 17:31 | s2_sort_red run_2 | harness no verdict in None s | observed: - | states {'IDLE': 1, 'SCAN': 2, 'PLACE': 26, 'HOLD': 33} | flags ['bin_moved']
