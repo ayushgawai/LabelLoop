@@ -1,0 +1,40 @@
+{
+ "watchdog": false,
+ "steps": [
+  {
+   "replay": "scenarios/keepers/sc2/scenario2_kf.json"
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 6,
+   "max_step": 0.05
+  }
+ ]
+}

@@ -46,3 +46,9 @@
 - 2026-11-21 22:42 | sc1_pick_place run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 22:45 | sc1_pick_place run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 22:46 | SCENARIO 1 FINAL 3/3 (sc1_pick_place run_1..3) | recipe scenarios/keepers/sc1/recipe.json | videos runs/scenarios/sc1_pick_place/run_*/demo.mp4
+- 2026-11-21 22:59 | sc2_straighten_pick run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 23:06 | sc2h_straighten_wallx_pick run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 23:19 | sc2_miro_right_zone2 run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 23:24 | sc2_miro_right_zone2 run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 23:27 | sc2_miro_right_zone2 run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 23:27 | SCENARIO 2 FINAL 3/3 (sc2_miro_right_zone2 run_1..3) | recipe scenarios/keepers/sc2/recipe.json | videos runs/scenarios/sc2_miro_right_zone2/run_*/demo.mp4

@@ -1,0 +1,8 @@
+{
+ "name": "sc2_final",
+ "goal": "Scenario 2 (FINAL): Miro box, label 90012 -> red, right arm picks it and places it in zone 2 (keyframe replay of Ayush's controller demo: claw moments with dwells, smooth slow moves, 0.09 m/s peak), then home. 3/3 on 2026-11-22.",
+ "setup": "Miro box on its taped start marks (standing on its long edge, label facing the camera); arms at rest.",
+ "relay": "--sequence scenarios/keepers/sc2/steps.json",
+ "seconds": 100,
+ "wording": {}
+}
