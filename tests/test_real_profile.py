@@ -134,7 +134,7 @@ def test_save_images(env, tmp_path):  # noqa: F811
 FAST = {**CFG, "profile": "real", "real_safe": True, "event_fast": True}
 EMPTY = {"presence": 0.0, "kroi": 0, "codes": set(), "bins": {"blue": 0, "red": 0, "black": 0}, "raw": set()}
 ON = {**EMPTY, "presence": 0.3}
-LANDED = {**EMPTY, "bins": {"blue": 0.1, "red": 0, "black": 0}}
+LANDED = {**EMPTY, "bins": {"blue": 0.2, "red": 0, "black": 0}}  # real drop: target bin ~0.23 (c2)
 CODE = "420/95123/001"  # ZIP3 951 -> lane A (blue)
 
 
@@ -528,3 +528,11 @@ def test_bin_where_and_frozen_where():
     assert sm.instruction() == "put the box into the red bin at the back right"
     sm.step({"presence": 0.4, "kroi": 0, "codes": set(), "raw": set(), "bins": {"blue": 0, "red": 0, "black": 0}, "where": "right"})
     assert sm.where == "middle"
+
+
+def test_real_success_thresholds():  # c2: IQBAR dropped in red: red 0.23, zone 0.06-0.15 (resting arms); while carried the zone read 0.36+
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True})
+    sm = StateMachine(cfg)
+    sm.lane = [k for k, v in cfg["lanes"].items() if v == "red"][0]
+    ev = {"presence": 0.10, "bins": {"blue": 0.0, "red": 0.23, "black": 0.4}}
+    assert sm._success(ev) and not sm._success({**ev, "presence": 0.36})

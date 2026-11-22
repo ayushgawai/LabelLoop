@@ -1,0 +1,12 @@
+{
+  "name": "s1_pick_place",
+  "goal": "Pick and place: a wide parcel lifted with the two-arm squeeze and dropped into its bin (red).",
+  "setup": "IQBAR box (267x102x64 mm) lying flat in the middle of the table, long side left-right, label up; bins on their marks (blue back-left, red back-right, black right edge); arms at rest.",
+  "relay": "--stage --assume-code 420/90024/001",
+  "seconds": 150,
+  "wording": {
+    "PICK_WIDE": "use both arms to squeeze the short ends of the box and lift it up",
+    "PLACE_WIDE": "put the box into the {mat} bin with both arms"
+  },
+  "notes": "Recipe of trial c2 attempt 1 (2026-11-21 15:53): lifted and dropped into red in ~20 s. Label reading is skipped (--assume-code) here; it is scenario 3."
+}

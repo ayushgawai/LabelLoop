@@ -25,6 +25,9 @@ def apply_profile(cfg):
     prof = cfg["profiles"][cfg.get("profile", "sim")]
     ab = look.set_profile(prof)
     cfg["look"].update(ab)
+    for k in ("success_presence_max", "success_bin_gain"):  # real success thresholds (c2: parcel in red -> red 0.23, zone 0.06-0.15; carrying -> zone 0.36+)
+        if k in prof:
+            cfg["scene"] = {**cfg["scene"], k: prof[k]}
     if prof.get("bin_words"):
         cfg["bin_words"] = prof["bin_words"]
     if prof.get("bin_rois"):  # measured on the real head image: overrides the sim bin regions (blanking, bin-change success)
@@ -124,6 +127,8 @@ class Harness:
             codes = [(t, p) for t, p in ((t, (cb[0] + x / 2, cb[1] + y / 2)) for t, (x, y) in locate(crop)) if on(p)]
             if codes:
                 self.code_px = codes[0][1]
+        if not codes and self.cfg.get("assume_code") and before in ("SCAN", "CENTER") and self.obj_box is not None:  # PRACTICE ONLY (relay --assume-code): manipulation trials without label reading
+            codes = [(self.cfg["assume_code"], ((self.obj_box[0] + self.obj_box[2]) / 2, (self.obj_box[1] + self.obj_box[3]) / 2))]
         if not codes and self.cfg.get("event_fast") and self.cfg.get("zip_ocr", True) and before in ("SCAN", "CENTER"):  # QR too small: OCR the printed ZIP (confirmed over frames)
             codes = [("420/%s/000" % z, p) for z, p in label_ocr.zips(qf, cfg["induction_roi"]) if on(p)]
             if codes:

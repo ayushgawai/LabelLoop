@@ -214,7 +214,8 @@ class StateMachine:
         if not self.lane and self.cfg.get("reject_mode", "tray") == "floor_right":
             return ev["presence"] < sc["presence_min"]  # swiped off the table: the zone is empty
         bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
-        return ev["presence"] < sc["presence_min"] and ev["bins"][bin_] >= sc["bin_gain"]
+        return (ev["presence"] < sc.get("success_presence_max", sc["presence_min"])  # real table: resting arms keep the zone at 0.06-0.15 after a drop
+                and ev["bins"][bin_] >= sc.get("success_bin_gain", sc["bin_gain"]))
 
     def _route(self, lane, reason, code=None, obj="block", slide=True):
         self.lane, self.code, self.reason, self.obj = lane, code, reason, obj

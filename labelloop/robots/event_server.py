@@ -215,6 +215,7 @@ async def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
+    p.add_argument("--assume-code", default="", help="PRACTICE ONLY: treat the object on the table as carrying this code (manipulation trials without label reading)")
     p.add_argument("--stage", action=argparse.BooleanOptionalAction, default=False, help="event_fast staged delivery with per-stage bin masking (hard rule: WALLX cannot see the bins it must not grab)")
     p.add_argument("--passthrough", action="store_true", help="forward with the client's instruction, no harness")
     p.add_argument("--task", default="configs/task_qr_sort.yaml")
@@ -236,6 +237,7 @@ async def main():
         from labelloop.eval.runlog import RunLog
         from labelloop.harness import Harness
         task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
+        task["assume_code"] = a.assume_code or None  # practice only
         task["event_fast_stage"] = a.stage  # STAND (wide) -> PICK (all bins hidden) -> PLACE (only the target bin visible)
         if a.wording:  # JSON {state: template or [templates]} overriding the WALLX instruction wording (scripts/trial_agent.py)
             task["wording"] = json.loads(Path(a.wording).read_text() or "{}")
