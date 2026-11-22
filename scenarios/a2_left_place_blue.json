@@ -1,0 +1,9 @@
+{
+ "name": "a2_left_place_blue",
+ "goal": "Left arm picks the standing IQBAR and drops it into the BLUE bin (bin named in the instruction), right arm locked.",
+ "setup": "IQBAR standing on its long narrow side, long axis front-to-back, about 15 cm in front of the blue bin and at least a hand's width from the left gripper; bins on their marks; arms at rest.",
+ "relay": "--lock-arm right",
+ "instruction": "put the IQBAR box into the blue bin",
+ "seconds": 45,
+ "notes": "2026-11-21: 2/3 into blue (17:08, 17:10); 17:12 failed: parcel started against the left gripper (no room to approach). Rotation offset is not a trained control_context parameter, so left-to-right boxes are knocked over."
+}

@@ -53,7 +53,7 @@ def main():
     rec = json.loads(Path(o.recipe).read_text()) if o.recipe else None
     if rec:
         o.instructions, o.relay, o.seconds = [rec["instruction"]], rec.get("relay", ""), rec.get("seconds", o.seconds)
-    out = ROOT / "runs/atomic" / ((rec["name"] + "_") if rec else "") + time.strftime("%Y%m%d_%H%M%S")
+    out = ROOT / "runs/atomic" / (((rec["name"] + "_") if rec else "") + time.strftime("%Y%m%d_%H%M%S"))
     out.mkdir(parents=True)
     results, tiles = [], []
     for k, instr in enumerate(o.instructions):
