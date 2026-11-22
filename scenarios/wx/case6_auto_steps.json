@@ -29,7 +29,11 @@
     "roi": [
      0.0,
      0.5
-    ]
+    ],
+    "tries": 8,
+    "max_step": 0.09,
+    "approach_calls": 5,
+    "down_calls": 3
    }
   },
   {
@@ -98,7 +102,11 @@
     "roi": [
      0.5,
      1.0
-    ]
+    ],
+    "tries": 8,
+    "max_step": 0.09,
+    "approach_calls": 5,
+    "down_calls": 3
    }
   },
   {

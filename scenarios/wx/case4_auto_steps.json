@@ -16,7 +16,11 @@
   {
    "autopick": {
     "arm": "left",
-    "z": -0.01
+    "z": -0.01,
+    "tries": 8,
+    "max_step": 0.09,
+    "approach_calls": 5,
+    "down_calls": 3
    }
   },
   {
@@ -84,7 +88,11 @@
   {
    "autopick": {
     "arm": "left",
-    "z": -0.01
+    "z": -0.01,
+    "tries": 8,
+    "max_step": 0.09,
+    "approach_calls": 5,
+    "down_calls": 3
    }
   },
   {
@@ -152,7 +160,11 @@
   {
    "autopick": {
     "arm": "left",
-    "z": -0.01
+    "z": -0.01,
+    "tries": 8,
+    "max_step": 0.09,
+    "approach_calls": 5,
+    "down_calls": 3
    }
   },
   {

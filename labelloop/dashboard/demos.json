@@ -71,7 +71,7 @@
   "trial": null,
   "run": "scenarios/wx/case2_auto.json",
   "recipe": "scenarios/wx/case2_auto.json",
-  "relay": "--sequence scenarios/wx/case2_auto_steps.json --slow 0.3 --no-reset-on-subgoal --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case2_auto_steps.json --slow 0.6 --no-reset-on-subgoal --grip-binary 0.7",
   "title": "Case 2, handheld scanner: the left hand holds the phone and scans the label; the harness routes the code; WALLX sorts the parcel with the right hand",
   "steps": [
    {
@@ -152,7 +152,7 @@
   "trial": null,
   "run": "scenarios/wx/case3_auto.json",
   "recipe": "scenarios/wx/case3_auto.json",
-  "relay": "--sequence scenarios/wx/case3_auto_steps.json --slow 0.3 --no-reset-on-subgoal --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case3_auto_steps.json --slow 0.6 --no-reset-on-subgoal --grip-binary 0.7",
   "title": "Case 3, multi-parcel: the harness reads each parcel's label (left half, then right half of the table); WALLX sorts each into its zone",
   "steps": [
    {
@@ -226,7 +226,7 @@
   "trial": null,
   "run": "scenarios/wx/case4_auto.json",
   "recipe": "scenarios/wx/case4_auto.json",
-  "relay": "--sequence scenarios/wx/case4_auto_steps.json --slow 0.3 --no-reset-on-subgoal --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case4_auto_steps.json --slow 0.6 --no-reset-on-subgoal --grip-binary 0.7",
   "title": "Case 4, position change (harness + WALLX): the bag goes into zone 1; a person takes it out and puts it in the centre; the harness sees it, picks it up and WALLX puts it back into zone 1",
   "steps": [
    {
@@ -374,7 +374,7 @@
   "trial": null,
   "run": "scenarios/wx/case6_auto.json",
   "recipe": "scenarios/wx/case6_auto.json",
-  "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 0.3 --no-reset-on-subgoal --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 0.6 --no-reset-on-subgoal --grip-binary 0.7",
   "title": "Case 6, look-alikes: two identical IQBAR boxes; the one with a barcode goes to its zone, the one without a readable label goes to the reject zone 3",
   "steps": [
    {
