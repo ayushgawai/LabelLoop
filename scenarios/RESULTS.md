@@ -149,3 +149,6 @@
 - 2026-11-22 11:46 | sc5h run_4 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 11:55 | sc5j run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 11:55 | sc5j run_1 (WALLX does all motion, live re-targeting) | WALLX 110 calls, 3 re-targets (back middle, front right, centre); locate errors found in the recording (start: cap at the table's back edge missed -> 'middle left'; one re-target took the arm base for the cap -> 'front right'); fixed after: table polygon incl. the back edge, front strip excluded | video runs/scenarios/sc5j/run_1/demo.mp4
+- 2026-11-22 12:15 | sc5j run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:21 | sc5j run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:21 | sc5j run_3 (re-scan every 25 calls) | FAIL: cap moved to front-left at call 9 (re-target correct), re-scans at 25/50/75 correct; WALLX went to the cap again and again (claw around it, opened fully) but never lifted it in 110 calls (3 min); the cap lay tipped on its side | video runs/scenarios/sc5j/run_3/demo.mp4
