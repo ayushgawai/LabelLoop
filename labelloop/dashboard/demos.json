@@ -144,5 +144,60 @@
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
   ]
+ },
+ {
+  "id": "sc2",
+  "label": "Scenario 2",
+  "trial": null,
+  "run": "scenarios/wx/sc2_wallx.json",
+  "recipe": "scenarios/wx/sc2_wallx.json",
+  "relay": "--sequence scenarios/wx/sc2_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "title": "Scenario 2: the harness picks up the Miro box with the right arm, WALLX puts it into zone 2",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Harness call (right arm picks up the box)",
+    "detail": "The harness runs a stored scenario-2 trajectory (25 s, 32 rows per call) with the right arm: reach over the standing Miro box, grasp it from the top, lift it.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "right arm moves to above the box (claw closed)"
+     },
+     {
+      "call": 14,
+      "text": "right claw opens and lowers over the box"
+     },
+     {
+      "call": 21,
+      "text": "right claw closes on the box (grasp)"
+     },
+     {
+      "call": 22,
+      "text": "right arm lifts the box (WALLX starts from here)"
+     }
+    ]
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the box into zone 2 (right arm)",
+    "prompt": "Stretch to the top right corner of the table and put the black box into zone 2.",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm, holding the box. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to carry the box and where to set it down."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (release)",
+    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm straight up."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (both arms home)",
+    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
  }
 ]

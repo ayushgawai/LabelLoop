@@ -1,16 +1,11 @@
 {
  "watchdog": false,
- "zones": {
-  "blue": "1",
-  "red": "2",
-  "black": "3"
- },
  "steps": [
   {
    "replay": "scenarios/wx/sc2_pick.json"
   },
   {
-   "say": "Put the box into the square on the right side of the table.",
+   "say": "Stretch to the top right corner of the table and put the black box into zone 2.",
    "calls": 40,
    "arm": "right"
   },
