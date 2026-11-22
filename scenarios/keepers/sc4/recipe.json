@@ -1,0 +1,8 @@
+{
+ "name": "sc4_final",
+ "goal": "Scenario 4 (FINAL): Bhindi box (95126 -> blue): right arm picks it, hands it over to the left arm in the air, left arm puts it in zone 1. Smooth replay of Ayush's controller demo (claw dwells, 0.8 s x2 smoothing, 0.12 m/s peak, 102 s), then home. 3/3 on 2026-11-22 (trials 2-3 with this exact file).",
+ "setup": "Bhindi box on its taped start marks (right side, in front of zone 2); arms at rest.",
+ "relay": "--sequence scenarios/keepers/sc4/steps.json",
+ "seconds": 150,
+ "wording": {}
+}
