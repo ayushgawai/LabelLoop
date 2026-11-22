@@ -850,7 +850,8 @@
     }
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → ' + esc(h.bin || '?') + ' bin / zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' (source ' + esc(h.source || '?') + ')</p>';
-    const other = { replay: 'replaying the recording', scripted: 'scripted move', harness: 'at rest', done: 'home' }[sp.who] || 'idle';
+    const other = /^\(replay/.test(String(h.instruction || '')) ? 'replaying the trajectory'
+      : { replay: 'replaying the trajectory', scripted: 'scripted move', harness: 'at rest', done: 'home' }[sp.who] || 'idle';
     html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : other, lock.indexOf('left') >= 0) +
       armBox('right', row, wallx ? acting.indexOf('right') >= 0 : other, lock.indexOf('right') >= 0) + '</div>';
     $('stepNow').innerHTML = html;
