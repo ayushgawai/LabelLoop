@@ -1,0 +1,1 @@
+{"name": "sc2_miro_right_zone2", "goal": "Scenario 2: Miro box (label 90012 -> red, zone 2), right arm picks and places in zone 2 (keyframe replay of Ayush's controller demo), then home.", "setup": "Miro box label up on its taped start marks; arms at rest.", "relay": "--sequence scenarios/sc2_steps.json", "seconds": 80, "wording": {}}
