@@ -63,6 +63,26 @@ class Sequence:
         if codes:
             self.code, self.source, self.mat = codes[0], source, bin_for(codes[0])
 
+    def _bag_in_zone(self, front):
+        """Parcel tracked by its colour band (spec "track_hsv": [h0, h1, s_min, v_min]; default: the mailer's blue) inside the image
+        zone of the chosen bin (spec "zones_px": {bin: [x0, y0, x1, y1] fractions}). Returns (inside, centroid) ."""
+        import cv2
+        h0, h1, smin, vmin = self.spec.get("track_hsv", [95, 125, 90, 70])
+        hsv = cv2.cvtColor(front, cv2.COLOR_RGB2HSV)
+        m = (((hsv[..., 0] > h0) & (hsv[..., 0] < h1) & (hsv[..., 1] > smin) & (hsv[..., 2] > vmin)).astype(np.uint8)) * 255
+        H, W = m.shape
+        m[:int(self.spec.get("table_top", 0.17) * H)] = 0
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        n, _, st, cen = cv2.connectedComponentsWithStats(m)
+        if n < 2:
+            return False, None
+        i = 1 + int(np.argmax(st[1:, 4]))
+        if st[i][4] < 400:
+            return False, None
+        x, y = cen[i][0] / W, cen[i][1] / H
+        z = self.spec.get("zones_px", {}).get(self.mat)
+        return bool(z and z[0] <= x <= z[2] and z[1] <= y <= z[3]), (round(x, 3), round(y, 3))
+
     def _nonmat(self, front, box):
         x0, y0, x1, y1 = [int(v) for v in box]
         m = scene._mask(front, [self.spec["mat"]], max(2, front.shape[1] // 200))[y0:y1, x0:x1]
@@ -99,6 +119,11 @@ class Sequence:
             self.replay = (s, self._demo_rows(s, self.calls))
             if self.replay[1] is None or self.calls >= s.get("calls", 10**6) or self._demo_rows(s, self.calls + 1) is None:
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and "release" in s:
+            instr = "(release %d)" % self.i
+            self.calls += 1
+            if self.calls >= s.get("calls", 4):
+                self.i, self.calls = self.i + 1, 0
         elif s is not None and "carry" in s:  # scripted two-arm carry of the held box (both arms keep their offset)
             instr = "(carry %d)" % self.i
             self.calls += 1
@@ -110,8 +135,16 @@ class Sequence:
             if self.calls >= s.get("calls", 3):
                 self.i, self.calls = self.i + 1, 0
         elif s is not None:
-            instr = s["say"].format(mat=self.mat)
+            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""))
             self.calls += 1
+            if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
+                inside, c = self._bag_in_zone(images["front"])
+                self.zonecount = getattr(self, "zonecount", 0) + 1 if inside else 0
+                if self.runlog:
+                    self.runlog.write(track=c, inside=inside)
+                if self.zonecount >= s.get("zone_calls", 2):
+                    self.i, self.calls, self.zonecount = self.i + 1, 0, 0
+                    return instr
             lifted = (s.get("until") == "lifted" and self.spot is not None and self.spot0
                       and self._nonmat(images["front"], self.spot) <= 0.3 * self.spot0  # the box left its table spot ...
                       and all(0.08 < float(state[a + "_ee"]["gripper"]) < 0.7 for a in s.get("hold", [])))  # ... and the claw(s) grip something
@@ -171,6 +204,13 @@ class Sequence:
 
     def scripted_reply(self, embodiment, state):
         s = self.active
+        if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
+            arm = {"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else s["release"]
+            k = arm + "_ee"
+            pos = np.asarray(state[k]["position"], float)
+            if self.calls == 0 or self.calls > s.get("open_calls", 2):  # step advanced (calls reset) or lifting phase
+                pos = pos + np.array([0, 0, min(0.04, s.get("lift", 0.08))])
+            return move_response(embodiment, state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": 1.5}})
         if s and "carry" in s:
             return self._carry(embodiment, state, s)
         if s and "replay" in s:

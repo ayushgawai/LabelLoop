@@ -1,0 +1,14 @@
+{
+  "watchdog": false,
+  "code_hint": "420/94043/001",
+  "zones": {"blue": "1 at the back left", "red": "2 at the back right", "black": "3 at the right edge"},
+  "zones_px": {"blue": [0.11, 0.19, 0.37, 0.49], "red": [0.66, 0.19, 0.89, 0.49], "black": [0.79, 0.65, 1.0, 1.0]},
+  "track_hsv": [95, 125, 90, 70],
+  "roi": [0.02, 0.3, 0.98, 1.0],
+  "steps": [
+    {"read": true},
+    {"say": "pick up the bag and put it into the square marked {zone}", "calls": 35, "arm": "lane", "until": "in_zone", "zone_calls": 2},
+    {"release": "lane", "calls": 4, "open_calls": 2, "lift": 0.08},
+    {"move": {"left": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}, "right": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 8, "max_step": 0.05}
+  ]
+}
