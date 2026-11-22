@@ -1,0 +1,338 @@
+{
+ "watchdog": false,
+ "code_hint": "420/95126/001",
+ "zones": {
+  "blue": "1",
+  "red": "2",
+  "black": "3"
+ },
+ "zones_px": {
+  "blue": [
+   0.14,
+   0.21,
+   0.34,
+   0.41
+  ],
+  "red": [
+   0.69,
+   0.21,
+   0.86,
+   0.41
+  ],
+  "black": [
+   0.82,
+   0.67,
+   0.98,
+   0.92
+  ]
+ },
+ "track_hsv": [
+  125,
+  165,
+  70,
+  40
+ ],
+ "roi": [
+  0.02,
+  0.3,
+  0.98,
+  1.0
+ ],
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "say": "Put the purple box into the square on the left side of the table.",
+   "arm": "right",
+   "calls": 45,
+   "until": "lifted",
+   "hold": [
+    "right"
+   ],
+   "lift_calls": 1
+  },
+  {
+   "carry": {
+    "arms": [
+     "right"
+    ],
+    "dz": 0.1,
+    "grip": 0.0
+   },
+   "calls": 4,
+   "max_step": 0.03
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.28552,
+      0.02529,
+      0.18004
+     ],
+     "rotation_rpy": [
+      -0.075,
+      0.487,
+      0.278
+     ],
+     "gripper": 0.0
+    },
+    "left": {
+     "position": [
+      0.12071,
+      0.02137,
+      0.24563
+     ],
+     "rotation_rpy": [
+      0.07644,
+      0.28875,
+      -0.11073
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 3,
+   "max_step": 0.03
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.28552,
+      0.02529,
+      0.18004
+     ],
+     "rotation_rpy": [
+      -0.209,
+      0.624,
+      0.205
+     ],
+     "gripper": 0.0
+    },
+    "left": {
+     "position": [
+      0.12071,
+      0.02137,
+      0.24563
+     ],
+     "rotation_rpy": [
+      0.07644,
+      0.28875,
+      -0.11073
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 3,
+   "max_step": 0.03
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.28552,
+      0.02529,
+      0.18004
+     ],
+     "rotation_rpy": [
+      -0.34351,
+      0.76175,
+      0.1327
+     ],
+     "gripper": 0.0
+    },
+    "left": {
+     "position": [
+      0.12071,
+      0.02137,
+      0.24563
+     ],
+     "rotation_rpy": [
+      0.07644,
+      0.28875,
+      -0.11073
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 12,
+   "max_step": 0.03
+  },
+  {
+   "replay": "scenarios/w4x/sc4_from_lift.json"
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.35,
+      0.203,
+      0.26
+     ]
+    }
+   },
+   "calls": 3,
+   "max_step": 0.04
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.04
+  },
+  {
+   "say": "Put the purple box into the square on the left side of the table.",
+   "calls": 40,
+   "arm": "left"
+  },
+  {
+   "release": "left",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 1.5
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 1.5
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ],
+ "scene": {
+  "kraft": [
+   [
+    8,
+    60,
+    60
+   ],
+   [
+    28,
+    155,
+    255
+   ]
+  ],
+  "whole_table": false,
+  "table": [
+   0.184,
+   0.869,
+   -0.5642,
+   0.5458
+  ],
+  "bin_margin": 0.03,
+  "induction_roi": [
+   0.02,
+   0.3,
+   0.98,
+   1.0
+  ],
+  "bin_rois": {},
+  "mat": [
+   [
+    35,
+    60,
+    40
+   ],
+   [
+    95,
+    255,
+    255
+   ]
+  ],
+  "gripper_rois": [
+   [
+    0.0,
+    0.55,
+    0.16,
+    1.0
+   ],
+   [
+    0.84,
+    0.55,
+    1.0,
+    1.0
+   ],
+   [
+    0.09,
+    0.18,
+    0.38,
+    0.51
+   ],
+   [
+    0.65,
+    0.18,
+    0.9,
+    0.51
+   ],
+   [
+    0.78,
+    0.63,
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.18,
+    0.13,
+    0.62
+   ],
+   [
+    0.85,
+    0.18,
+    1.0,
+    0.58
+   ]
+  ],
+  "obj_area": [
+   0.01,
+   0.6
+  ],
+  "bin_gain": 0.015,
+  "presence_thr": 30,
+  "presence_min": 0.01,
+  "big_presence": 0.32,
+  "kraft_min": 0.002,
+  "ref_refresh_calls": 5,
+  "success_presence_max": 0.25,
+  "success_bin_gain": 0.12
+ }
+}
