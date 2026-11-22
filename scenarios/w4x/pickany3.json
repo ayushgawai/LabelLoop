@@ -1,0 +1,8 @@
+{
+ "name": "w4x_pickany3",
+ "goal": "pickany2 + harness fixes only: the lifted check now ignores the parked claws and taped zones (pickany2 watched the left claw) and fires after 1 call (the arm hides the spot while lifting); the move to the handover pose turns the wrist in 3 steps. WALLX right arm: 'Put the purple box into the square on the left side of the table.' until lifted.",
+ "setup": "Bhindi box STANDING on its long narrow side with a SHORT END toward the camera (long side pointing at the back wall), anywhere in the right half of the table in reach of the right arm (one change vs try 5: try 5 had the long side toward the camera); arms at rest.",
+ "relay": "--sequence scenarios/w4x/pickany3_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1",
+ "seconds": 240,
+ "wording": {}
+}
