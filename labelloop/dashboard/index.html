@@ -812,14 +812,19 @@
     rows.forEach(function (r, i) {
       const k = (r.harness || {}).step;
       if (k == null) return;
-      if (!rng[k]) rng[k] = { from: i, to: i, row: r }; else rng[k].to = i;
+      if (!rng[k]) rng[k] = { from: i, to: i, row: r, wallx: false }; else rng[k].to = i;
+      if (r.source === 'wallx') rng[k].wallx = true;
     });
     const keys = Object.keys(rng).map(Number);
     if (!demo && !keys.length) { S.steps = null; $('stepsCard').hidden = true; return; }
     const n = demo ? demo.steps.length : Math.max.apply(null, keys) + 1;
     S.steps = [];
     for (let k = 0; k < n; k++) {
-      const d = demo ? demo.steps[k] || {} : {}, r = rng[k];
+      let d = demo ? demo.steps[k] || {} : {};
+      const r = rng[k];
+      if (r && r.to > r.from && r.wallx !== (d.who === 'wallx') && d.who) d = {};  // list does not match the trial: trust the rows (a read /
+      // locate step's single row is WALLX's first call, so 1-row steps keep their label)
+      if (r && r.wallx && r.to > r.from && !d.who) d = { who: 'wallx', title: 'WALLX: ' + String((r.row.harness || {}).instruction || '').slice(0, 80) };
       const ins = r ? (r.row.harness || {}).instruction : null;
       S.steps.push({ who: d.who || (r ? whoOf(r.row) : 'harness'), title: d.title || (r && r.row.source === 'wallx' ? 'WALLX' : harnessTitle(ins) || 'step ' + (k + 1)),
         detail: d.detail || '', prompt: d.prompt || (r && r.row.source === 'wallx' ? ins : null), sub: d.sub || null,
@@ -896,7 +901,12 @@
     } catch (e) { /* server restarting */ }
   }
 
+  async function refreshDemos() {  // step lists can change while the page is open (new recipe behind a button)
+    try { S.demos = await api('/api/demos'); S.stepKey = ''; buildSteps(); } catch (e) { /* keep the old list */ }
+  }
+
   async function startRun(id) {
+    await refreshDemos();
     const d = S.demos.filter(function (x) { return x.id === id; })[0];
     if (!d || !confirm('Run "' + d.label + '" on the REAL robot?\n\nBox on its start spot, arms at rest, table clear. The arms home first, then the run starts.')) return;
     const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo: id }) });
@@ -918,6 +928,7 @@
     }).join(' ') + ' <span id="runState"></span>';
     pollRun();
     setInterval(pollRun, 2000);
+    setInterval(refreshDemos, 15000);
   }
 
   /* ------------------------------------------------------------------ log */

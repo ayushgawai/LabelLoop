@@ -254,7 +254,7 @@
  {
   "id": "sc5",
   "label": "Scenario 5",
-  "trial": null,
+  "trial": "20261122_115220",
   "run": "scenarios/wx/sc5j.json",
   "recipe": "scenarios/wx/sc5j.json",
   "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",

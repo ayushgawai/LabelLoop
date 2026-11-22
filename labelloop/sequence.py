@@ -52,21 +52,17 @@ def any_barcodes(img):
 ZONE_BOXES = ((0.10, 0.15, 0.38, 0.50), (0.64, 0.15, 0.90, 0.50), (0.78, 0.52, 1.0, 1.0))  # zones 1/2/3 (trays / bins sit there)
 
 
-def table_free_mask(img_rgb, hsv=None, erode_px=30):
-    """1 where a loose parcel can be: inside the mat's convex hull shrunk by erode_px (no table-edge / floor / person), minus the
-    zone boxes (trays, bins) and the parked claws."""
+TABLE_POLY = ((0.15, 0.12), (0.86, 0.12), (0.97, 0.80), (0.02, 0.80))  # the table top in the head image, incl. a parcel standing at the
+# back edge (it sticks up over the wall); stops above the robot's front strip where the arm bases and parked claws are
+
+
+def table_free_mask(img_rgb, hsv=None):
+    """1 where a loose parcel can be: the table polygon minus the zone boxes (trays, bins) and the parked left claw."""
     import cv2
     H, W = img_rgb.shape[:2]
-    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV) if hsv is None else hsv
-    mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).astype(np.uint8)
-    n, lab, st, _ = cv2.connectedComponentsWithStats(mat)
     inside = np.zeros((H, W), np.uint8)
-    if n < 2:
-        return inside
-    k = 1 + int(np.argmax(st[1:, 4]))
-    cv2.fillConvexPoly(inside, cv2.convexHull(np.column_stack(np.nonzero(lab == k)[::-1]).astype(np.int32)), 1)
-    inside = cv2.erode(inside, np.ones((erode_px, erode_px), np.uint8))
-    for x0, y0, x1, y1 in ZONE_BOXES + ((0.0, 0.60, 0.20, 1.0),):  # + parked left claw (the right one is in zone 3's box)
+    cv2.fillConvexPoly(inside, np.array([[int(x * W), int(y * H)] for x, y in TABLE_POLY], np.int32), 1)
+    for x0, y0, x1, y1 in ZONE_BOXES + ((0.0, 0.60, 0.20, 1.0),):
         inside[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)] = 0
     return inside
 

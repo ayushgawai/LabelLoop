@@ -143,3 +143,6 @@
 - 2026-11-22 11:36 | sc5i run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 11:41 | sc5h run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 11:42 | sc5h run_3 (cap centre, trays in zones 1+2, a black box in zone 3; cap not moved) | FAIL: pincode OCR 90291 -> zone 2; locate 'centre' (correct); WALLX hovered over the cap and nudged it toward the front-left over 90 calls, never grasped | video runs/scenarios/sc5h/run_3/demo.mp4 | sc5h: 1/3
+- 2026-11-22 11:46 | sc5h run_4 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 11:55 | sc5j run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 11:55 | sc5j run_1 (WALLX does all motion, live re-targeting) | WALLX 110 calls, 3 re-targets (back middle, front right, centre); locate errors found in the recording (start: cap at the table's back edge missed -> 'middle left'; one re-target took the arm base for the cap -> 'front right'); fixed after: table polygon incl. the back edge, front strip excluded | video runs/scenarios/sc5j/run_1/demo.mp4
