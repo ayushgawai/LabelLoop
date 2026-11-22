@@ -135,7 +135,7 @@ class Sequence:
             if self.calls >= s.get("calls", 3):
                 self.i, self.calls = self.i + 1, 0
         elif s is not None:
-            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""))
+            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right")
             self.calls += 1
             if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
                 inside, c = self._bag_in_zone(images["front"])
