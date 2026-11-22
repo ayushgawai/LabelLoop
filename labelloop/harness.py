@@ -177,7 +177,7 @@ class Harness:
               "slide_calls": len(self.slide["wps"]) + self.cfg["home_calls"] + self.cfg["slide"]["settle_calls"] if self.slide else 0}  # no feasible push: the try is skipped
         if self.cfg.get("event_fast"):  # the object on the table (label readable or not) / a parcel already there at the start / the arm nearest it
             ev.update(present=present, obj=self.obj_box is not None, near=self.near, where=self.where_words(front, cfg, codes))
-        if self.sm.staged and self.obj_box is not None and before in ("SCAN", "CENTER", "INSPECT", "STAND"):
+        if self.cfg.get("event_fast") and self.obj_box is not None and before in ("SCAN", "CENTER", "INSPECT", "STAND"):
             x0, y0, x1, y1 = self.obj_box
             ev["box_area"] = (x1 - x0) * (y1 - y0)
             if before != "STAND":
@@ -248,7 +248,7 @@ class Harness:
 
     def _wide_parcel(self, front, box):
         x0, y0, x1, y1 = box
-        quad = table_grid.find_table_quad(front)
+        quad = None if self.cfg.get("wide_px_only") else table_grid.find_table_quad(front)  # px only: the grid counts a standing box's height as footprint
         if quad is not None:
             profile = self.cfg["profiles"][self.cfg.get("profile", "sim")]
             try:

@@ -2,12 +2,13 @@
  "name": "s3_read_turn_sort",
  "goal": "Try to read the label with the head camera; if not readable, WALLX turns the parcel to show its other side and the harness reads again; then (demo: hardcoded 420/90024/001 if still unread) red lane -> right arm puts it into the red bin, left arm locked.",
  "setup": "IQBAR standing on its long narrow side, long axis front-to-back, right of centre, about 15 cm in front of the red bin, label facing away from the camera; bins on their marks; arms at rest.",
- "relay": "--assume-code 420/90024/001 --assume-after-search --lock-idle --cfg {\"scene\":{\"big_presence\":2.0},\"success_calls\":3,\"tries\":{\"CENTER\":0}}",
+ "relay": "--assume-code 420/90024/001 --assume-after-search --lock-idle --open-wide 0.85 --cfg {\"scene\":{\"big_presence\":2.0},\"success_calls\":3,\"tries\":{\"CENTER\":0}}",
  "seconds": 150,
  "wording": {
   "INSPECT": "turn the IQBAR box around so its other side faces the camera",
   "PLACE": "put the IQBAR box into the {mat} bin",
-  "HOME": "put both arms back to the home position"
+  "HOME": "put both arms back to the home position",
+  "LIFT2": "use both arms to squeeze the short ends of the IQBAR box, lift it up and put it into the {mat} bin"
  },
- "notes": "Demo: the code is assumed only after SCAN (4 calls) + INSPECT turns (event_fast: 2 tries x 6 calls) fail to read it."
+ "notes": "Read -> turn (INSPECT) -> read -> demo code -> right arm (left locked) puts it into red. Grippers open fully while WALLX opens them. Run 1 (box flat) failed: one gripper cannot hold the flat 102 mm box; auto flat/standing detection is too noisy (111-198 px), so orientation is part of the setup."
 }

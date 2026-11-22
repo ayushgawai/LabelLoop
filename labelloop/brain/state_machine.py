@@ -85,7 +85,7 @@ class StateMachine:
             key = "INSPECT_BIG" if s == "INSPECT" and self.big else s
             if s == "PICK" and self.standing:
                 key = "PICK_STANDING"
-            elif s in ("PICK", "PLACE") and self.wide and s + "_WIDE" in self.cfg["instructions"]:  # wider than the gripper: two-arm squeeze (agent run 4 lifted the Miro box)
+            elif s in ("PICK", "PLACE") and self.wide and self.staged and s + "_WIDE" in self.cfg["instructions"]:  # wider than the gripper: two-arm squeeze (agent run 4 lifted the Miro box)
                 key = s + "_WIDE"
             arm = self.near if s == "CENTER" and self.near else self._arm()  # CENTER: the arm nearest the object
             roles = {}
@@ -232,6 +232,8 @@ class StateMachine:
             self._go("STAND" if self.stand_start else "PICK", reason)
             return
         floor = not lane and self.cfg.get("reject_mode", "tray") == "floor_right"
+        if self.cfg.get("event_fast") and self.cfg.get("wide_lift2") and self.wide:  # wider than one gripper (measured on the head image): two-arm LIFT2, no arm lock (s3: flat IQBAR)
+            self.big = True
         last = "LIFT2" if self.big and not floor else "PLACE" if lane else "SWIPE" if floor else "REJECT"
         self.plan = [last] if floor or self.big or not self.cfg.get("handover") else ["HANDOVER", last]
         hand = slide and not floor and self.cfg.get("slide", {}).get("enabled") and not self.big and not self.cfg.get("handover") \

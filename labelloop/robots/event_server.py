@@ -66,6 +66,7 @@ class Relay:
         self.recorder, self.record_meta = recorder, dict(record_meta or {})
         self.overlay_mode = overlay_mode
         self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
+        self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
     def _overlay_front(self, harness, req, frame_index):
         mask_bins = getattr(harness, "mask_bins", None)
@@ -206,6 +207,11 @@ class Relay:
                     latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
                         harness.log_reply(latency_ms / 1000, err)
+                    if self.open_wide and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # open the gripper fully while WALLX opens it (no re-adjusting)
+                        for arm in ("left_ee", "right_ee"):
+                            g = reply["actions"].get(arm, {}).get("gripper")
+                            if isinstance(g, list) and g and float(g[-1]) > float(state[arm]["gripper"]) + 0.05:  # this chunk opens the gripper
+                                reply["actions"][arm]["gripper"] = [max(float(v), self.open_wide) for v in g]
                     locked = set(self.lock_arm) | set(harness.lock_arms() if harness and hasattr(harness, "lock_arms") else ())
                     if locked and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
                         held = hold_response(req["embodiment"], state)["actions"]
@@ -244,6 +250,7 @@ async def main():
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
     p.add_argument("--assume-after-search", action="store_true", help="DEMO: use --assume-code only after reading + turning the parcel (INSPECT) failed")
+    p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open ~0.85; 0 = off)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
     p.add_argument("--cfg", default="", help="JSON merged into the task config (recipes), e.g. '{\"tries\": {\"STAND\": 2}}'")
@@ -282,6 +289,7 @@ async def main():
     meta = {"profile": a.profile, "real_safe": a.real_safe, "fast": a.fast, "hold": a.hold, "passthrough": a.passthrough}
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
+    relay.open_wide = a.open_wide
     async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
