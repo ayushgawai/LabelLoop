@@ -1,0 +1,9 @@
+{
+ "name": "a3_right_place_red",
+ "goal": "Right arm picks the standing IQBAR and drops it into the RED bin, left arm locked.",
+ "setup": "IQBAR standing on its long narrow side, long axis front-to-back, right of centre, about 15 cm in front of the red bin and a hand's width from the right gripper; bins on their marks; arms at rest.",
+ "relay": "--lock-arm left",
+ "instruction": "put the IQBAR box into the red bin",
+ "seconds": 45,
+ "notes": "2026-11-21: 3/3 into red (17:15, 17:17, 17:19). Mirror of a2."
+}

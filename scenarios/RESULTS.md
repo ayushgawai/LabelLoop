@@ -9,3 +9,6 @@
 - 2026-11-21 17:10 | a2_left_place_blue | parcel_moved True gone False | bin_moved [] | runs/atomic/a2_left_place_blue_20261121_170852 | observed: (fill in)
 - 2026-11-21 17:11 | a2_left_place_blue | parcel_moved True gone False | bin_moved [] | runs/atomic/a2_left_place_blue_20261121_171031 | observed: (fill in)
 - 2026-11-21 17:13 | a2_left_place_blue | parcel_moved False gone False | bin_moved [] | runs/atomic/a2_left_place_blue_20261121_171213 | observed: (fill in)
+- 2026-11-21 17:16 | a3_right_place_red | parcel_moved True gone False | bin_moved [] | runs/atomic/a3_right_place_red_20261121_171545 | observed: (fill in)
+- 2026-11-21 17:18 | a3_right_place_red | parcel_moved True gone False | bin_moved [] | runs/atomic/a3_right_place_red_20261121_171747 | observed: (fill in)
+- 2026-11-21 17:20 | a3_right_place_red | parcel_moved True gone False | bin_moved [] | runs/atomic/a3_right_place_red_20261121_171923 | observed: (fill in)
