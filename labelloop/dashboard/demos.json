@@ -1,38 +1,166 @@
 [
  {
-  "id": "sc4_wallx",
+  "id": "sc4_wallx_v3",
   "label": "Scenario 4 · WALLX",
+  "trial": "20261122_073919",
+  "title": "Scenario 4: right arm picks the Bhindi box, hands it to the left arm in the air, WALLX puts it into zone 1",
+  "recipe": "scenarios/w4x/sc4_wallx_v3/recipe.json",
+  "relay": "--sequence scenarios/w4x/sc4_wallx_v3/steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the label and route the parcel",
+    "detail": "Code 420/95126/001 = ZIP 951 → blue lane → zone 1 (left). The harness tries the QR, then the printed ZIP; this run used the preset demo code for the Bhindi box (source 'demo').",
+    "what": "label → lane → acting arm → target zone"
+   },
+   {
+    "who": "replay",
+    "title": "Recorded pick + handover (Ayush's controller demo, smoothed)",
+    "detail": "Replays our own teleop recording of scenario 4 (first 59 s, 32 trajectory rows per call): right arm picks, hands to the left claw in the air.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "right arm moves from home to above the box (claw closed)"
+     },
+     {
+      "call": 16,
+      "text": "right claw opens and lowers around the box"
+     },
+     {
+      "call": 27,
+      "text": "right claw closes on the box (grasp)"
+     },
+     {
+      "call": 28,
+      "text": "right arm lifts the box to the handover point (~18 cm up, table centre)"
+     },
+     {
+      "call": 37,
+      "text": "left claw opens and reaches in"
+     },
+     {
+      "call": 48,
+      "text": "left claw closes on the box: both claws hold it"
+     },
+     {
+      "call": 54,
+      "text": "right claw opens: the box is in the left claw only"
+     }
+    ]
+   },
+   {
+    "who": "scripted",
+    "title": "Right arm backs off",
+    "detail": "Scripted slow move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."
+   },
+   {
+    "who": "scripted",
+    "title": "Right arm goes home",
+    "detail": "Scripted slow move to home, claw closed. From here the right arm stays parked."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX places the box into zone 1 (left arm)",
+    "prompt": "Stretch to the top left corner of the table and put the purple box into zone 1.",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
+   },
+   {
+    "who": "scripted",
+    "title": "Release",
+    "detail": "Scripted: the left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."
+   },
+   {
+    "who": "scripted",
+    "title": "Both arms home",
+    "detail": "Scripted slow move of both arms to home (≤ 5 cm per call)."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "sc4_wallx_v2",
+  "label": "Sc4 WALLX (v2, all cameras)",
   "trial": "20261122_071225",
   "title": "Scenario 4: right arm picks the Bhindi box, hands it to the left arm in the air, WALLX puts it into zone 1",
   "recipe": "scenarios/w4x/sc4_wallx_v2/recipe.json",
   "relay": "--sequence scenarios/w4x/sc4_wallx_v2/steps.json --slow 0.4 --no-reset-on-subgoal",
   "steps": [
-   {"who": "harness", "title": "Read the label and route the parcel",
+   {
+    "who": "harness",
+    "title": "Read the label and route the parcel",
     "detail": "Code 420/95126/001 = ZIP 951 → blue lane → zone 1 (left). The harness tries the QR, then the printed ZIP; this run used the preset demo code for the Bhindi box (source 'demo').",
-    "what": "label → lane → acting arm → target zone"},
-   {"who": "replay", "title": "Recorded pick + handover (Ayush's controller demo, smoothed)",
+    "what": "label → lane → acting arm → target zone"
+   },
+   {
+    "who": "replay",
+    "title": "Recorded pick + handover (Ayush's controller demo, smoothed)",
     "detail": "Replays our own teleop recording of scenario 4 (first 59 s, 32 trajectory rows per call): right arm picks, hands to the left claw in the air.",
     "sub": [
-     {"call": 1, "text": "right arm moves from home to above the box (claw closed)"},
-     {"call": 16, "text": "right claw opens and lowers around the box"},
-     {"call": 27, "text": "right claw closes on the box (grasp)"},
-     {"call": 28, "text": "right arm lifts the box to the handover point (~18 cm up, table centre)"},
-     {"call": 37, "text": "left claw opens and reaches in"},
-     {"call": 48, "text": "left claw closes on the box: both claws hold it"},
-     {"call": 54, "text": "right claw opens: the box is in the left claw only"}
-    ]},
-   {"who": "scripted", "title": "Right arm backs off",
-    "detail": "Scripted slow move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."},
-   {"who": "scripted", "title": "Right arm goes home",
-    "detail": "Scripted slow move to home, claw closed. From here the right arm stays parked."},
-   {"who": "wallx", "title": "WALLX places the box into zone 1 (left arm)",
+     {
+      "call": 1,
+      "text": "right arm moves from home to above the box (claw closed)"
+     },
+     {
+      "call": 16,
+      "text": "right claw opens and lowers around the box"
+     },
+     {
+      "call": 27,
+      "text": "right claw closes on the box (grasp)"
+     },
+     {
+      "call": 28,
+      "text": "right arm lifts the box to the handover point (~18 cm up, table centre)"
+     },
+     {
+      "call": 37,
+      "text": "left claw opens and reaches in"
+     },
+     {
+      "call": 48,
+      "text": "left claw closes on the box: both claws hold it"
+     },
+     {
+      "call": 54,
+      "text": "right claw opens: the box is in the left claw only"
+     }
+    ]
+   },
+   {
+    "who": "scripted",
+    "title": "Right arm backs off",
+    "detail": "Scripted slow move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."
+   },
+   {
+    "who": "scripted",
+    "title": "Right arm goes home",
+    "detail": "Scripted slow move to home, claw closed. From here the right arm stays parked."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX places the box into zone 1 (left arm)",
     "prompt": "Put the purple box into zone 1, the square on the left side of the table.",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the 3 camera images + both arms' state + this sentence every call and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."},
-   {"who": "scripted", "title": "Release",
-    "detail": "Scripted: the left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."},
-   {"who": "scripted", "title": "Both arms home",
-    "detail": "Scripted slow move of both arms to home (≤ 5 cm per call)."},
-   {"who": "done", "title": "Done", "detail": "Session ends; video, every call (state, actions, images) and the log are saved."}
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the 3 camera images + both arms' state + this sentence every call and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
+   },
+   {
+    "who": "scripted",
+    "title": "Release",
+    "detail": "Scripted: the left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."
+   },
+   {
+    "who": "scripted",
+    "title": "Both arms home",
+    "detail": "Scripted slow move of both arms to home (≤ 5 cm per call)."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
   ]
  }
 ]
