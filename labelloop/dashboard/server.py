@@ -8,6 +8,7 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
   /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
+  POST /api/home                  backup: stop the robot session now, arms home (local dashboard only)
   POST /api/run {demo}              run that demo's frozen recipe on the REAL robot (GET /api/run: status)
   /api/demos                      one-click demos (demos.json): trial id + step-by-step story
   /api/story                      every trial + trial-agent run in time order (labelloop.dashboard.story)
@@ -48,6 +49,20 @@ def run_status():
     p = RUN["proc"]
     return {"running": bool(p and p.poll() is None), "demo": RUN["demo"], "started": RUN["started"],
             "exit": None if not p or p.poll() is None else p.returncode, "log": RUN["log"]}
+
+
+def stop_home():
+    """POST /api/home (backup button): end the robot session now, the same way the time limit does: one SIGINT to the robot
+    client's python (never a second one: that would skip --home-on-stop), so the client homes both arms. A dashboard run then
+    finishes on its own (it homes again and writes its summary)."""
+    import os
+    askpass = os.environ.get("ROBOT_ASKPASS", str(Path.home() / ".config/labelloop/robot_askpass.sh"))
+    env = {**os.environ, "SSH_ASKPASS": askpass, "SSH_ASKPASS_REQUIRE": "force", "DISPLAY": ":0"}
+    r = subprocess.run(["ssh", "-o", "ConnectTimeout=8", "xr@192.168.1.21",
+                        "docker exec desktop_client-robot_client-1 pkill -INT -f '^python3 .*start_desktop.py'; echo sent"],
+                       env=env, capture_output=True, text=True, timeout=30)
+    ok = "sent" in r.stdout
+    return (200 if ok else 502), {"stopped": ok, **run_status()}
 
 
 def start_run(demo_id):
@@ -237,6 +252,12 @@ class Handler(BaseHTTPRequestHandler):
         parts = [unquote(p) for p in urlparse(self.path).path.split("/") if p]
         if parts == ["api", "run"] and not self.phone_only:
             return self._post_run()
+        if parts == ["api", "home"] and not self.phone_only:
+            try:
+                code, out = stop_home()
+            except Exception as e:
+                code, out = 500, {"error": type(e).__name__}
+            return self._json(out, code)
         try:
             if parts[:2] != ["api", "package"] or len(parts) != 3 or parts[2] not in ("frame", "scan", "clear"):
                 self.close_connection = True  # the body was never read: don't reuse this connection

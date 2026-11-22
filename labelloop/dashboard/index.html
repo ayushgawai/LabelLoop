@@ -134,6 +134,7 @@
   .demoBtn{background:var(--ink);color:var(--paper);font-weight:700}
   .runBtn{background:var(--red);color:#fff;font-weight:700;border-color:var(--red)}
   .runBtn:disabled{opacity:.5;cursor:default}
+  .homeBtn{background:#fff;color:var(--red);font-weight:700;border-color:var(--red)}
   #runState{font-size:12px;color:var(--ink2)}
   .stepsWrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px}
   .stepList{display:flex;flex-direction:column;gap:3px;margin:0;padding:0;list-style:none}
@@ -946,7 +947,7 @@
     try { S.demos = await api('/api/demos'); } catch (e) { S.demos = []; }
     $('demoBtns').innerHTML = S.demos.map(function (d) {
       return d.run ? '<button class="runBtn" data-run="' + esc(d.id) + '" title="runs ' + esc(d.run) + ' on the real robot">▶ ' + esc(d.label) + '</button>' : '';
-    }).join(' ') + ' <span id="runState"></span>';
+    }).join(' ') + ' <button class="homeBtn" id="homeBtn" title="backup: stop the robot now and send both arms home">■ Stop &amp; home</button> <span id="runState"></span>';
     pollRun();
     setInterval(pollRun, 2000);
     setInterval(refreshDemos, 15000);
@@ -1392,6 +1393,15 @@
     });
 
     $('demoBtns').addEventListener('click', function (e) {
+      if (e.target.closest('#homeBtn')) {
+        const hb = $('homeBtn');
+        hb.disabled = true; hb.textContent = 'stopping…';
+        fetch('/api/home', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (o) {
+          hb.textContent = o.stopped ? 'arms going home ✓' : 'stop failed: ' + (o.error || 'robot not reachable');
+        }).catch(function () { hb.textContent = 'stop failed'; })
+          .finally(function () { setTimeout(function () { hb.disabled = false; hb.textContent = '■ Stop & home'; }, 6000); });
+        return;
+      }
       const rb = e.target.closest('button[data-run]');
       if (rb) { if (!rb.disabled) startRun(rb.dataset.run); return; }
       const b = e.target.closest('button[data-demo]');
