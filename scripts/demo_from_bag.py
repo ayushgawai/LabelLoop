@@ -15,7 +15,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 ASKPASS = os.environ.get("ROBOT_ASKPASS", str(Path.home() / ".config/labelloop/robot_askpass.sh"))
 DT = 0.0337
-GRIP_SCALE = 0.55  # robot gripper command units (0 closed .. 1.53 open) -> relay / WALLX units (0 .. ~0.84 open)
+GRIP_SCALE = 1.0  # relay / WALLX gripper units = robot joint units: real G range [0, 1.526] (configs/ex001_6r.yaml); 0.55 was wrong
 
 
 def quat_rpy(x, y, z, w):  # extrinsic xyz (roll, pitch, yaw), as the robot client reports rotation_rpy

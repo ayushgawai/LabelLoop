@@ -29,33 +29,39 @@ def tip(ref, img, arm):
     best = None
     for i in range(1, n):  # the arm blob touches the bottom edge on the arm's side
         x, y, bw, bh, a = st[i]
-        if a < 2000 or y + bh < h - 5:
-            continue
+        if a < 6000 or not (y + bh >= h - 5 or y <= 5 or (arm == "right" and x + bw >= w - 5) or (arm == "left" and x <= 5)):
+            continue  # the arm enters from the bottom / its side edge
         if best is None or a > st[best][4]:
             best = i
     if best is None:
         return None
     ys, xs = np.nonzero(lab == best)
-    k = np.argmax(np.hypot(xs - corner[0], ys - corner[1]))
-    return float(xs[k]), float(ys[k])
+    edge = (xs <= 2) | (xs >= w - 3) | (ys <= 2) | (ys >= h - 3)  # where the arm enters the image
+    if edge.any():
+        corner = np.array([xs[edge].mean(), ys[edge].mean()])
+    dist = np.hypot(xs - corner[0], ys - corner[1])
+    k = np.argmax(dist)
+    return (float(xs[k]), float(ys[k])) if dist[k] > 150 else None  # a claw near its parked corner is not usable
 
 
 def main():
     a = argparse.ArgumentParser()
     a.add_argument("--arm", default="right")
     a.add_argument("--z", type=float, default=0.12)
+    a.add_argument("--refit", default="", help="refit from an existing runs/calib/<ts> dir (no robot)")
     o = a.parse_args()
-    xs, ys = (0.15, 0.27, 0.39), ((-0.15, -0.05, 0.05) if o.arm == "right" else (-0.05, 0.05, 0.15))
+    xs, ys = (0.12, 0.24, 0.36), ((0.0, 0.10, 0.20) if o.arm == "right" else (-0.20, -0.10, 0.0))  # toward the table centre (in view)
     grid = [(x, y) for x in xs for y in ys]
-    out = ROOT / "runs/calib" / time.strftime("%Y%m%d_%H%M%S")
-    out.mkdir(parents=True)
+    out = Path(o.refit) if o.refit else ROOT / "runs/calib" / time.strftime("%Y%m%d_%H%M%S")
+    out.mkdir(parents=True, exist_ok=True)
     steps = [{"move": {o.arm: {"position": [0.0, 0.0, o.z], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 3, "max_step": 0.05}]
     for x, y in grid:
         steps.append({"move": {o.arm: {"position": [x, y, o.z], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 4, "max_step": 0.05})
     steps.append({"move": {o.arm: {"position": [0.0, 0.0, 0.0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 6, "max_step": 0.05})
     (out / "steps.json").write_text(json.dumps({"watchdog": False, "steps": steps}))
-    home(out)
-    session(out, ["--sequence", str(out / "steps.json"), "--save-images", str(out / "images"), "--save-every", "1", "--no-record"],
+    if not o.refit:
+      home(out)
+      session(out, ["--sequence", str(out / "steps.json"), "--save-images", str(out / "images"), "--save-every", "1", "--no-record"],
             "calibrate", 6 * len(steps) + 10, home=True)
     frames = sorted((out / "images").glob("*/*_front.jpg"), key=lambda f: (f.parent.name, int(f.name.split("_")[0])))
     states = [json.loads(f.with_name(f.name.split("_")[0] + ".json").read_text())["state"] for f in frames]
