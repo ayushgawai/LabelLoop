@@ -8,12 +8,16 @@
    "until": "lifted",
    "hold": [
     "right"
-   ]
+   ],
+   "lift_calls": 3
   },
   {
    "carry": {
     "anchor": "right",
-    "dz": 0.06
+    "dz": 0.06,
+    "arms": [
+     "right"
+    ]
    },
    "calls": 3,
    "max_step": 0.03
@@ -26,7 +30,10 @@
      0.02
     ],
     "dz": 0.06,
-    "from": "prev"
+    "from": "prev",
+    "arms": [
+     "right"
+    ]
    },
    "calls": 10,
    "max_step": 0.04
@@ -39,7 +46,10 @@
      0.02
     ],
     "dz": 0.0,
-    "from": "prev"
+    "from": "prev",
+    "arms": [
+     "right"
+    ]
    },
    "calls": 4,
    "max_step": 0.03
@@ -53,7 +63,10 @@
     ],
     "dz": 0.0,
     "grip": 0.84,
-    "from": "prev"
+    "from": "prev",
+    "arms": [
+     "right"
+    ]
    },
    "calls": 3
   },
@@ -66,7 +79,10 @@
     ],
     "dz": 0.12,
     "grip": 0.84,
-    "from": "prev"
+    "from": "prev",
+    "arms": [
+     "right"
+    ]
    },
    "calls": 4,
    "max_step": 0.04

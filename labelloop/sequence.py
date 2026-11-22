@@ -154,7 +154,8 @@ class Sequence:
         to[2] = ref[2] + c.get("dz", 0.0)
         delta = to - ref
         cap, targets = s.get("max_step", 0.04), {}
-        for a in ("left_ee", "right_ee"):
+        arms = [x + "_ee" for x in c.get("arms", ["left", "right"])]  # single-arm carry: name only the holding arm (h2 run 1 bug)
+        for a in arms:
             goal = p0[a][0] + delta
             cur = np.asarray(state[a]["position"], float)
             d = np.linalg.norm(goal - cur)
