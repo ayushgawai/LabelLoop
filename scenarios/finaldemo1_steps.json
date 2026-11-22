@@ -44,7 +44,7 @@
   },
   {
    "say": "Use only the {arm} arm. Turn the gripper on its side so one finger is below and the other finger is above. Lower the open gripper to the table right next to the edge of the white plastic bag, slide the lower finger flat along the table under the edge of the bag, then close the gripper to pinch the bag firmly, lift it 10 centimeters, carry it over the taped square marked {zone}, and open the gripper to drop the bag inside that square.",
-   "calls": 40,
+   "calls": 60,
    "arm": "lane",
    "until": "in_zone",
    "zone_calls": 2

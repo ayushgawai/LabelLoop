@@ -139,7 +139,8 @@ class Sequence:
             self.calls += 1
             if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
                 inside, c = self._bag_in_zone(images["front"])
-                self.zonecount = getattr(self, "zonecount", 0) + 1 if inside else 0
+                self.seen_out = getattr(self, "seen_out", False) or (c is not None and not inside)  # only after the parcel was outside
+                self.zonecount = getattr(self, "zonecount", 0) + 1 if inside and self.seen_out else 0  # (run 3: it started half inside)
                 if self.runlog:
                     self.runlog.write(track=c, inside=inside)
                 if self.zonecount >= s.get("zone_calls", 2):
