@@ -3,7 +3,7 @@
  "parcel": "light",
  "steps": [
   {
-   "replay": "scenarios/keepers/sc1/scenario1_kf.json"
+   "replay": "scenarios/wx/case4_round1_slow.json"
   },
   {
    "move": {
@@ -42,8 +42,11 @@
    "calls": 150
   },
   {
-   "say": "Use the left arm to pick up the white bag from the middle of the table, stretch to the top left corner of the table and put the bag into zone 1.",
-   "calls": 70,
+   "replay": "scenarios/wx/case4_pick_slow.json"
+  },
+  {
+   "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
+   "calls": 50,
    "arm": "left",
    "until": "in_bin",
    "bin_box": 0,
@@ -92,8 +95,11 @@
    "calls": 150
   },
   {
-   "say": "Use the left arm to pick up the white bag from the middle of the table, stretch to the top left corner of the table and put the bag into zone 1.",
-   "calls": 70,
+   "replay": "scenarios/wx/case4_pick_slow.json"
+  },
+  {
+   "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
+   "calls": 50,
    "arm": "left",
    "until": "in_bin",
    "bin_box": 0,

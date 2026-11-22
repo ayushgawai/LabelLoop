@@ -208,7 +208,7 @@
   "trial": null,
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
-  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.6 --no-reset-on-subgoal --front-only",
+  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
   "title": "Case 4, position change: the bag goes into zone 1; a person takes it out again and puts it back in the centre; the harness sees it and WALLX puts it back into zone 1",
   "steps": [
    {
@@ -226,13 +226,19 @@
    {
     "who": "harness",
     "title": "Watch: is the bag back on the table?",
-    "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
-    "detail": "A person takes it out and puts it in the centre; after 3 calls of seeing it on the table, WALLX gets the task."
+    "prompt": "Keep looking at the table; when the bag is out of the bin, start again.",
+    "detail": "After 3 calls of seeing it on the table."
+   },
+   {
+    "who": "robot",
+    "title": "Left arm picks up the bag",
+    "prompt": "Left arm: pick up the white bag and lift it.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the bag back into zone 1",
-    "detail": "Left arm, head camera only. The harness watches the bin; when the bag is in it for 3 calls, WALLX is stopped."
+    "title": "WALLX carries the bag into zone 1",
+    "detail": "WALLX (head camera) moves the left arm; the harness watches the bin and stops it when the bag is in."
    },
    {
     "who": "robot",
@@ -249,13 +255,19 @@
    {
     "who": "harness",
     "title": "Watch: is the bag back on the table?",
-    "prompt": "Keep looking at the table; when the bag is out of the bin, give WALLX the task again.",
-    "detail": "A person takes it out and puts it in the centre; after 3 calls of seeing it on the table, WALLX gets the task."
+    "prompt": "Keep looking at the table; when the bag is out of the bin, start again.",
+    "detail": "After 3 calls of seeing it on the table."
+   },
+   {
+    "who": "robot",
+    "title": "Left arm picks up the bag",
+    "prompt": "Left arm: pick up the white bag and lift it.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the bag back into zone 1",
-    "detail": "Left arm, head camera only. The harness watches the bin; when the bag is in it for 3 calls, WALLX is stopped."
+    "title": "WALLX carries the bag into zone 1",
+    "detail": "WALLX (head camera) moves the left arm; the harness watches the bin and stops it when the bag is in."
    },
    {
     "who": "robot",
