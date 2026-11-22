@@ -7,7 +7,7 @@
 Everything lands in runs/manual/<NAME>/ (relay.out, trial.jsonl, images/, montage.jpg, summary.json); one line is appended to
 runs/manual/NOTES.md. The SSH password comes from the askpass helper (ROBOT_ASKPASS, default ~/.config/labelloop/robot_askpass.sh).
 """
-import argparse, json, os, re, socket, subprocess, sys, time
+import argparse, json, os, re, socket, subprocess, sys, threading, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,11 +68,42 @@ def robot(instr, sec, home=True, retries=2):
     raise SystemExit("robot session failed to start")
 
 
+def seq_done(rows, need=2):
+    """A sequence run is over once its last `need` rows are post-sequence holds (no instruction, source hold)."""
+    tail = rows[-need:]
+    return len(tail) == need and all(r.get("source") == "hold" and (r.get("harness") or {}).get("instruction") is None
+                                     and ((r.get("harness") or {}).get("step") or 0) >= 1 for r in tail)
+
+
+def stop_when_done(t0, stop):
+    """Watch the trial this session records (runs/trials/<ts>/ newer than t0); when the sequence is done, end the robot session the same
+    way the time limit does (one SIGINT to the client's python, not to `timeout`: a second Ctrl-C skips --home-on-stop)."""
+    while not stop.wait(1.0):
+        recs = [d for d in (ROOT / "runs/trials").glob("*/") if d.stat().st_mtime >= t0 and (d / "trial.jsonl").exists()]
+        if not recs:
+            continue
+        try:
+            rows = [json.loads(l) for l in (max(recs, key=lambda d: d.name) / "trial.jsonl").read_text().splitlines()[-3:] if l.strip()]
+        except (OSError, ValueError):
+            continue
+        if seq_done(rows):
+            env = {**os.environ, "SSH_ASKPASS": ASKPASS, "SSH_ASKPASS_REQUIRE": "force", "DISPLAY": ":0"}
+            subprocess.run(["ssh", "-o", "ConnectTimeout=8", "xr@192.168.1.21",
+                            "docker exec desktop_client-robot_client-1 pkill -INT -f '^python3 .*start_desktop.py'"], env=env, capture_output=True)
+            print("sequence done: robot session stopped early (arms home)", flush=True)
+            return
+
+
 def session(out_dir, flags, instr, sec, log=None, home=True):
     p = relay(flags, out_dir, log)
+    stop, w = threading.Event(), None
+    if "--sequence" in flags:
+        w = threading.Thread(target=stop_when_done, args=(time.time() - 1, stop), daemon=True)
+        w.start()
     try:
         return robot(instr, sec, home)
     finally:
+        stop.set()
         p.terminate()
         try:
             p.wait(10)
