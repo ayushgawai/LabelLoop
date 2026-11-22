@@ -261,6 +261,13 @@ class Harness:
                 bins.discard(self.cfg["lanes"].get(self.sm.lane, "black"))
             return bins
 
+    def lock_arms(self):
+        """lock_idle_arm: while WALLX acts on the parcel, the arm the lane does not use holds still (the idle arm grabs bins otherwise;
+        recipes a2 / a3: 5/6 single-arm deliveries with the other arm locked)."""
+        if not self.cfg.get("lock_idle_arm") or self.sm.state not in ("PLACE", "REJECT", "PICK", "CENTER", "INSPECT"):
+            return ()
+        return tuple(a for a in ("left", "right") if a != self.sm._arm())
+
     def where_words(self, front, cfg, codes):
         """The parcel's place on the free table in words for WALLX ("left", "front right", "back middle", ...): its head label, else the object box; None if unseen."""
         h, w = front.shape[:2]

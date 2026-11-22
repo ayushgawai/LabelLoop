@@ -206,9 +206,10 @@ class Relay:
                     latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
                         harness.log_reply(latency_ms / 1000, err)
-                    if self.lock_arm and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
+                    locked = set(self.lock_arm) | set(harness.lock_arms() if harness and hasattr(harness, "lock_arms") else ())
+                    if locked and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
                         held = hold_response(req["embodiment"], state)["actions"]
-                        for arm in self.lock_arm:
+                        for arm in locked:
                             if arm + "_ee" in reply["actions"]:
                                 reply["actions"][arm + "_ee"] = held[arm + "_ee"]
                     await downstream.send(pack(reply))
@@ -242,6 +243,7 @@ async def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
+    p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
     p.add_argument("--cfg", default="", help="JSON merged into the task config (recipes), e.g. '{\"tries\": {\"STAND\": 2}}'")
     p.add_argument("--assume-code", default="", help="PRACTICE ONLY: treat the object on the table as carrying this code (manipulation trials without label reading)")
@@ -267,6 +269,7 @@ async def main():
         from labelloop.harness import Harness
         task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
         task["assume_code"] = a.assume_code or None  # practice only
+        task["lock_idle_arm"] = a.lock_idle
         for k, v in json.loads(a.cfg or "{}").items():  # recipe overrides, e.g. {"tries": {"STAND": 2}}
             task[k] = {**task[k], **v} if isinstance(v, dict) and isinstance(task.get(k), dict) else v
         task["event_fast_stage"] = a.stage  # STAND (wide) -> PICK (all bins hidden) -> PLACE (only the target bin visible)
