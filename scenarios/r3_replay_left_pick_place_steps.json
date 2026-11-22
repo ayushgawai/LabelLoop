@@ -1,0 +1,7 @@
+{
+  "watchdog": false,
+  "steps": [
+    {"replay": "runs/demos/op5_left_pick_place.json", "calls": 18},
+    {"move": {"left": {"position": [0.0, 0.0, 0.0], "rotation_rpy": [0.0, 0.0, 0.0], "gripper": 0.0}, "right": {"position": [0.0, 0.0, 0.0], "rotation_rpy": [0.0, 0.0, 0.0], "gripper": 0.0}}, "calls": 5}
+  ]
+}

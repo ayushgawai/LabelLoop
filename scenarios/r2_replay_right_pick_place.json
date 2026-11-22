@@ -1,0 +1,9 @@
+{
+  "name": "r2_replay_right_pick_place",
+  "goal": "Teach and repeat: replay Ayush's clean teleop right-arm pick and place (bag 0080), then scripted home.",
+  "setup": "Arms at rest. Box and bins exactly where they were for the teleop take (replay is open loop, no vision).",
+  "relay": "--sequence scenarios/r2_replay_right_pick_place_steps.json",
+  "seconds": 50,
+  "wording": {},
+  "notes": "Good takes 0071, 0080, 0083. Skipped 0074 (followed by error 1101) and 0077 (homing stuck 150 s, error 4). Gripper is the commanded value, not measured."
+}
