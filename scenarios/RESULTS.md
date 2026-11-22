@@ -110,3 +110,4 @@
 - 2026-11-22 08:18 | sc3b_wallx run_3 (started from the dashboard ▶ Scenario 3 button) | PARTIAL: flip worked; WALLX picked the bag up and set it down on zone 1's FRONT-LEFT edge, partly inside (frame ~90); bag reset by hand during the idle tail (session ran to the 240 s limit: fixed after this run, sessions now stop when the sequence ends) | video runs/scenarios/sc3b_wallx/run_3/demo.mp4 | sc3b series: 1 inside, 2 on the front-left edge
 - 2026-11-22 08:24 | sc3b_wallx run_4 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 08:31 | sc2_wallx_v1 run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 08:40 | sc1_wallx run_1 | harness no verdict in None s | observed: - | states {} | flags []

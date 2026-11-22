@@ -2,16 +2,16 @@
  "watchdog": false,
  "code_hint": "420/94043/001",
  "zones": {
-  "blue": "1",
-  "red": "2",
-  "black": "3"
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
  },
  "steps": [
   {
    "read": true
   },
   {
-   "say": "Use the {arm} arm to pick up the white bag from the middle of the table, stretch to the top {arm} corner of the table and put the bag into zone {zone}.",
+   "say": "Use the {arm} arm to pick up the package from the middle of the table, stretch and put it into zone {zone}.",
    "calls": 60,
    "arm": "lane"
   },

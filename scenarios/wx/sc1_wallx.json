@@ -5,5 +5,5 @@
  "relay": "--sequence scenarios/wx/sc1_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
  "seconds": 240,
  "wording": {},
- "prompt": "Use the {arm} arm to pick up the white bag from the middle of the table, stretch to the top {arm} corner of the table and put the bag into zone {zone}."
+ "prompt": "Use the {arm} arm to pick up the package from the middle of the table, stretch and put it into zone {zone}."
 }
