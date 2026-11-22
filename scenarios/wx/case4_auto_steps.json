@@ -21,7 +21,7 @@
   },
   {
    "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
-   "calls": 50,
+   "calls": 160,
    "arm": "picked",
    "until": "in_bin",
    "bin_box": 0,
@@ -79,7 +79,7 @@
   },
   {
    "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
-   "calls": 50,
+   "calls": 160,
    "arm": "picked",
    "until": "in_bin",
    "bin_box": 0,

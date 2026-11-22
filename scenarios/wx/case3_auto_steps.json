@@ -34,8 +34,12 @@
   },
   {
    "say": "Put the package you are holding into zone {zone}.",
-   "calls": 50,
-   "arm": "picked"
+   "calls": 160,
+   "arm": "picked",
+   "until": "in_bin",
+   "parcel": "change",
+   "bin_area": 6000,
+   "bin_calls": 3
   },
   {
    "release": "picked",
@@ -96,8 +100,12 @@
   },
   {
    "say": "Put the package you are holding into zone {zone}.",
-   "calls": 50,
-   "arm": "picked"
+   "calls": 160,
+   "arm": "picked",
+   "until": "in_bin",
+   "parcel": "change",
+   "bin_area": 6000,
+   "bin_calls": 3
   },
   {
    "release": "picked",

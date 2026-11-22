@@ -131,8 +131,20 @@ def locate_parcel(img_rgb, kind="dark", min_area=1500):
     return None if st[i][4] < min_area else (float(cen[i][0] / W), float(cen[i][1] / H))
 
 
-def parcel_in_box(img_rgb, box, kind="dark"):
-    """Area (px) of the parcel's largest blob inside a zone box."""
+def parcel_in_box(img_rgb, box, kind="dark", base=None):
+    """Area (px) of the parcel's largest blob inside a zone box. kind 'change': what differs from `base` (the box's own
+    image when the step started): the held parcel (+ claw) arriving over the bin, whatever its colour."""
+    if kind == "change":
+        import cv2
+        H, W = img_rgb.shape[:2]
+        x0, y0, x1, y1 = box
+        cur = img_rgb[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)]
+        if base is None or base.shape != cur.shape:
+            return 0
+        m = (cv2.absdiff(cv2.GaussianBlur(cur, (7, 7), 0), cv2.GaussianBlur(base, (7, 7), 0)).max(axis=2) > 40).astype(np.uint8)
+        m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+        n, _, st, _ = cv2.connectedComponentsWithStats(m)
+        return int(st[1:, 4].max()) if n > 1 else 0
     if kind != "light":
         return dark_in_box(img_rgb, box)
     import cv2
@@ -404,12 +416,21 @@ class Sequence:
             self.calls += 1
             if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
                 box = ZONE_BOXES[s["bin_box"] if "bin_box" in s else {"blue": 0, "red": 1}.get(self.mat, 2)]  # bin_box: fixed target
-                kind = self.spec.get("parcel", "dark")
-                area = parcel_in_box(images["front"], box, kind)
-                if self.calls == 1 or getattr(self, "bin_base", None) is None:  # how the bin looked when this round started
-                    self.bin_base = area if kind == "light" else 0  # (white tape / wall already in the box: count only what is new)
-                self.bincount = (getattr(self, "bincount", 0) + 1 if area - self.bin_base >= s.get("bin_area", 7000)
-                                 and not locate_parcel(images["front"], kind) else 0)
+                kind = s.get("parcel", self.spec.get("parcel", "dark"))
+                if kind == "change":  # held parcel over the target bin (whatever its colour): compare with the bin at step start
+                    H, W = images["front"].shape[:2]
+                    if self.calls == 1 or getattr(self, "bin_img", None) is None:
+                        self.bin_img = images["front"][int(box[1] * H):int(box[3] * H), int(box[0] * W):int(box[2] * W)].copy()
+                    area = parcel_in_box(images["front"], box, "change", self.bin_img)
+                    z = float(state.get((self._arm(s) or "right") + "_ee", {}).get("position", [0, 0, 1])[2])
+                    low = z < s.get("bin_z", 0.10)  # the arm lowered the parcel into the bin (not just carrying it past)
+                    self.bincount = getattr(self, "bincount", 0) + 1 if area >= s.get("bin_area", 6000) and low else 0
+                else:
+                    area = parcel_in_box(images["front"], box, kind)
+                    if self.calls == 1 or getattr(self, "bin_base", None) is None:  # how the bin looked when this round started
+                        self.bin_base = area if kind == "light" else 0  # (white tape / wall already in the box: count only what is new)
+                    self.bincount = (getattr(self, "bincount", 0) + 1 if area - self.bin_base >= s.get("bin_area", 7000)
+                                     and not locate_parcel(images["front"], kind) else 0)
                 if self.bincount >= s.get("bin_calls", 3):  # 3 calls in a row: done, stop WALLX, release + home
                     self.i, self.calls, self.bincount, self.task_done = self.i + 1, 0, 0, True
                     self.subgoal_changed = True

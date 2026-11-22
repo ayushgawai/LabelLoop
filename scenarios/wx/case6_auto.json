@@ -2,7 +2,7 @@
  "name": "case6_auto",
  "goal": "Case 6 look-alikes, anywhere: two identical IQBAR boxes; labelled one -> its zone, label-less one -> reject zone 3; the harness finds and picks each, WALLX carries it.",
  "setup": "Two IQBAR boxes (one with a barcode, one without), one per half of the table, anywhere; arms at rest.",
- "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 0.3 --no-reset-on-subgoal --front-only --grip-binary 0.7",
  "seconds": 470,
  "wording": {},
  "quick": true

@@ -2,7 +2,7 @@
  "name": "case4_auto",
  "goal": "Case 4 position change, parcel anywhere: the harness finds the white bag on the head camera, the left arm picks it there (open, down, close tight, lift), WALLX carries it into zone 1; taken out again -> same again.",
  "setup": "White bag anywhere on the open table (not in a bin); arms at rest.",
- "relay": "--sequence scenarios/wx/case4_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/case4_auto_steps.json --slow 0.3 --no-reset-on-subgoal --front-only --grip-binary 0.7",
  "seconds": 470,
  "wording": {},
  "quick": true

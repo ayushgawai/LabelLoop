@@ -80,8 +80,12 @@
   },
   {
    "say": "Stretch and put the package you are holding into zone {zone}.",
-   "calls": 50,
-   "arm": "right"
+   "calls": 160,
+   "arm": "right",
+   "until": "in_bin",
+   "parcel": "change",
+   "bin_area": 6000,
+   "bin_calls": 3
   },
   {
    "release": "right",
