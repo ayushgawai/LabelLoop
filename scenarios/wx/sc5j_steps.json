@@ -18,10 +18,9 @@
    "say": "The cap is at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
    "say_moved": "The cap has been moved. It is now at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
    "relocate": true,
-   "relocate_calls": 170,
+   "relocate_calls": 230,
    "calls": 230,
-   "arm": "lane",
-   "reissue_every": 40
+   "arm": "lane"
   },
   {
    "release": "lane",

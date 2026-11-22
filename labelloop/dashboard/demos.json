@@ -257,7 +257,7 @@
   "trial": "20261122_115220",
   "run": "scenarios/wx/sc5j.json",
   "recipe": "scenarios/wx/sc5j.json",
-  "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04",
+  "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
   "title": "Scenario 5: WALLX goes for the cap; a person moves it; the harness, always watching, cancels the prompt and gives WALLX the new location",
   "steps": [
    {
@@ -275,7 +275,7 @@
    {
     "who": "wallx",
     "title": "WALLX picks up the cap and puts it into zone 2 (the harness re-targets it when the cap is moved)",
-    "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls, slowed to 30% per call). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls (or every 40 calls without success), the current prompt is cancelled, WALLX's history is reset and it gets a new sentence with the new location (same target zone 2). Red marks on the timeline = re-targets."
+    "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and it gets a new sentence with the new location (same target zone 2). When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
    },
    {
     "who": "robot",

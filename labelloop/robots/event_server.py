@@ -71,7 +71,7 @@ class Relay:
         self.slow = 1.0  # --slow: fraction of each WALLX chunk executed per call (time-stretched)
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
-        self.deep_close, self.deep_done = 0.0, {}  # --deep-close: go this much lower with the claw open before WALLX may close it
+        self.deep_close, self.deep_done, self.deep_to = 0.0, {}, None  # --deep-to: sink the open claw down to this height (m)  # --deep-close: go this much lower with the claw open before WALLX may close it
         self.front_only = False  # --front-only: WALLX gets black wrist images (only the head camera)
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
@@ -259,7 +259,10 @@ class Relay:
                             if (isinstance(g, list) and g and isinstance(a.get("position"), list) and g0 > 0.5 and float(g[-1]) < g0 - 0.2
                                     and not self.deep_done.get(arm)):
                                 p0, n = state[arm]["position"], len(g)
-                                z1 = max(self.grasp_floor, float(p0[2]) - self.deep_close)
+                                z1 = float(p0[2]) - self.deep_close
+                                if self.deep_to is not None:  # no depth camera: WALLX often closes in the air; go down to grab height
+                                    z1 = min(z1, self.deep_to)
+                                z1 = max(self.grasp_floor, z1)
                                 a["position"] = [[p0[0], p0[1], float(p0[2]) + (z1 - float(p0[2])) * (k + 1) / n] for k in range(n)]
                                 a["gripper"] = [g0] * n
                                 if isinstance(a.get("rotation_rpy"), list):
@@ -317,6 +320,7 @@ async def main():
     p.add_argument("--grasp-floor", type=float, default=-0.015, help="never plan below this z (m, home-relative) when lowering")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
     p.add_argument("--deep-close", type=float, default=0.0, help="when WALLX starts closing an open claw, first lower it this much (m, floor --grasp-floor) still open; then let it close")
+    p.add_argument("--deep-to", type=float, default=None, help="with --deep-close: sink the open claw at least down to this height (m, home-relative) before it may close")
     p.add_argument("--front-only", action="store_true", help="WALLX calls get black wrist images: only the head camera is seen")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
@@ -368,6 +372,7 @@ async def main():
     relay.open_wide = a.open_wide
     relay.front_only = a.front_only
     relay.deep_close = a.deep_close
+    relay.deep_to = a.deep_to
     relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
     relay.force_roll = a.force_roll
     relay.slow = min(1.0, max(0.1, a.slow))
