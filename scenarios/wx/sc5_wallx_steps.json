@@ -12,13 +12,13 @@
   "red": "2 at the top right corner of the table",
   "black": "3 at the bottom right corner of the table"
  },
- "code_hint": "420/90291/001",
+ "code_hint": "420/90024/001",
  "steps": [
   {
    "read": true
   },
   {
-   "say": "Use the {arm} arm to pick up the package from the middle of the table, stretch and put it into zone {zone}.",
+   "say": "Use the {arm} arm to grab the IQBAR box from the top or the sides, never front to back, pick it up from the middle of the table, stretch and put it into zone {zone}.",
    "calls": 90,
    "arm": "lane"
   },

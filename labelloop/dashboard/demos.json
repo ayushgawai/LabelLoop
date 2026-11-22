@@ -243,16 +243,16 @@
   "run": "scenarios/wx/sc5_wallx.json",
   "recipe": "scenarios/wx/sc5_wallx.json",
   "relay": "--sequence scenarios/wx/sc5_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Scenario 5: a person moves the parcel while WALLX reaches for it, WALLX finds it again and still delivers it to the right zone",
+  "title": "Scenario 5: a person moves the IQBAR box while WALLX reaches for it, WALLX finds it again and still delivers it to the right zone",
   "steps": [
    {
     "who": "harness",
     "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt)",
-    "detail": "Pincode 90291 → zone 2 → right arm (fallback preset: the same code)."
+    "detail": "Barcode reader first, pincode OCR reader as fallback. IQBAR label 90024 → zone 2 → right arm."
    },
    {
     "who": "wallx",
-    "title": "WALLX picks the package up and puts it into the zone (a person moves it once)",
+    "title": "WALLX picks the IQBAR box up (top / sides grip) and puts it into the zone (a person moves it once)",
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 90 calls, so there is time to recover. WALLX re-plans from a fresh head-camera image every call: when the package is moved, its next action chunk goes to the new spot."
    },
    {
