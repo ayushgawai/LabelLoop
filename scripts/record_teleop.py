@@ -67,8 +67,8 @@ def smooth_cols(X, w):  # centred moving average per column, edges padded with t
     return np.column_stack([np.convolve(pad[:, j], k, mode="valid") for j in range(X.shape[1])])
 
 
-def convert(name, speed="2", smooth="0.5"):
-    speed, smooth = float(speed), float(smooth)
+def convert(name, speed="2", smooth="0.5", steady="1", out_name=None):
+    speed, smooth, steady = float(speed), float(smooth), steady not in ("0", "false", "no")
     raw = (ROOT / "runs/demos" / (name + ".raw.jsonl")).read_text()
     rows = [json.loads(l) for l in raw.splitlines() if l.strip()]
     pose = {a: np.array([[r["t"], *r["p"], *quat_rpy(*r["q"])] for r in rows if r["k"] == a]) for a in ("left", "right")}
@@ -90,8 +90,23 @@ def convert(name, speed="2", smooth="0.5"):
     lo, hi = (max(idx[0] - 10, 0), min(idx[-1] + 10, len(ts))) if len(idx) else (0, len(ts))
     out = {a: out[a][lo:hi] for a in out}
     ts = ts[lo:hi]
-    p = ROOT / "runs/demos" / (name + ".json")
-    p.write_text(json.dumps({"dt": DT, "source": "record_teleop", "speed": speed, "smooth_s": smooth, "left": out["left"], "right": out["right"]}))
+    if steady:  # drop the hand's pauses / hesitations (arm < 1 mm per row, gripper steady), keep claw closing/opening + 0.7 s at real pace
+        X = {a: np.asarray(out[a]) for a in out}
+        step = np.zeros(len(ts))
+        gchg = np.zeros(len(ts), bool)
+        for a in X:
+            step = np.maximum(step, np.r_[0, np.linalg.norm(np.diff(X[a][:, :3], axis=0), axis=1)])
+            gchg |= np.r_[False, np.abs(np.diff(X[a][:, 6])) > 0.01]
+        dwell = np.convolve(gchg.astype(float), np.ones(21), mode="full")[:len(ts)] > 0
+        keep = (step > 0.001) | dwell
+        keep[0] = keep[-1] = True
+        out = {a: X[a][keep] for a in X}
+        for a in out:  # second, stronger smoothing on the steadied path (poses only)
+            out[a][:, :6] = smooth_cols(smooth_cols(out[a][:, :6], max(1, int(round(0.6 / DT)))), max(1, int(round(0.6 / DT))))
+            out[a] = out[a].round(5).tolist()
+        ts = ts[keep]
+    p = ROOT / "runs/demos" / ((out_name or name) + ".json")
+    p.write_text(json.dumps({"dt": DT, "source": "record_teleop", "steady": steady, "speed": speed, "smooth_s": smooth, "left": out["left"], "right": out["right"]}))
     print(f"{p}: {len(ts)} rows = {len(ts) * DT:.1f} s")
 
 
