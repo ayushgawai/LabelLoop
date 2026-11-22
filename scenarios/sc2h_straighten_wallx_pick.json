@@ -1,0 +1,8 @@
+{
+ "name": "sc2h_straighten_wallx_pick",
+ "goal": "Scenario 2 hybrid: replay the left-arm straightening push from Ayush's demo, then harness + WALLX: right arm picks the Bhindi box (left locked, z-offset -1, slow 0.3) and the harness cuts it off over zone 1, releases, homes.",
+ "setup": "Bhindi box on its taped (angled) start marks; arms at rest.",
+ "relay": "--sequence scenarios/sc2h_steps.json --z-offset -1 --slow 0.3 --no-reset-on-subgoal",
+ "seconds": 200,
+ "wording": {}
+}

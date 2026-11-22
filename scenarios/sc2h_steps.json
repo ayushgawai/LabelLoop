@@ -1,0 +1,113 @@
+{
+ "watchdog": false,
+ "code_hint": "420/95126/001",
+ "zones": {
+  "blue": "1 at the back left",
+  "red": "2 at the back right",
+  "black": "3 at the right edge"
+ },
+ "zones_px": {
+  "blue": [
+   0.14,
+   0.21,
+   0.34,
+   0.41
+  ],
+  "red": [
+   0.69,
+   0.21,
+   0.86,
+   0.41
+  ],
+  "black": [
+   0.82,
+   0.67,
+   0.98,
+   0.92
+  ]
+ },
+ "track_hsv": [
+  125,
+  165,
+  70,
+  40
+ ],
+ "roi": [
+  0.02,
+  0.3,
+  0.98,
+  1.0
+ ],
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "replay": "runs/demos/scenario2_straighten.json"
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 6,
+   "max_step": 0.04
+  },
+  {
+   "say": "Use only the right arm. Move the right gripper slowly above the purple Bhindi Masala box lying on the green table, lower it, grasp the box firmly across its narrow side, lift it slowly 10 centimeters, carry it slowly over the taped square marked {zone} and hold it there.",
+   "calls": 70,
+   "arm": "right",
+   "until": "in_zone",
+   "zone_calls": 2
+  },
+  {
+   "release": "right",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ]
+}
