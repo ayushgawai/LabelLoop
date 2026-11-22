@@ -1,0 +1,9 @@
+{
+ "name": "case2_multi",
+ "goal": "Case 2 phone scanner, several parcels (up to 3), one after another: the phone in the left claw scans a label; the harness routes it; the right arm picks THAT parcel (head-camera label with the same pincode, else the one nearest the phone's aim) where the head camera sees it; WALLX carries it into the scanned zone; then the next parcel, until the head camera sees none left on the table. Each round needs a new scan (a parcel already sorted never counts again). One parcel works too: it goes home after the first.",
+ "setup": "Phone (scanner page, Start camera) ready; 2-3 labelled parcels, labels up, on the middle / right half of the table, about 10 cm apart, each label different; arms at rest. The phone scans the parcel nearest where it points (in front of zone 2's front-left corner) first.",
+ "relay": "--sequence scenarios/wx/case2_multi_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
+ "seconds": 470,
+ "wording": {},
+ "quick": true
+}
