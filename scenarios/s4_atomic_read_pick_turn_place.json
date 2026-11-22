@@ -1,0 +1,9 @@
+{
+  "name": "s4_atomic_read_pick_turn_place",
+  "goal": "Atomic steps: read label (demo code if unreadable) -> pick -> turn it to show the other side -> read again -> put it into the chosen bin -> home. Idle arm locked.",
+  "setup": "IQBAR standing on its long narrow side, long axis front-to-back, right of centre, about 15 cm in front of the red bin; bins on their marks; arms at rest.",
+  "relay": "--sequence scenarios/s4_steps.json --open-wide 0.85",
+  "seconds": 120,
+  "wording": {},
+  "notes": "Uses labelloop/sequence.py; steps in scenarios/s4_steps.json."
+}
