@@ -33,7 +33,7 @@
    "grip": {
     "left": 0.08
    },
-   "rate": 0.05,
+   "rate": 0.12,
    "contact": 0.1,
    "calls": 40
   },
@@ -44,7 +44,8 @@
    "read": true,
    "from_phone": true,
    "max_age": 30,
-   "wait_calls": 60
+   "wait_calls": 180,
+   "required": true
   },
   {
    "move": {

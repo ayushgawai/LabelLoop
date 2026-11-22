@@ -222,6 +222,10 @@ class Sequence:
                     self.code, self.source, self.mat = code, "phone", bin_for(code)
                     self.i, self.calls = self.i + 1, 0
                     continue
+                if self.step_spec.get("required", True):  # no scan in time: never guess a zone; skip to the last step (home)
+                    self.no_scan = True
+                    self.i, self.calls = len(self.spec["steps"]) - 1, 0
+                    continue
             if "locate" in self.step_spec:  # where is the parcel now (it may have been moved): grid words for {where}
                 xy = locate_dark(images["front"])
                 self.where = where_words(*xy) if xy else self.step_spec.get("default", "the centre")
@@ -322,6 +326,7 @@ class Sequence:
                          "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "waiting_phone": getattr(self, "waiting_phone", False),
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
+                                   else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
                                    else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if "parcel in the target bin: task done, going home" in self.last_log["flags"]:
             self.task_done = False  # log it once
