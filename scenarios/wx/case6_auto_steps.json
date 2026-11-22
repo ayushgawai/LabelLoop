@@ -34,14 +34,14 @@
   },
   {
    "say": "Put the IQBAR box you are holding into zone {zone}.",
-   "calls": 200,
+   "calls": 230,
    "arm": "picked",
    "until": "in_bin",
    "bin_area": 6000,
    "bin_calls": 3,
    "drop_auto": true,
-   "drop_r": 0.12,
-   "drop_z": 0.15,
+   "drop_r": 0.07,
+   "drop_z": 0.12,
    "parcel": "change"
   },
   {
@@ -103,14 +103,14 @@
   },
   {
    "say": "Put the IQBAR box you are holding into zone {zone}.",
-   "calls": 200,
+   "calls": 230,
    "arm": "picked",
    "until": "in_bin",
    "bin_area": 6000,
    "bin_calls": 3,
    "drop_auto": true,
-   "drop_r": 0.12,
-   "drop_z": 0.15,
+   "drop_r": 0.07,
+   "drop_z": 0.12,
    "parcel": "change"
   },
   {
