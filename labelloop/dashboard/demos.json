@@ -71,7 +71,7 @@
   "trial": null,
   "run": "scenarios/wx/sc6_phone.json",
   "recipe": "scenarios/wx/sc6_phone.json",
-  "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
   "title": "Case 2, handheld scanner: the left hand holds the phone and scans the label; the harness routes the code; WALLX sorts the parcel with the right hand",
   "steps": [
    {
@@ -146,7 +146,7 @@
   "trial": null,
   "run": "scenarios/wx/sc6_wallx.json",
   "recipe": "scenarios/wx/sc6_wallx.json",
-  "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
   "title": "Case 3, multi-parcel: the harness reads each parcel's label (left half, then right half of the table); WALLX sorts each into its zone",
   "steps": [
    {
@@ -208,7 +208,7 @@
   "trial": null,
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
-  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
   "title": "Case 4, position change: the parcel is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; the harness ends the run when it is in the bin",
   "steps": [
    {
@@ -356,7 +356,7 @@
   "trial": null,
   "run": "scenarios/wx/case6_lookalike.json",
   "recipe": "scenarios/wx/case6_lookalike.json",
-  "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
   "title": "Case 6, look-alikes: two identical IQBAR boxes; the one with a barcode goes to its zone, the one without a readable label goes to the reject zone 3",
   "steps": [
    {

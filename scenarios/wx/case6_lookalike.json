@@ -2,7 +2,7 @@
  "name": "case6_lookalike",
  "goal": "Case 6 look-alikes: two identical IQBAR boxes; the harness reads the left half then the right half of the table; the one with a barcode goes to its zone (1 or 2), the one without a readable label goes to the reject zone 3 (never guessed into a bin); WALLX picks + places each.",
  "setup": "Two IQBAR boxes: one with a barcode label, one without, one on the left half and one on the right half of the table, labels up; arms at rest.",
- "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
  "seconds": 470,
  "wording": {}
 }

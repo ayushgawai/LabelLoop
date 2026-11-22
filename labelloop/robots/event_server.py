@@ -72,6 +72,7 @@ class Relay:
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
         self.deep_close, self.deep_done, self.deep_to = 0.0, {}, None  # --deep-to: sink the open claw down to this height (m)  # --deep-close: go this much lower with the claw open before WALLX may close it
+        self.closed_cmd = {}  # arm -> last WALLX claw command was "closed" (grip latch with --grip-binary)
         self.grip_binary = None  # --grip-binary T: WALLX's claw commands become fully open (1.5) or fully closed (0)
         self.front_only = False  # --front-only: WALLX gets black wrist images (only the head camera)
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
@@ -278,7 +279,10 @@ class Relay:
                         for arm in ("left_ee", "right_ee"):  # WALLX opens too little and closes too gently (loses the hat):
                             a = reply["actions"].get(arm, {})  # every claw value -> 1.5 (open) or 0.0 (closed, tight)
                             if isinstance(a.get("gripper"), list):
-                                a["gripper"] = [1.5 if float(v) >= self.grip_binary else 0.0 for v in a["gripper"]]
+                                g_meas = float(state[arm]["gripper"])
+                                holding = self.closed_cmd.get(arm) and 0.08 < g_meas < 1.2  # commanded shut but the fingers are stopped by an object
+                                a["gripper"] = [0.0 if holding else (1.5 if float(v) >= self.grip_binary else 0.0) for v in a["gripper"]]
+                                self.closed_cmd[arm] = a["gripper"][-1] == 0.0  # latch: WALLX never lets go of what it holds (release = harness step)
                     keep = (getattr(harness, "active", None) or {}).get("keep_claws") if harness else None
                     if keep and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # WALLX moves the arm, never its claw
                         for arm, g in keep.items():  # (e.g. the parcel stays gripped while WALLX carries it; released by a later step)

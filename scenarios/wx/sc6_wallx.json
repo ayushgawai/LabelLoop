@@ -2,7 +2,7 @@
  "name": "sc6_wallx",
  "goal": "Scenario 6, two parcels sorted by label: harness reads the left parcel -> zone/arm -> WALLX places it; then reads the right parcel -> zone/arm -> WALLX places it.",
  "setup": "Two parcels: the white mailer bag on the LEFT half of the table (pincode 94043 -> zone 1), the cap with the 90291 label on the RIGHT half (zone 2), labels up, both in front of the zones; arms at rest.",
- "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
  "seconds": 247,
  "wording": {}
 }

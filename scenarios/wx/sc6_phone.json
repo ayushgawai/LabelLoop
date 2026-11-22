@@ -2,7 +2,7 @@
  "name": "sc6_phone",
  "goal": "Scenario 6, handheld scanner, hands-free: left claw opens wide 5 s for the phone, then everything is automatic: firm gentle grip on the phone; the left arm holds it over the parcel until it scans the label; the harness routes the code (zone); left arm back; WALLX picks the parcel up with the right arm and puts it into that zone; release; both arms home, the left still holding the phone (take it out after the run).",
  "setup": "Phone: scanner page open AND 'Start camera' tapped, 3x. Parcel label-up where the demo picked it (right of centre, in front of zone 2's front-left corner). Arms at rest. Put the phone in the left claw during the 5 s it is open; hands off after that.",
- "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+ "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
  "seconds": 480,
  "wording": {}
 }
