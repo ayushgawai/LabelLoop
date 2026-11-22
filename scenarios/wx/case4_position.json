@@ -2,7 +2,7 @@
  "name": "case4_position",
  "goal": "Case 4 position change: WALLX puts the hat into the right corner bin; the harness sees it there and homes the arm; a person takes it out and puts it elsewhere; the harness sees it back on the table and WALLX gets the task again (up to 3 rounds in the 8 minutes).",
  "setup": "Hat upright on the open table (not in a bin / tape area); arms at rest.",
- "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+ "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
  "seconds": 470,
  "wording": {}
 }

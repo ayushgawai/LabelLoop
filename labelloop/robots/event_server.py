@@ -72,6 +72,7 @@ class Relay:
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
         self.deep_close, self.deep_done, self.deep_to = 0.0, {}, None  # --deep-to: sink the open claw down to this height (m)  # --deep-close: go this much lower with the claw open before WALLX may close it
+        self.grip_binary = None  # --grip-binary T: WALLX's claw commands become fully open (1.5) or fully closed (0)
         self.front_only = False  # --front-only: WALLX gets black wrist images (only the head camera)
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
@@ -273,6 +274,11 @@ class Relay:
                             g = reply["actions"].get(arm, {}).get("gripper")
                             if isinstance(g, list) and g and float(g[-1]) > float(state[arm]["gripper"]) + 0.05:  # this chunk opens the gripper
                                 reply["actions"][arm]["gripper"] = [max(float(v), self.open_wide) for v in g]
+                    if self.grip_binary is not None and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):
+                        for arm in ("left_ee", "right_ee"):  # WALLX opens too little and closes too gently (loses the hat):
+                            a = reply["actions"].get(arm, {})  # every claw value -> 1.5 (open) or 0.0 (closed, tight)
+                            if isinstance(a.get("gripper"), list):
+                                a["gripper"] = [1.5 if float(v) >= self.grip_binary else 0.0 for v in a["gripper"]]
                     keep = (getattr(harness, "active", None) or {}).get("keep_claws") if harness else None
                     if keep and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # WALLX moves the arm, never its claw
                         for arm, g in keep.items():  # (e.g. the parcel stays gripped while WALLX carries it; released by a later step)
@@ -330,6 +336,7 @@ async def main():
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
     p.add_argument("--deep-close", type=float, default=0.0, help="when WALLX starts closing an open claw, first lower it this much (m, floor --grasp-floor) still open; then let it close")
     p.add_argument("--deep-to", type=float, default=None, help="with --deep-close: sink the open claw at least down to this height (m, home-relative) before it may close")
+    p.add_argument("--grip-binary", type=float, default=None, help="WALLX claw commands >= this -> 1.5 (fully open), below -> 0 (fully closed)")
     p.add_argument("--front-only", action="store_true", help="WALLX calls get black wrist images: only the head camera is seen")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
@@ -380,6 +387,7 @@ async def main():
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
     relay.front_only = a.front_only
+    relay.grip_binary = a.grip_binary
     relay.deep_close = a.deep_close
     relay.deep_to = a.deep_to
     relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
