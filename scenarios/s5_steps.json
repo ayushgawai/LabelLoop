@@ -1,0 +1,9 @@
+{
+  "code_hint": "420/90024/001",
+  "steps": [
+    {"read": true},
+    {"say": "pick up the IQBAR box", "calls": 20, "arm": "lane", "until": "lifted"},
+    {"say": "put the box you are holding into the {mat} bin", "calls": 16, "arm": "lane"},
+    {"say": "put both arms back to the home position", "calls": 4}
+  ]
+}

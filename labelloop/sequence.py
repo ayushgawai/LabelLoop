@@ -33,6 +33,7 @@ class Sequence:
         self.i, self.calls, self.code, self.mat, self.source = 0, 0, None, "black", None
         self.subgoal_changed, self.done, self.state_name, self.last_log = True, False, "SEQ0", None
         self.spot, self.spot0 = None, None  # the parcel's start box and its non-mat fraction (for "until": "lifted")
+        self.bin_mat0, self.binhit, self.held = None, 0, False  # bin watchdog: mat uncovered where a bin stood -> hold for good
 
     @property
     def step_spec(self):
@@ -67,6 +68,20 @@ class Sequence:
 
     def step(self, images, state):
         before, self.subgoal_changed = self.i, False
+        sc = self.spec.get("scene")
+        if sc and sc.get("bin_rois"):  # watchdog (s4 run 2: with no box in the gripper WALLX dragged the red bin)
+            mats = {c: scene.mat_fraction(images["front"], sc, b) for c, b in sc["bin_rois"].items()}
+            if self.bin_mat0 is None:
+                self.bin_mat0 = mats
+            moved = [c for c, v in mats.items() if v - self.bin_mat0[c] >= 0.15]
+            self.binhit = self.binhit + 1 if moved else 0
+            if self.binhit >= 3 and not self.held:
+                self.held = True
+                if self.runlog:
+                    self.runlog.write(flag="bin_moved", bins=moved)
+        if self.held:
+            self.state_name, self.done = "HOLD", True
+            return None
         if self.spot is None and self.spec.get("mat"):  # the parcel's start spot, once
             self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
