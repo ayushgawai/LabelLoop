@@ -5,38 +5,6 @@
    "replay": "scenarios/wx/sc3b_flip.json"
   },
   {
-   "move": {
-    "left": {
-     "position": [
-      0,
-      0,
-      0
-     ],
-     "rotation_rpy": [
-      0,
-      0,
-      0
-     ],
-     "gripper": 0.0
-    },
-    "right": {
-     "position": [
-      0,
-      0,
-      0
-     ],
-     "rotation_rpy": [
-      0,
-      0,
-      0
-     ],
-     "gripper": 0.0
-    }
-   },
-   "calls": 8,
-   "max_step": 0.04
-  },
-  {
    "say": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.",
    "calls": 60,
    "arm": "left"

@@ -777,7 +777,7 @@
   function whoOf(r) {
     const h = r.harness || {}, ins = String(h.instruction || '');
     if (r.source === 'wallx') return 'wallx';
-    if (/^\(replay/.test(ins)) return 'replay';
+    if (/^\(replay/.test(ins)) return 'harness';
     if (r.source === 'hold' || !ins) return 'done';
     return 'scripted';
   }
