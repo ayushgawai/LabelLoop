@@ -1,0 +1,9 @@
+{
+  "name": "a1_left_pick_blue",
+  "goal": "Atomic pick and place: the left arm picks a parcel standing on its narrow side and drops it into the blue bin (raw WALLX, right arm locked).",
+  "setup": "IQBAR standing on its long narrow side (top face 64 mm wide), left of centre, long axis front-to-back, about 15 cm in front of the blue bin; bins on their marks; arms at rest.",
+  "relay": "--lock-arm right",
+  "instruction": "pick up the IQBAR box",
+  "seconds": 45,
+  "notes": "First success 2026-11-21 16:52 (runs/atomic/20261121_165201): left arm picked it and dropped it into the blue bin. Flat (102 mm wide) the gripper cannot close on it; the unlocked right arm grabs bins."
+}

@@ -45,11 +45,15 @@ def judge(before, after):
 
 def main():
     a = argparse.ArgumentParser()
-    a.add_argument("instructions", nargs="+")
+    a.add_argument("instructions", nargs="*")
+    a.add_argument("--recipe", default="", help="scenarios/<atomic recipe>.json (instruction, relay, seconds); runs append to scenarios/RESULTS.md")
     a.add_argument("--seconds", type=int, default=25)
     a.add_argument("--relay", default="", help="extra relay flags for every session, e.g. '--lock-arm right'")
     o = a.parse_args()
-    out = ROOT / "runs/atomic" / time.strftime("%Y%m%d_%H%M%S")
+    rec = json.loads(Path(o.recipe).read_text()) if o.recipe else None
+    if rec:
+        o.instructions, o.relay, o.seconds = [rec["instruction"]], rec.get("relay", ""), rec.get("seconds", o.seconds)
+    out = ROOT / "runs/atomic" / ((rec["name"] + "_") if rec else "") + time.strftime("%Y%m%d_%H%M%S")
     out.mkdir(parents=True)
     results, tiles = [], []
     for k, instr in enumerate(o.instructions):
@@ -70,6 +74,10 @@ def main():
             cv2.putText(ims[0], "%d: %s" % (k, instr[:48]), (6, 20), 0, 0.5, (0, 0, 255), 2)
             tiles.append(np.hstack(ims))
         (out / "results.json").write_text(json.dumps(results, indent=1))
+        if rec:
+            with open(ROOT / "scenarios/RESULTS.md", "a") as f:
+                f.write(f"- {time.strftime('%Y-%m-%d %H:%M')} | {rec['name']} | parcel_moved {r.get('parcel_moved')} gone {r.get('parcel_gone')} | "
+                        f"bin_moved {r.get('bin_moved')} | {out.relative_to(ROOT)} | observed: (fill in)\n")
         if r.get("bin_moved"):
             print("STOP: bin moved:", r["bin_moved"], flush=True)
             break
