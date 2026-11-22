@@ -1,0 +1,11 @@
+{
+ "relay": "--stage --assume-code 420/90024/001 --overlay parcel",
+ "seconds": 130,
+ "setup": "IQBAR flat near the middle (wherever the previous attempt left it)",
+ "wording": {
+  "PLACE_WIDE": "put the box into the {mat} bin with both arms",
+  "PICK_WIDE": "lift the box with both arms"
+ },
+ "name": "s1_v5_lift_overlay",
+ "goal": "Pick and place variant v5_lift_overlay"
+}

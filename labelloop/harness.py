@@ -157,10 +157,11 @@ class Harness:
                 self.ref, self.ref_cfg, self.empty, self.sm.rebase = scene.zone_ref(base, cfg), False, 0, False
         kroi = scene.kraft_in_roi(front, cfg)
         bins = {c: scene.presence(front, r, cfg, "bin_rois", c) for c, r in self.bin_refs.items()}  # {} until the first SCAN
+        vacated = {c: scene.mat_fraction(front, cfg, cfg["bin_rois"][c]) - m0 for c, m0 in getattr(self, "bin_mat0", {}).items()}
         n = 10**9 if self.point else len(self.views) * self.look_span()  # point_test: hold until the episode is stopped
         push = len(self.spin["wps"]) + self.cfg["home_calls"] if self.spin else 0
         sc = self.cfg.get("spin", {}).get("scan_calls", 0)
-        ev = {"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "look_calls": n, "raw": {t for _, t in seen},
+        ev = {"presence": pres, "kroi": kroi, "codes": confirmed, "bins": bins, "bins_vacated": vacated, "look_calls": n, "raw": {t for _, t in seen},
               "grip": {"left": state["left_ee"]["gripper"], "right": state["right_ee"]["gripper"]},
               "show_calls": len(self.show["calls"]) if self.show else 0,
               "showset_calls": len(self.sset["calls"]) + self.cfg["home_calls"] if self.sset else self.cfg["home_calls"],
@@ -216,6 +217,7 @@ class Harness:
             self.spin_sigma = None
         if before == "IDLE" and self.sm.state == "SCAN":  # object arrived, arms home: snapshot every bin
             self.bin_refs = {c: scene.zone_ref(front, cfg, "bin_rois", c) for c in cfg["bin_rois"]}
+            self.bin_mat0 = {c: scene.mat_fraction(front, cfg, b) for c, b in cfg["bin_rois"].items()}  # mat visible in each bin region at the snapshot
         self.state_name, self.done = self.sm.state, self.sm.state == "DONE"
         self.subgoal_changed = self.sm.state != before or any(t[1] == before for t in self.sm.transitions)  # a retry restarts the same sub-goal
         self.last_log = {"call": self.calls, "state": before, "instruction": instr, "codes": codes, "wrist_codes": wrist,

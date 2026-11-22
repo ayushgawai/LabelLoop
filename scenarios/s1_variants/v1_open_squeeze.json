@@ -1,0 +1,11 @@
+{
+ "relay": "--stage --assume-code 420/90024/001",
+ "seconds": 130,
+ "setup": "IQBAR flat near the middle (wherever the previous attempt left it)",
+ "wording": {
+  "PLACE_WIDE": "put the box into the {mat} bin with both arms",
+  "PICK_WIDE": "open both grippers, squeeze the box between them from its left and right ends, then lift it up"
+ },
+ "name": "s1_v1_open_squeeze",
+ "goal": "Pick and place variant v1_open_squeeze"
+}

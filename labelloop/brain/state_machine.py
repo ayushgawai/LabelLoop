@@ -125,7 +125,8 @@ class StateMachine:
             self.binhit = 0
             return False
         target = self.cfg["lanes"].get(self.lane, "black")  # the target bin too while the drop has not succeeded (agent run 3: WALLX tipped the red TARGET bin)
-        hit = any(v >= level for k, v in ev.get("bins", {}).items() if k != target or not self._success(ev))
+        vac = ev.get("bins_vacated")  # mat uncovered where the bin stood (an arm in front of the camera changes the region but shows no mat)
+        hit = any(v >= level and (vac is None or vac.get(k, 1.0) >= 0.15) for k, v in ev.get("bins", {}).items() if k != target or not self._success(ev))
         self.binhit = self.binhit + 1 if hit else 0
         return self.binhit >= calls
 

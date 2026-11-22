@@ -1,0 +1,11 @@
+{
+ "relay": "--stage --assume-code 420/90024/001",
+ "seconds": 130,
+ "setup": "IQBAR flat near the middle (wherever the previous attempt left it)",
+ "wording": {
+  "PLACE_WIDE": "put the box into the {mat} bin with both arms",
+  "PICK_WIDE": "hold the closed left gripper against the left end of the box like a wall, grab the right end with the open right gripper, then lift the box"
+ },
+ "name": "s1_v2_wall_and_grab",
+ "goal": "Pick and place variant v2_wall_and_grab"
+}

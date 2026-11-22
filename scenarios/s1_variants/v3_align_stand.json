@@ -1,0 +1,12 @@
+{
+ "relay": "--stage --assume-code 420/90024/001 --cfg {\"tries\":{\"STAND\":2}}",
+ "seconds": 130,
+ "setup": "IQBAR flat near the middle (wherever the previous attempt left it)",
+ "wording": {
+  "PLACE_WIDE": "put the box into the {mat} bin with both arms",
+  "STAND": "use both arms to turn the box so its long side faces you, then stand it up on its long edge",
+  "PICK_STANDING": "pick up the standing box from the top with the right arm"
+ },
+ "name": "s1_v3_align_stand",
+ "goal": "Pick and place variant v3_align_stand"
+}

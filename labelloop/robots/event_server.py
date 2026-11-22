@@ -94,6 +94,27 @@ class Relay:
             pass
         return req if mask_bins is None else None  # required stage mask failed: hold instead of forwarding the raw bins
 
+    @staticmethod
+    def _infer_retry(wallx, req, tries=2):
+        """wallx.infer; when WALLX drops the connection (real event: ConnectionClosed mid-session), reconnect and resend instead of ending the session."""
+        for k in range(tries + 1):
+            try:
+                return wallx.infer(req)
+            except WallxError as e:
+                if e.reply is not None or k == tries:
+                    raise
+            except Exception:  # websockets ConnectionClosed / OSError on the upstream socket
+                if k == tries:
+                    raise
+            print(json.dumps({"event": "wallx_reconnect", "try": k + 1}), flush=True)
+            try:
+                wallx.close()
+            except Exception:
+                pass
+            time.sleep(0.5)
+            wallx.connect()
+            req = {**req, "reset_history": True}
+
     async def handle_hold(self, downstream, cap=30):
         """Camera-capture mode: every request gets a hold reply (arms stay put), no WALLX, no harness; the first `cap` requests are saved."""
         await downstream.send(pack({"model": "hold"}))
@@ -176,9 +197,9 @@ class Relay:
                     req["instruction"] = instruction  # whole original request forwarded, extras preserved
                     t1, err = time.monotonic(), None
                     try:
-                        reply = await asyncio.to_thread(wallx.infer, req)
+                        reply = await asyncio.to_thread(self._infer_retry, wallx, req)
                     except WallxError as e:
-                        if e.reply is None:  # session closed by WALLX: nothing to pass through
+                        if e.reply is None:  # session closed by WALLX and the reconnect failed too: nothing to pass through
                             raise
                         reply, err = e.reply, str(e)  # error replies also pass through unchanged
                     latency_ms = (time.monotonic() - t1) * 1000
@@ -215,6 +236,7 @@ async def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
+    p.add_argument("--cfg", default="", help="JSON merged into the task config (recipes), e.g. '{\"tries\": {\"STAND\": 2}}'")
     p.add_argument("--assume-code", default="", help="PRACTICE ONLY: treat the object on the table as carrying this code (manipulation trials without label reading)")
     p.add_argument("--stage", action=argparse.BooleanOptionalAction, default=False, help="event_fast staged delivery with per-stage bin masking (hard rule: WALLX cannot see the bins it must not grab)")
     p.add_argument("--passthrough", action="store_true", help="forward with the client's instruction, no harness")
@@ -238,6 +260,8 @@ async def main():
         from labelloop.harness import Harness
         task, agent, runlog = {**load_yaml(a.task), "profile": a.profile, "real_safe": a.real_safe, "event_fast": a.fast and a.profile == "real"}, VisionAgent.from_env(), RunLog(a.log)
         task["assume_code"] = a.assume_code or None  # practice only
+        for k, v in json.loads(a.cfg or "{}").items():  # recipe overrides, e.g. {"tries": {"STAND": 2}}
+            task[k] = {**task[k], **v} if isinstance(v, dict) and isinstance(task.get(k), dict) else v
         task["event_fast_stage"] = a.stage  # STAND (wide) -> PICK (all bins hidden) -> PLACE (only the target bin visible)
         if a.wording:  # JSON {state: template or [templates]} overriding the WALLX instruction wording (scripts/trial_agent.py)
             task["wording"] = json.loads(Path(a.wording).read_text() or "{}")

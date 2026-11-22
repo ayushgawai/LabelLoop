@@ -142,3 +142,13 @@ def object_box(img, ref, cfg):
             bx, by, bw, bh = cv2.boundingRect(c)
             best = (bx + x0, by + y0, bx + x0 + bw, by + y0 + bh, a)
     return None if best is None else tuple(int(v) for v in best[:4])
+
+
+def mat_fraction(img, cfg, box):
+    """Fraction of mat-coloured pixels inside `box` (image fractions): a bin that really moved uncovers the green mat where it stood;
+    an arm passing in front of the camera covers it with white / grey instead (real event: false bin_moved from arm occlusion)."""
+    if not cfg.get("mat"):
+        return 0.0
+    x0, y0, x1, y1 = _frac_box(img, box)
+    m = _mask(img[y0:y1, x0:x1], [cfg["mat"]], max(2, img.shape[1] // 200))
+    return float((m > 0).mean()) if m.size else 0.0
