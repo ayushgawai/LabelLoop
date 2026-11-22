@@ -217,7 +217,16 @@ class Sequence:
             if self.calls >= s.get("calls", 3):
                 self.i, self.calls = self.i + 1, 0
         elif s is not None:
-            instr = s["say"].format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
+            moved = False
+            if s.get("relocate") and self.calls < s.get("relocate_calls", 45):  # the harness keeps watching the parcel: if it was
+                xy = locate_dark(images["front"])  # moved to another grid cell (same cell 3 calls in a row), the prompt is cancelled
+                cell = where_words(*xy) if xy else None  # and WALLX gets a new one with the new location (history reset)
+                self._cand, self._candn = (cell, getattr(self, "_candn", 0) + 1) if cell and cell == getattr(self, "_cand", None) else (cell, 1)
+                if cell and cell != getattr(self, "where", None) and self._candn >= 3:
+                    self.where, self.where_xy, self.moved_n = cell, [round(v, 3) for v in xy], getattr(self, "moved_n", 0) + 1
+                    moved = True
+            tmpl = s["say_moved"] if s.get("say_moved") and getattr(self, "moved_n", 0) else s["say"]
+            instr = tmpl.format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
                                     where=getattr(self, "where", "the centre"))
             self.calls += 1
             if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
@@ -241,11 +250,12 @@ class Sequence:
                 self.calls = 0
                 if s.get("until") == "lifted" and self.runlog:
                     self.runlog.write(flag="not_lifted: skipped to home")
-        self.subgoal_changed = self.i != before or self.calls == 1
+        self.subgoal_changed = self.i != before or self.calls == 1 or (s is not None and "say" in s and locals().get("moved", False))
         self.done = s is None
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
-                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
+                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None),
+                         "flags": ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved") else [], "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr

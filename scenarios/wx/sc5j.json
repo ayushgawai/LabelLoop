@@ -1,0 +1,8 @@
+{
+ "name": "sc5j",
+ "goal": "Scenario 5 J (simple): label read; harness locates the cap (grid) -> WALLX prompt with its cell; WALLX does ALL the motion (110 calls, all cameras); the harness keeps watching: if the cap is moved to another cell (first 50 calls), the prompt is cancelled and WALLX gets a new one with the new location (history reset); release, home.",
+ "setup": "Cap in the centre, label to the camera; trays in zones; arms at rest. Move the cap quickly while WALLX reaches for it.",
+ "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",
+ "seconds": 330,
+ "wording": {}
+}
