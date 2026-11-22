@@ -307,6 +307,8 @@ class Sequence:
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
+        if "parcel in the target bin: task done, going home" in self.last_log["flags"]:
+            self.task_done = False  # log it once
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr

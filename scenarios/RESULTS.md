@@ -152,3 +152,9 @@
 - 2026-11-22 12:15 | sc5j run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 12:21 | sc5j run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 12:21 | sc5j run_3 (re-scan every 25 calls) | FAIL: cap moved to front-left at call 9 (re-target correct), re-scans at 25/50/75 correct; WALLX went to the cap again and again (claw around it, opened fully) but never lifted it in 110 calls (3 min); the cap lay tipped on its side | video runs/scenarios/sc5j/run_3/demo.mp4
+- 2026-11-22 12:29 | sc5j run_4 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:35 | sc5j run_5 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:40 | sc5j run_6 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:45 | sc5j run_7 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:48 | sc5j run_8 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 12:50 | sc5j run_9 | harness no verdict in None s | observed: - | states {} | flags []
