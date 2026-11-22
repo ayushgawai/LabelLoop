@@ -1,0 +1,160 @@
+{
+ "watchdog": false,
+ "zones": {
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
+ },
+ "zip_vote": true,
+ "roi": [
+  0.02,
+  0.17,
+  0.98,
+  1.0
+ ],
+ "steps": [
+  {
+   "autopick": {
+    "arm": "left",
+    "z": -0.01
+   }
+  },
+  {
+   "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
+   "calls": 50,
+   "arm": "picked",
+   "until": "in_bin",
+   "bin_box": 0,
+   "bin_area": 3500
+  },
+  {
+   "release": "picked",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "wait_parcel": true,
+   "calls": 200,
+   "bin_box": 0,
+   "out_area": 2500
+  },
+  {
+   "autopick": {
+    "arm": "left",
+    "z": -0.01
+   }
+  },
+  {
+   "say": "Stretch to the top left corner of the table and put the white bag into zone 1.",
+   "calls": 50,
+   "arm": "picked",
+   "until": "in_bin",
+   "bin_box": 0,
+   "bin_area": 3500
+  },
+  {
+   "release": "picked",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  }
+ ],
+ "parcel": "light"
+}

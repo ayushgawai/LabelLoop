@@ -143,6 +143,39 @@ def parcel_in_box(img_rgb, box, kind="dark"):
     return int(st[1:, 4].max()) if n > 1 else 0
 
 
+# head-camera pixel -> table point in the RIGHT arm's home-relative frame (least squares over recorded grasps: scenario 1 bag,
+# scenario 3 bag after the flip, scenario 2 Miro box, scenario 4 Bhindi box). The left arm's base is 0.51 m to the left
+# (same as the two-arm carry), so left = right-frame point - (0, 0.51). ponytail: affine from 4 grasps (~4 cm), a proper
+# calibration (claw tip at a grid of points) if picks keep landing beside the parcel.
+PIX2RIGHT = None
+BASE_SEP = 0.51
+GRASP_RPY = {"left": [-0.13, 0.80, -0.29], "right": [0.11, 1.01, 0.38]}  # recorded top-down grasp orientations
+
+
+def pix_to_arm(u, v, arm):
+    global PIX2RIGHT
+    if PIX2RIGHT is None:
+        P = np.array([[648, 341], [651, 383], [501, 373], [964, 310]], float)
+        Y = np.array([[0.374, 0.277], [0.32, 0.245], [0.30, 0.295], [0.303, 0.026]])
+        PIX2RIGHT = np.linalg.lstsq(np.c_[P, np.ones(len(P))], Y, rcond=None)[0]
+    x, y = np.array([u, v, 1.0]) @ PIX2RIGHT
+    return (float(x), float(y) - (BASE_SEP if arm == "left" else 0.0))
+
+
+def find_parcel_px(img_rgb, roi=None):
+    """(u, v) pixel centre of the loose parcel on the table (not trays / bins / claws), or None; roi = x-range fractions."""
+    import cv2
+    from labelloop.dashboard.track import find_parcel
+    img = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    if roi:
+        W = img.shape[1]
+        img = img.copy()
+        img[:, :int(roi[0] * W)] = (90, 140, 40)   # paint outside the range as mat
+        img[:, int(roi[1] * W):] = (90, 140, 40)
+    b = find_parcel(img)
+    return (b[0] + b[2] / 2, b[1] + b[3] / 2) if b else None
+
+
 def where_words(x, y):
     """Image fractions -> table grid words for the WALLX prompt: rows back / middle / front, columns left / middle / right."""
     col = "left" if x < 0.38 else "middle" if x < 0.62 else "right"
@@ -170,6 +203,8 @@ class Sequence:
 
     def _arm(self, s):
         a = s.get("arm")
+        if a == "picked":  # the arm the autopick used
+            return getattr(self, "pick_arm", "right")
         return {"blue": "left"}.get(self.mat, "right") if a == "lane" else a
 
     def lock_arms(self):
@@ -290,6 +325,33 @@ class Sequence:
             self.calls += 1
             if self.calls >= s.get("calls", 10):
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and "autopick" in s:  # find the parcel on the head camera, then: above it (claw open) -> down -> close -> lift
+            c = s["autopick"]
+            if self.calls == 0:
+                px = find_parcel_px(images["front"], c.get("roi"))
+                if px is None:  # nothing found: skip the pick (and the step after it, the WALLX place) to the end
+                    self.no_parcel = True
+                    self.i, self.calls = len(self.spec["steps"]) - 1, 0
+                    instr = "(autopick %d: no parcel)" % self.i
+                else:
+                    arm = c.get("arm", "auto")
+                    if arm == "auto":
+                        arm = "left" if px[0] < images["front"].shape[1] / 2 else "right"
+                    x, y = pix_to_arm(px[0], px[1], arm)
+                    x, y = x + c.get("dx", 0.0), y + c.get("dy", 0.0)
+                    zg, zh, rpy = c.get("z", 0.0), c.get("z_high", 0.15), c.get("rpy", GRASP_RPY[arm])
+                    self.pick_arm, self.pick_px = arm, [round(px[0]), round(px[1])]
+                    p0 = list(state[arm + "_ee"]["position"])
+                    self.pick_plan = [([p0[0], p0[1], zh], rpy, 1.5, 3),  # straight up first (never sweep low across the table)
+                                      ([x, y, zh], rpy, 1.5, c.get("approach_calls", 7)), ([x, y, zg], rpy, 1.5, c.get("down_calls", 4)),
+                                      ([x, y, zg], rpy, 0.0, 2), ([x, y, zh], rpy, 0.0, 3)]
+            if getattr(self, "pick_plan", None) and self.step_spec is s:
+                instr = "(autopick %d)" % self.i
+                self.calls += 1
+                self.pick_k = self.calls  # (scripted_reply runs after the index may have advanced and calls reset)
+                if self.calls >= sum(p[3] for p in self.pick_plan):
+                    self.i, self.calls = self.i + 1, 0
+                    self.pick_plan_done = self.pick_plan
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
@@ -376,7 +438,7 @@ class Sequence:
         self.done = s is None
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
-                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "waiting_phone": getattr(self, "waiting_phone", False),
+                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "pick": getattr(self, "pick_px", None), "waiting_phone": getattr(self, "waiting_phone", False),
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
@@ -460,7 +522,8 @@ class Sequence:
         if s and ("wait" in s or "wait_parcel" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
             return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
-            arm = {"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else s["release"]
+            arm = ({"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else
+                   getattr(self, "pick_arm", "right") if s["release"] == "picked" else s["release"])
             k = arm + "_ee"
             pos = np.asarray(state[k]["position"], float)
             if self.calls == 0 or self.calls > s.get("open_calls", 2):  # step advanced (calls reset) or lifting phase
@@ -469,6 +532,19 @@ class Sequence:
             if s.get("open", True):
                 self.hold_grip.pop(arm, None)  # let go: no more hold command for this arm
             return move_response(embodiment, state, self._with_grips(state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}}))
+        if s and "autopick" in s and getattr(self, "pick_plan", None):
+            k, n = getattr(self, "pick_k", self.calls), 0
+            for pos, rpy, g, calls in self.pick_plan:  # the waypoint this call heads for
+                n += calls
+                if k <= n:
+                    break
+            key = self.pick_arm + "_ee"
+            cur = np.asarray(state[key]["position"], float)
+            goal = np.asarray(pos, float)
+            d = np.linalg.norm(goal - cur)
+            cap = s["autopick"].get("max_step", 0.06)
+            nxt = goal if d <= cap else cur + (goal - cur) * cap / d
+            return move_response(embodiment, state, self._with_grips(state, {key: {"position": nxt.tolist(), "rotation_rpy": rpy, "gripper": g}}))
         if s and "carry" in s:
             return self._carry(embodiment, state, s)
         if s and "replay" in s:

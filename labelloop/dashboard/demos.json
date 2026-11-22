@@ -69,9 +69,9 @@
   "id": "case2",
   "label": "2 · Phone scanner",
   "trial": null,
-  "run": "scenarios/wx/sc6_phone.json",
-  "recipe": "scenarios/wx/sc6_phone.json",
-  "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "run": "scenarios/wx/case2_auto.json",
+  "recipe": "scenarios/wx/case2_auto.json",
+  "relay": "--sequence scenarios/wx/case2_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
   "title": "Case 2, handheld scanner: the left hand holds the phone and scans the label; the harness routes the code; WALLX sorts the parcel with the right hand",
   "steps": [
    {
@@ -111,9 +111,15 @@
     "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
    },
    {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+   },
+   {
     "who": "wallx",
-    "title": "WALLX picks up the parcel with the right hand and puts it into the scanned zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
+    "title": "WALLX carries the parcel into the scanned zone",
+    "detail": "Right arm; the left (phone) arm is locked."
    },
    {
     "who": "harness",
@@ -144,21 +150,27 @@
   "id": "case3",
   "label": "3 · Multi-parcel",
   "trial": null,
-  "run": "scenarios/wx/sc6_wallx.json",
-  "recipe": "scenarios/wx/sc6_wallx.json",
-  "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "run": "scenarios/wx/case3_auto.json",
+  "recipe": "scenarios/wx/case3_auto.json",
+  "relay": "--sequence scenarios/wx/case3_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
   "title": "Case 3, multi-parcel: the harness reads each parcel's label (left half, then right half of the table); WALLX sorts each into its zone",
   "steps": [
    {
     "who": "harness",
-    "title": "Read the left parcel's label, choose zone + arm",
-    "prompt": "Read the label on the left half of the table (barcode reader, pincode OCR fallback), choose the zone and the arm.",
-    "detail": "Unreadable label → reject zone 3, never a guessed bin."
+    "title": "Read the label, choose the zone",
+    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
+    "detail": "Unreadable → reject zone 3."
+   },
+   {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the left parcel into its zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
    },
    {
     "who": "harness",
@@ -174,14 +186,20 @@
    },
    {
     "who": "harness",
-    "title": "Read the right parcel's label, choose zone + arm",
-    "prompt": "Read the label on the right half of the table, choose the zone and the arm.",
-    "detail": "Unreadable label → reject zone 3."
+    "title": "Read the label, choose the zone",
+    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
+    "detail": "Unreadable → reject zone 3."
+   },
+   {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the right parcel into its zone",
-    "detail": "Same as above."
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
    },
    {
     "who": "harness",
@@ -198,7 +216,7 @@
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call and the log are saved."
+    "detail": "Session ends."
    }
   ]
  },
@@ -206,15 +224,26 @@
   "id": "case4",
   "label": "4 · Position change",
   "trial": null,
-  "run": "scenarios/wx/case4_position.json",
-  "recipe": "scenarios/wx/case4_position.json",
-  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
+  "run": "scenarios/wx/case4_auto.json",
+  "recipe": "scenarios/wx/case4_auto.json",
+  "relay": "--sequence scenarios/wx/case4_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
   "title": "Case 4, position change (harness + WALLX): the bag goes into zone 1; a person takes it out and puts it in the centre; the harness sees it, picks it up and WALLX puts it back into zone 1",
   "steps": [
    {
     "who": "harness",
-    "title": "Put the bag into zone 1 (50% speed)",
-    "prompt": "Left arm: pick up the white bag and put it into zone 1.",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
+   },
+   {
+    "who": "harness",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
@@ -226,19 +255,19 @@
    {
     "who": "harness",
     "title": "Watch: is the bag back on the table?",
-    "prompt": "Keep looking at the table; when the bag is out of the bin, start again.",
-    "detail": "After 3 calls of seeing it on the table."
-   },
-   {
-    "who": "harness",
-    "title": "Pick up the bag (50% speed)",
-    "prompt": "Left arm: pick up the white bag and lift it.",
+    "prompt": "When the bag is out of the bin, start again.",
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+   },
+   {
     "who": "wallx",
-    "title": "WALLX puts the bag back into zone 1",
-    "detail": "WALLX (head camera) moves the left arm; the harness watches the bin and stops it when the bag is in."
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
    },
    {
     "who": "harness",
@@ -308,21 +337,27 @@
   "id": "case6",
   "label": "6 · Look-alikes",
   "trial": null,
-  "run": "scenarios/wx/case6_lookalike.json",
-  "recipe": "scenarios/wx/case6_lookalike.json",
-  "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
+  "run": "scenarios/wx/case6_auto.json",
+  "recipe": "scenarios/wx/case6_auto.json",
+  "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
   "title": "Case 6, look-alikes: two identical IQBAR boxes; the one with a barcode goes to its zone, the one without a readable label goes to the reject zone 3",
   "steps": [
    {
     "who": "harness",
-    "title": "Read the left parcel's label, choose zone + arm",
-    "prompt": "Read the label on the left half of the table (barcode reader, pincode OCR fallback), choose the zone and the arm.",
-    "detail": "Unreadable label → reject zone 3, never a guessed bin."
+    "title": "Read the label, choose the zone",
+    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
+    "detail": "Unreadable → reject zone 3."
+   },
+   {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the left parcel into its zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
    },
    {
     "who": "harness",
@@ -338,14 +373,20 @@
    },
    {
     "who": "harness",
-    "title": "Read the right parcel's label, choose zone + arm",
-    "prompt": "Read the label on the right half of the table, choose the zone and the arm.",
-    "detail": "Unreadable label → reject zone 3."
+    "title": "Read the label, choose the zone",
+    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
+    "detail": "Unreadable → reject zone 3."
+   },
+   {
+    "who": "harness",
+    "title": "Find the parcel on the camera and pick it up there",
+    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the right parcel into its zone",
-    "detail": "Same as above."
+    "title": "WALLX carries the parcel into its zone",
+    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
    },
    {
     "who": "harness",
@@ -362,7 +403,7 @@
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call and the log are saved."
+    "detail": "Session ends."
    }
   ]
  },
