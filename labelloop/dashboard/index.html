@@ -698,7 +698,19 @@
     return ans;
   }
 
-  function setSrc(img, src) { if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; } }
+  function setSrc(img, src) {  // load-gated: never cancel a frame that is still loading (slow tracked frames would never show)
+    if (img.dataset.src === src || img._want === src) return;
+    img._want = src;
+    if (img._busy) return;
+    const go = function () {
+      if (!img._want || img._want === img.dataset.src) { img._busy = false; return; }
+      img._busy = true;
+      img.dataset.src = img._want;
+      img.onload = img.onerror = function () { img._busy = false; if (img._want !== img.dataset.src) go(); };
+      img.src = img._want;
+    };
+    go();
+  }
 
   function renderCams(idx) {
     const wrap = $('cams');
@@ -859,8 +871,7 @@
         return '<li class="' + (n < cur ? 'done' : n === cur ? 'active' : '') + '">call ' + s.call + ': ' + esc(s.text) + '</li>';
       }).join('') + '</ul>';
     }
-    if (h.where && S.id) html += '<img class="gridShot" alt="harness grid" src="/api/trials/' + encodeURIComponent(S.id) + '/frame/' +
-      (Number.isFinite(row.index) ? row.index : i) + '/front?track=1"><div class="muted">harness view: parcel tracking + 3x3 table grid, located cell in orange</div>';
+    if (h.where && S.id) html += '<div id="gridSlot"></div><div class="muted">harness view: parcel tracking + 3x3 table grid, located cell in orange</div>';
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
     const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', demo: 'preset label (no reader hit)' };
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
@@ -869,6 +880,11 @@
     html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : other, lock.indexOf('left') >= 0) +
       armBox('right', row, wallx ? acting.indexOf('right') >= 0 : other, lock.indexOf('right') >= 0) + '</div>';
     $('stepNow').innerHTML = html;
+    if (h.where && S.id && $('gridSlot')) {  // one persistent <img>: re-attached after each panel rebuild, src load-gated
+      if (!S.gridImg) { S.gridImg = new Image(); S.gridImg.className = 'gridShot'; S.gridImg.alt = 'harness grid'; }
+      $('gridSlot').appendChild(S.gridImg);
+      setSrc(S.gridImg, '/api/trials/' + encodeURIComponent(S.id) + '/frame/' + (Number.isFinite(row.index) ? row.index : i) + '/front?track=1');
+    }
   }
 
   async function pollRun() {

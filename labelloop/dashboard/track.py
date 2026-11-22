@@ -2,6 +2,7 @@
 mat, not tape, not a parked claw), then follow it frame by frame with a hue/saturation histogram (CamShift). Cached per trial in
 track.json; draw() puts the box on a frame. ponytail: colour tracking, so a white parcel can jump to the white arm when they overlap."""
 import json
+import threading
 from pathlib import Path
 
 import cv2
@@ -35,59 +36,73 @@ def find_parcel(img_bgr):
     return (int(x), int(y), int(w), int(h)) if a > 1500 else None
 
 
+_STATE, _LOCK = {}, threading.Lock()  # per trial: tracker state kept in memory, so a live trial only processes its NEW frames
+
+
 def track(trial_dir):
-    """{row index: [x, y, w, h]} of the parcel in every recorded head frame; cached in <trial>/track.json."""
+    """{row index: [x, y, w, h]} of the parcel in every recorded head frame. Incremental (new frames only) and thread-safe;
+    finished trials are also cached in <trial>/track.json."""
     d = Path(trial_dir)
     cache = d / "track.json"
     frames = sorted((d / "frames").glob("*_front.jpg"), key=lambda p: int(p.name.split("_")[0]))
-    if cache.exists():
-        try:
-            c = json.loads(cache.read_text())
-            if c.get("n") == len(frames):
-                return {int(k): v for k, v in c["boxes"].items()}
-        except (OSError, ValueError):
-            pass
-    boxes, hist, win = {}, None, None
-    crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
-    for p in frames:
-        img = cv2.imread(str(p))
-        if img is None:
-            continue
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        if hist is None:
-            b = find_parcel(img)
-            if not b:
+    with _LOCK:
+        st = _STATE.get(str(d))
+        if st is None and cache.exists():
+            try:
+                c = json.loads(cache.read_text())
+                if c.get("n") == len(frames):
+                    return {int(k): v for k, v in c["boxes"].items()}
+            except (OSError, ValueError):
+                pass
+        if st is None:
+            st = _STATE[str(d)] = {"boxes": {}, "hist": None, "win": None, "seen": set()}
+        todo = [p for p in frames if p.name not in st["seen"]]
+        if not todo:
+            return dict(st["boxes"])
+        crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
+        boxes = st["boxes"]
+        for p in todo:
+            img = cv2.imread(str(p))
+            if img is None:  # still being written: try again next time
+                break
+            st["seen"].add(p.name)
+            n = int(p.name.split("_")[0])
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            if st["hist"] is None:
+                b = find_parcel(img)
+                if not b:
+                    continue
+                x, y, w, h = b
+                roi, mroi = hsv[y:y + h, x:x + w], cv2.inRange(hsv[y:y + h, x:x + w], (0, 0, 0), (180, 255, 255))
+                mroi[(roi[..., 0] > 70) & (roi[..., 0] < 100) & (roi[..., 1] > 60)] = 0  # the parcel's colours, not the mat
+                hist = cv2.calcHist([roi], [0, 1], mroi, [30, 32], [0, 180, 0, 256])
+                cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
+                st["hist"], st["win"] = hist, b
+                boxes[n] = list(b)
                 continue
-            x, y, w, h = b
-            roi, mroi = hsv[y:y + h, x:x + w], cv2.inRange(hsv[y:y + h, x:x + w], (0, 0, 0), (180, 255, 255))
-            mat = ((roi[..., 0] > 70) & (roi[..., 0] < 100) & (roi[..., 1] > 60))
-            mroi[mat] = 0  # the parcel's own colours, not the mat around it
-            hist = cv2.calcHist([roi], [0, 1], mroi, [30, 32], [0, 180, 0, 256])
-            cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
-            win = b
-        else:
             inside, _ = _table_mask(hsv)
-            bp = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
+            bp = cv2.calcBackProject([hsv], [0, 1], st["hist"], [0, 180, 0, 256], 1)
             bp[inside == 0] = 0
-            _, w2 = cv2.CamShift(bp, tuple(int(v) for v in win), crit)
+            _, w2 = cv2.CamShift(bp, tuple(int(v) for v in st["win"]), crit)
             x, y, w, h = [int(v) for v in w2]
             conf = float(bp[y:y + h, x:x + w].mean()) if w > 8 and h > 8 else 0.0
             if conf < 40:  # not sure (lifted out of view / hidden by the arm): re-find it if a table object has the parcel's colours
                 f = find_parcel(img)
                 if f and float(bp[f[1]:f[1] + f[3], f[0]:f[0] + f[2]].mean()) >= 15:
-                    win = f
-                    boxes[int(p.name.split("_")[0])] = list(f)
+                    st["win"] = f
+                    boxes[n] = list(f)
                     continue
-                last = boxes[max(boxes)] if boxes else win  # else no box this frame, search near the last one
-                win = (max(0, last[0] - 40), max(0, last[1] - 40), last[2] + 80, last[3] + 80)
+                last = boxes[max(boxes)] if boxes else st["win"]  # else no box this frame, search near the last one
+                st["win"] = (max(0, last[0] - 40), max(0, last[1] - 40), last[2] + 80, last[3] + 80)
                 continue
-            win = (x, y, w, h)
-        boxes[int(p.name.split("_")[0])] = [int(v) for v in win]
-    try:
-        cache.write_text(json.dumps({"n": len(frames), "boxes": boxes}))
-    except OSError:
-        pass
-    return boxes
+            st["win"] = (x, y, w, h)
+            boxes[n] = [x, y, w, h]
+        if len(st["seen"]) == len(frames):
+            try:
+                cache.write_text(json.dumps({"n": len(frames), "boxes": boxes}))
+            except OSError:
+                pass
+        return dict(boxes)
 
 
 GRID_X, GRID_Y = (0.38, 0.62), (0.42, 0.62)  # = labelloop.sequence.where_words thresholds (image fractions)
