@@ -30,3 +30,12 @@
 - 2026-11-21 20:10 | h2_pick_carry_zone2 run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 20:16 | h1_lift_carry_zone2 run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 20:51 | r3_replay_left_pick_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:17 | m1_mailer_sort run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:20 | m1_mailer_sort run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:23 | m1_mailer_sort run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:27 | m1_mailer_sort run_4 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:51 | finaldemo1 run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:53 | finaldemo1 run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:55 | finaldemo1 run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 21:59 | finaldemo1 run_4 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 22:04 | finaldemo1 run_6/ | KEEPER (user: not bad) | recipe scenarios/finaldemo1.json + finaldemo1_steps.json at commit b532622 | video runs/scenarios/finaldemo1/run_6/demo.mp4

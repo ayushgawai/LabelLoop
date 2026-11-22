@@ -1,0 +1,8 @@
+{
+ "name": "finaldemo1",
+ "goal": "Experiment 1, pick and place: harness reads the label (QR -> printed ZIP -> demo code 420/94043/001) -> blue -> zone 1; WALLX gets one detailed instruction with the lane arm (other arm locked, claws open fully, trained grasp-height knob -1); harness cuts WALLX off when the bag is over the zone, opens the claw, homes.",
+ "setup": "Tape zones 1 (back left), 2 (back right), 3 (right edge); padded mailer bag flat in the middle of the table (mark its corners with tape); arms at rest.",
+ "relay": "--sequence scenarios/keepers/finaldemo1_steps.json --z-offset -1 --slow 0.5 --no-reset-on-subgoal",
+ "seconds": 200,
+ "wording": {}
+}

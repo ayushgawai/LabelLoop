@@ -1,0 +1,114 @@
+{
+ "watchdog": false,
+ "code_hint": "420/94043/001",
+ "zones": {
+  "blue": "1 at the back left",
+  "red": "2 at the back right",
+  "black": "3 at the right edge"
+ },
+ "zones_px": {
+  "blue": [
+   0.14,
+   0.21,
+   0.34,
+   0.41
+  ],
+  "red": [
+   0.69,
+   0.21,
+   0.86,
+   0.41
+  ],
+  "black": [
+   0.82,
+   0.67,
+   0.98,
+   0.92
+  ]
+ },
+ "track_hsv": [
+  95,
+  125,
+  90,
+  70
+ ],
+ "roi": [
+  0.02,
+  0.3,
+  0.98,
+  1.0
+ ],
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "say": "Move the open {arm} gripper slowly to a position just above the white plastic bag lying on the green table.",
+   "calls": 12,
+   "arm": "lane"
+  },
+  {
+   "say": "Lower the open {arm} gripper slowly straight down until its fingers are around the edge of the white plastic bag, touching the table.",
+   "calls": 10,
+   "arm": "lane"
+  },
+  {
+   "say": "Close the {arm} gripper to grasp the white plastic bag firmly.",
+   "calls": 6,
+   "arm": "lane"
+  },
+  {
+   "say": "Lift the white plastic bag slowly 10 centimeters up with the {arm} gripper.",
+   "calls": 12,
+   "arm": "lane",
+   "until": "lifted",
+   "hold": [],
+   "lift_calls": 2
+  },
+  {
+   "say": "Move the white plastic bag slowly over the taped square marked {zone} and hold it there.",
+   "calls": 40,
+   "arm": "lane",
+   "until": "in_zone",
+   "zone_calls": 2
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ]
+}
