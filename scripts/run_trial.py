@@ -17,7 +17,7 @@ from trial_agent import GOAL, summarize  # noqa: E402
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
-PY = str(ROOT / ".venv/bin/python")
+PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else str(ROOT / ".venv/Scripts/python.exe")  # Windows venv
 ASKPASS = os.environ.get("ROBOT_ASKPASS", str(Path.home() / ".config/labelloop/robot_askpass.sh"))
 CLIENT = ("source /opt/xr/bot/x2robot_client/share/x2robot_client/scripts/session_env.sh >/dev/null 2>&1; timeout -s INT {sec} python3 "
           "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address " + os.environ.get("LL_RELAY_ADDR", "192.168.1.157:8001") + " --instruction \\\"{instr}\\\" "
@@ -30,6 +30,8 @@ def free_port():
             socket.create_connection(("127.0.0.1", 8001), 0.3).close()
         except OSError:
             return
+        if os.name == "nt":  # no pkill on Windows: stop the stale relay yourself
+            raise SystemExit("port 8001 busy: stop the running relay first")
         subprocess.run(["pkill", "-f", "labelloop.robots.event_server"], capture_output=True)  # a stale relay holds the port
         time.sleep(0.5)
     raise SystemExit("port 8001 still busy")

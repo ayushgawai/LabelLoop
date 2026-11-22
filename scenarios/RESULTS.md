@@ -64,3 +64,4 @@
 - 2026-11-22 01:06 | SCENARIO 4 FINAL 3/3 (sc4_bhindi_handover_zone1 run_1..3; run_2-3 smooth final) | recipe scenarios/keepers/sc4/recipe.json | videos runs/scenarios/sc4_bhindi_handover_zone1/run_*/demo.mp4
 - 2026-11-22 01:14 | sc4_final run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 01:27 | w4a_replay_handover_wallx_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 01:40 | w4x_try1 run_1 (scenario 4 WALLX try 1: replayed pick + handover, WALLX left arm 'Put the box on the number 1.', in_zone cut-off) | FAIL: WALLX lowered the box a little (11 calls), the cut-off fired early (the box, held ~15 cm up in front of zone 1, projects over zone 1 in the head image), scripted release dropped it in front of zone 1 | video runs/scenarios/w4x_try1/run_1/demo.mp4 (Pratham's laptop)

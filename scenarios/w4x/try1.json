@@ -1,0 +1,8 @@
+{
+ "name": "w4x_try1",
+ "goal": "Scenario 4 with WALLX, try 1 (handout idea 1, prompt #2): replayed right-arm pick + handover (slice of the sc4 keeper, 0-59.2 s), right arm lifts and homes, then WALLX places with the left arm (right locked): 'Put the box on the number 1.'; harness cuts WALLX off when the box is over zone 1, releases, homes.",
+ "setup": "Bhindi box on the scenario 4 start marks (right side, in front of zone 2); arms at rest.",
+ "relay": "--sequence scenarios/w4x/try1_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 180,
+ "wording": {}
+}

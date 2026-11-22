@@ -1,0 +1,124 @@
+{
+ "watchdog": false,
+ "code_hint": "420/95126/001",
+ "zones": {
+  "blue": "1",
+  "red": "2",
+  "black": "3"
+ },
+ "zones_px": {
+  "blue": [
+   0.14,
+   0.21,
+   0.34,
+   0.41
+  ],
+  "red": [
+   0.69,
+   0.21,
+   0.86,
+   0.41
+  ],
+  "black": [
+   0.82,
+   0.67,
+   0.98,
+   0.92
+  ]
+ },
+ "track_hsv": [
+  125,
+  165,
+  70,
+  40
+ ],
+ "roi": [
+  0.02,
+  0.3,
+  0.98,
+  1.0
+ ],
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "replay": "scenarios/w4x/sc4_pick_handover.json"
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.35,
+      0.203,
+      0.26
+     ]
+    }
+   },
+   "calls": 3,
+   "max_step": 0.04
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.04
+  },
+  {
+   "say": "Put the box on the number {zone}.",
+   "calls": 40,
+   "arm": "left"
+  },
+  {
+   "release": "left",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ]
+}
