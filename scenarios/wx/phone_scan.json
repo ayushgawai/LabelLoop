@@ -1,0 +1,8 @@
+{
+ "name": "phone_scan",
+ "goal": "Phone scanner in the left hand (from Ayush's demo): left claw opens, the phone is put in, gentle grip; left arm holds the phone over the parcel until it scans the label; the harness routes the code (zone); left arm back; right arm picks the parcel and lifts it; WALLX carries it into the scanned zone; release; phone handed back.",
+ "setup": "Parcel label-up where the demo picked it (right of centre, in front of zone 2's front-left corner); phone scanner page open (3x); arms at rest. Stand by to put the phone in and take it out.",
+ "relay": "--sequence scenarios/wx/phone_scan_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "seconds": 420,
+ "wording": {}
+}

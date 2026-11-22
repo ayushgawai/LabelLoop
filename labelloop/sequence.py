@@ -420,6 +420,8 @@ class Sequence:
                 src = np.linspace(0, 1, len(seg)) if len(seg) > 1 else np.zeros(1)
                 rows = [[float(np.interp(e, src, seg[:, k])) for k in range(seg.shape[1])] for e in ease] if len(seg) > 1 else [seg[0].tolist()] * 32
                 acts[arm + "_ee"] = {"position": [r[:3] for r in rows], "rotation_rpy": [r[3:6] for r in rows], "gripper": [r[6] for r in rows]}
+                if arm in self.hold_grip:  # a delicate object (phone) in this claw: the gentle hold, never the recorded command
+                    acts[arm + "_ee"]["gripper"] = [float(self.hold_grip[arm])] * len(rows)
             return {"embodiment": embodiment, "actions": acts}
         if not s or "move" not in s:
             return None

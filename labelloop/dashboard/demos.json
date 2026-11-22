@@ -401,51 +401,63 @@
   "id": "phone",
   "label": "Phone scan",
   "trial": null,
-  "run": "scenarios/wx/phone_sort.json",
-  "recipe": "scenarios/wx/phone_sort.json",
-  "relay": "--sequence scenarios/wx/phone_sort_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Handheld scanner: the left hand holds the phone, the right hand holds the parcel; the phone scans the label, the harness routes it, WALLX sorts the parcel",
+  "run": "scenarios/wx/phone_scan.json",
+  "recipe": "scenarios/wx/phone_scan.json",
+  "relay": "--sequence scenarios/wx/phone_scan_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "title": "Handheld scanner: the left hand holds the phone and scans the parcel's label; the harness routes it; the right hand picks the parcel and WALLX sorts it into the scanned zone",
   "steps": [
    {
     "who": "robot",
-    "title": "Both hands open at the scan pose",
-    "prompt": "Both arms: open the claws in front of the robot, facing each other.",
-    "detail": "The two claws face each other about 20 cm apart, 18 cm above the table."
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
    },
    {
     "who": "harness",
-    "title": "Load the phone (left) and the parcel (right)",
-    "prompt": "Put the phone in the LEFT claw (camera toward the right claw) and the parcel in the RIGHT claw (label toward the phone).",
-    "detail": "25 s to place both."
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (scanner page open, 3x).",
+    "detail": "20 s."
    },
    {
     "who": "robot",
-    "title": "Gentle grip on the phone and the parcel",
-    "prompt": "Close slowly until the fingers touch; hold the phone without squeezing.",
-    "detail": "Each claw closes in small steps and stops as soon as its fingers meet the object (the measured opening stops following); the phone is held just 0.02 past contact, the parcel a little firmer. That hold is kept for the rest of the run."
+    "title": "Gentle grip on the phone",
+    "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
+    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds just 0.02 past contact for the rest of the run."
+   },
+   {
+    "who": "robot",
+    "title": "Left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
    },
    {
     "who": "harness",
     "title": "The phone scans the label; the harness routes the code",
     "prompt": "Read the label with the handheld scanner, choose the zone.",
-    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold still until a scan arrives."
+    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
    },
    {
     "who": "robot",
-    "title": "Left hand takes the phone out of the way",
-    "prompt": "Left arm: back toward rest, keep holding the phone.",
-    "detail": "The phone stays gripped."
+    "title": "Left hand moves the phone back",
+    "prompt": "Left arm: back to rest, keep the phone.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Right hand picks up the parcel",
+    "prompt": "Right arm: pick up the parcel and lift it.",
+    "detail": ""
    },
    {
     "who": "wallx",
     "title": "WALLX carries the parcel into the scanned zone (right arm)",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call. The left arm (holding the phone) is locked and keeps its gentle grip. 60 calls."
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call; the left arm (phone) is locked and keeps its gentle grip. 50 calls."
    },
    {
     "who": "robot",
     "title": "Release the parcel",
     "prompt": "Open the right claw and lift straight up.",
-    "detail": "The parcel drops into the zone."
+    "detail": ""
    },
    {
     "who": "robot",
@@ -455,21 +467,21 @@
    },
    {
     "who": "robot",
-    "title": "Left hand brings the phone back",
-    "prompt": "Left arm: bring the phone back to the front.",
+    "title": "Left hand presents the phone",
+    "prompt": "Left arm: bring the phone to the front.",
     "detail": ""
    },
    {
     "who": "harness",
     "title": "Take the phone",
     "prompt": "Take the phone out of the LEFT claw now (hold it: the claw opens next).",
-    "detail": "20 s."
+    "detail": "15 s."
    },
    {
     "who": "robot",
     "title": "Left claw opens",
     "prompt": "Open the left claw slowly.",
-    "detail": "Opens to 1.2 (not the full width)."
+    "detail": "Opens to 1.2."
    },
    {
     "who": "robot",
