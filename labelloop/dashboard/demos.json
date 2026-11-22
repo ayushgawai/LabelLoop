@@ -1,5 +1,428 @@
 [
  {
+  "id": "case1",
+  "label": "1 · Roll & scan",
+  "trial": null,
+  "run": "scenarios/wx/case1_roll_scan.json",
+  "recipe": "scenarios/wx/case1_roll_scan.json",
+  "relay": "--sequence scenarios/wx/case1_roll_scan_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 1, roll & scan: the left arm rolls the label-down parcel label-up for the scan; WALLX picks it and puts it into its zone",
+  "steps": [
+   {
+    "who": "robot",
+    "title": "Left arm rolls the parcel label-up",
+    "prompt": "Left arm: pick up the parcel, turn it over so the label faces up, set it down.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Scan the label, choose zone + arm",
+    "prompt": "Read the label (barcode reader, pincode OCR fallback), choose the zone and the arm.",
+    "detail": "An unreadable label goes to the reject zone 3, never a guessed bin."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks the parcel up and puts it into its zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked; 90 calls."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case2",
+  "label": "2 · Phone scanner",
+  "trial": null,
+  "run": "scenarios/wx/sc6_phone.json",
+  "recipe": "scenarios/wx/sc6_phone.json",
+  "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 2, handheld scanner: the left hand holds the phone and scans the label; the harness routes the code; WALLX sorts the parcel with the right hand",
+  "steps": [
+   {
+    "who": "robot",
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (5 s, claw wide open). Hands off after that.",
+    "detail": "5 s."
+   },
+   {
+    "who": "robot",
+    "title": "Gentle grip on the phone",
+    "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
+    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
+   },
+   {
+    "who": "robot",
+    "title": "Left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
+   },
+   {
+    "who": "robot",
+    "title": "Left arm home quickly (scan done)",
+    "prompt": "Left arm: straight back to rest, keep the phone.",
+    "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks up the parcel with the right hand and puts it into the scanned zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
+   },
+   {
+    "who": "robot",
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Left arm home with the phone",
+    "prompt": "Left arm: back to rest, keep holding the phone.",
+    "detail": "The phone stays gripped; take it out after the run."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case3",
+  "label": "3 · Multi-parcel",
+  "trial": null,
+  "run": "scenarios/wx/sc6_wallx.json",
+  "recipe": "scenarios/wx/sc6_wallx.json",
+  "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 3, multi-parcel: the harness reads each parcel's label (left half, then right half of the table); WALLX sorts each into its zone",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the left parcel's label, choose zone + arm",
+    "prompt": "Read the label on the left half of the table (barcode reader, pincode OCR fallback), choose the zone and the arm.",
+    "detail": "Unreadable label → reject zone 3, never a guessed bin."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the left parcel into its zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Read the right parcel's label, choose zone + arm",
+    "prompt": "Read the label on the right half of the table, choose the zone and the arm.",
+    "detail": "Unreadable label → reject zone 3."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the right parcel into its zone",
+    "detail": "Same as above."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case4",
+  "label": "4 · Position change",
+  "trial": "20261122_115220",
+  "run": "scenarios/wx/sc5j.json",
+  "recipe": "scenarios/wx/sc5j.json",
+  "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 4, position change: the parcel is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; the harness ends the run when it is in the bin",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the label, choose zone + arm",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm.",
+    "detail": "Cap label 90291 → zone 2 → right arm."
+   },
+   {
+    "who": "harness",
+    "title": "Locate the cap on the 3x3 table grid",
+    "prompt": "Find the cap on the head camera and name its grid cell.",
+    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks up the hat and puts it into the right corner bin",
+    "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and WALLX starts the task again from the hat's new spot. When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw fully and lift straight up.",
+    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
+   },
+   {
+    "who": "robot",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": "The right arm goes to rest; the left arm never moved."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case5",
+  "label": "5 · Human disturbance",
+  "trial": "20261122_115220",
+  "run": "scenarios/wx/sc5j.json",
+  "recipe": "scenarios/wx/sc5j.json",
+  "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 5, human disturbance: a person moves the parcel while WALLX reaches for it; the harness sees it and restarts WALLX on the new spot",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the label, choose zone + arm",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm.",
+    "detail": "Cap label 90291 → zone 2 → right arm."
+   },
+   {
+    "who": "harness",
+    "title": "Locate the cap on the 3x3 table grid",
+    "prompt": "Find the cap on the head camera and name its grid cell.",
+    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks up the hat and puts it into the right corner bin",
+    "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and WALLX starts the task again from the hat's new spot. When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw fully and lift straight up.",
+    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
+   },
+   {
+    "who": "robot",
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": "The right arm goes to rest; the left arm never moved."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case6",
+  "label": "6 · Look-alikes",
+  "trial": null,
+  "run": "scenarios/wx/case6_lookalike.json",
+  "recipe": "scenarios/wx/case6_lookalike.json",
+  "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Case 6, look-alikes: two identical IQBAR boxes; the one with a barcode goes to its zone, the one without a readable label goes to the reject zone 3",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the left parcel's label, choose zone + arm",
+    "prompt": "Read the label on the left half of the table (barcode reader, pincode OCR fallback), choose the zone and the arm.",
+    "detail": "Unreadable label → reject zone 3, never a guessed bin."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the left parcel into its zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Read the right parcel's label, choose zone + arm",
+    "prompt": "Read the label on the right half of the table, choose the zone and the arm.",
+    "detail": "Unreadable label → reject zone 3."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the right parcel into its zone",
+    "detail": "Same as above."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "prompt": "Open the claw and lift.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "prompt": "Both arms: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
+ },
+ {
+  "id": "case7",
+  "label": "7 · Handover (bonus)",
+  "trial": "20261122_073919",
+  "title": "Case 7 (bonus), handover in the air: the right arm picks the Bhindi box and hands it to the left arm; WALLX puts it into zone 1",
+  "recipe": "scenarios/keepers/sc4_wallx/recipe.json",
+  "relay": "--sequence scenarios/keepers/sc4_wallx/steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Read the label, route to zone 1",
+    "detail": "Barcode reader first, pincode OCR reader as fallback. Code 420/95126/001 = pincode 951 → zone 1 → left arm.",
+    "what": "label → lane → acting arm → target zone",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
+   },
+   {
+    "who": "robot",
+    "title": "Pick + handover",
+    "detail": "the right arm picks the box and hands it to the left claw in the air.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "right arm moves from home to above the box (claw closed)"
+     },
+     {
+      "call": 16,
+      "text": "right claw opens and lowers around the box"
+     },
+     {
+      "call": 27,
+      "text": "right claw closes on the box (grasp)"
+     },
+     {
+      "call": 28,
+      "text": "right arm lifts the box to the handover point (~18 cm up, table centre)"
+     },
+     {
+      "call": 37,
+      "text": "left claw opens and reaches in"
+     },
+     {
+      "call": 48,
+      "text": "left claw closes on the box: both claws hold it"
+     },
+     {
+      "call": 54,
+      "text": "right claw opens: the box is in the left claw only"
+     }
+    ],
+    "prompt": "Right arm: pick up the purple box and hand it to the left arm in the air."
+   },
+   {
+    "who": "robot",
+    "title": "Right arm backs off",
+    "detail": "Move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
+    "prompt": "Right arm: let go and move up and away from the box."
+   },
+   {
+    "who": "robot",
+    "title": "Right arm home",
+    "detail": "Home, claw closed. From here the right arm stays parked.",
+    "prompt": "Right arm: go to rest."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX places the box into zone 1 (left arm)",
+    "prompt": "Stretch to the top left corner of the table and put the purple box into zone 1.",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
+   },
+   {
+    "who": "robot",
+    "title": "Release",
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1.",
+    "prompt": "Open the claw fully and lift straight up."
+   },
+   {
+    "who": "robot",
+    "title": "Both arms home",
+    "detail": "Both arms go to rest (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ],
+  "run": "scenarios/keepers/sc4_wallx/recipe.json"
+ },
+ {
   "id": "sc1",
   "label": "Scenario 1",
   "trial": null,
@@ -36,7 +459,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "sc2",
@@ -94,7 +518,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "sc3",
@@ -160,7 +585,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "sc4",
@@ -249,7 +675,8 @@
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
   ],
-  "run": "scenarios/keepers/sc4_wallx/recipe.json"
+  "run": "scenarios/keepers/sc4_wallx/recipe.json",
+  "hidden": true
  },
  {
   "id": "sc5",
@@ -294,7 +721,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "sc6",
@@ -369,7 +797,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "sc7",
@@ -408,7 +837,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  },
  {
   "id": "phone",
@@ -501,6 +931,7 @@
     "title": "Done",
     "detail": "Session ends; video, every call and the log are saved."
    }
-  ]
+  ],
+  "hidden": true
  }
 ]

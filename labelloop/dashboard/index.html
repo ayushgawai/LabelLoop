@@ -957,7 +957,7 @@
   async function loadDemos() {
     try { S.demos = await api('/api/demos'); } catch (e) { S.demos = []; }
     $('demoBtns').innerHTML = S.demos.map(function (d) {
-      return d.run ? '<button class="runBtn" data-run="' + esc(d.id) + '" title="runs ' + esc(d.run) + ' on the real robot">▶ ' + esc(d.label) + '</button>' : '';
+      return d.run && !d.hidden ? '<button class="runBtn" data-run="' + esc(d.id) + '" title="runs ' + esc(d.run) + ' on the real robot">▶ ' + esc(d.label) + '</button>' : '';
     }).join(' ') + ' <button class="homeBtn" id="homeBtn" title="backup: stop the robot now and send both arms home">■ Stop &amp; home</button> <span id="runState"></span>';
     pollRun();
     setInterval(pollRun, 2000);

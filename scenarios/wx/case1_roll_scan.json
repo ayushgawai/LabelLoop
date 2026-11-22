@@ -1,0 +1,8 @@
+{
+ "name": "case1_roll_scan",
+ "goal": "Case 1 roll & scan: the left arm rolls the label-down parcel label-up; the harness scans the label (barcode reader, pincode OCR) -> zone + arm (unreadable -> reject zone 3, never a guess); WALLX picks it and puts it into that zone.",
+ "setup": "Parcel label DOWN in the middle of the table between zones 1 and 2 (scenario 3 start); arms at rest.",
+ "relay": "--sequence scenarios/wx/case1_roll_scan_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+ "seconds": 400,
+ "wording": {}
+}
