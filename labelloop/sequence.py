@@ -358,12 +358,16 @@ class Sequence:
             if self.calls == 0:
                 tb = self._scanned_parcel(images["front"], c) if c.get("target") == "scan" else None  # several parcels: the scanned one
                 px = (tb[0] + tb[2] / 2, tb[1] + tb[3] / 2) if tb else find_parcel_px(images["front"], c.get("roi"))
-                if px is None:  # nothing found: skip the pick (and the step after it, the WALLX place) to the end
+                if px is None:  # nothing found: skip this parcel (pick + WALLX place + release) to the next parcel's step, else the end
                     self.no_parcel = True
-                    self.i, self.calls = len(self.spec["steps"]) - 1, 0
+                    nxt = [j for j in range(self.i + 1, len(self.spec["steps"]))
+                           if any(k in self.spec["steps"][j] for k in ("autopick", "read", "wait_parcel"))]
+                    self.i, self.calls = (nxt[0] if nxt else len(self.spec["steps"]) - 1), 0
                     instr = "(autopick %d: no parcel)" % self.i
                 else:
                     arm = c.get("arm", "auto")
+                    if arm == "lane":  # the arm on the target zone's side: zone 1 -> left, zone 2 / 3 (reject) -> right
+                        arm = "left" if self.mat == "blue" else "right"
                     if arm == "auto":
                         arm = "left" if px[0] < images["front"].shape[1] / 2 else "right"
                     x, y = pix_to_arm(px[0], px[1], arm)

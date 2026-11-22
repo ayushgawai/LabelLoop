@@ -207,7 +207,8 @@ class Relay:
                 if scripted is not None:
                     reply, source = scripted, "scripted"
                     await downstream.send(pack(reply))
-                elif instruction is None or forward is None:
+                elif instruction is None or forward is None or (isinstance(instruction, str) and instruction.startswith("(")):
+                    # (a harness-internal step name like '(autopick 3)' must never reach WALLX as a prompt: hold instead)
                     if forward is None:
                         fresh, err = True, "stage_mask_failed"
                     reply, source = hold_response(req["embodiment"], state), "hold"

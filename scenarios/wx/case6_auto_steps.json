@@ -24,7 +24,7 @@
   },
   {
    "autopick": {
-    "arm": "auto",
+    "arm": "lane",
     "z": 0.04,
     "roi": [
      0.0,
@@ -97,7 +97,7 @@
   },
   {
    "autopick": {
-    "arm": "auto",
+    "arm": "lane",
     "z": 0.04,
     "roi": [
      0.5,
