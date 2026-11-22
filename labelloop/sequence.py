@@ -10,7 +10,9 @@ FILE: {"code_hint": "420/90024/001", "lanes": {"blue": [...ZIP3], "red": [...]},
 """
 import re
 
-from labelloop.perception import label_ocr
+import numpy as np
+
+from labelloop.perception import label_ocr, scene
 from labelloop.perception.qr import locate
 
 ZIP3 = {"blue": ("940", "941", "950", "951"), "red": ("900", "901", "902")}
@@ -30,6 +32,7 @@ class Sequence:
     def reset(self):
         self.i, self.calls, self.code, self.mat, self.source = 0, 0, None, "black", None
         self.subgoal_changed, self.done, self.state_name, self.last_log = True, False, "SEQ0", None
+        self.spot, self.spot0 = None, None  # the parcel's start box and its non-mat fraction (for "until": "lifted")
 
     @property
     def step_spec(self):
@@ -57,8 +60,16 @@ class Sequence:
         if codes:
             self.code, self.source, self.mat = codes[0], source, bin_for(codes[0])
 
+    def _nonmat(self, front, box):
+        x0, y0, x1, y1 = [int(v) for v in box]
+        m = scene._mask(front, [self.spec["mat"]], max(2, front.shape[1] // 200))[y0:y1, x0:x1]
+        return float(1 - (m > 0).mean()) if m.size else 0.0
+
     def step(self, images, state):
         before, self.subgoal_changed = self.i, False
+        if self.spot is None and self.spec.get("mat"):  # the parcel's start spot, once
+            self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
+            self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
         while self.step_spec is not None and "read" in self.step_spec:  # reads cost no robot call
             self._read(images)
             self.i += 1
@@ -68,7 +79,9 @@ class Sequence:
         if s is not None:
             instr = s["say"].format(mat=self.mat)
             self.calls += 1
-            if self.calls >= s.get("calls", 10):
+            lifted = (s.get("until") == "lifted" and self.spot is not None and self.spot0
+                      and self._nonmat(images["front"], self.spot) <= 0.3 * self.spot0)  # the box left its table spot: next step now
+            if self.calls >= s.get("calls", 10) or lifted:
                 self.i, self.calls = self.i + 1, 0
         self.subgoal_changed = self.i != before or self.calls == 1
         self.done = s is None

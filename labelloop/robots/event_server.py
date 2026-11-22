@@ -276,6 +276,9 @@ async def main():
         from labelloop.eval.runlog import RunLog
         from labelloop.sequence import Sequence
         spec, runlog = json.loads(Path(a.sequence).read_text()), RunLog(a.log)
+        from labelloop.harness import apply_profile
+        sc = apply_profile({**load_yaml(a.task), "profile": a.profile, "event_fast": True})["scene"]
+        spec.setdefault("mat", sc.get("mat")); spec.setdefault("scene", sc)  # mat colour + object detection for "until": "lifted"
         make_harness = lambda: Sequence(spec, runlog)  # noqa: E731
     elif not a.passthrough and not a.hold:
         from labelloop.brain.agent import VisionAgent
