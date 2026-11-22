@@ -257,6 +257,14 @@ class Sequence:
             self.calls += 1
             if self.calls >= s.get("calls", 10):
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
+            instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
+            self.calls += 1
+            self.seen_n = getattr(self, "seen_n", 0) + 1 if locate_dark(images["front"]) else 0
+            if self.seen_n >= 3:
+                self.seen_n, self.i, self.calls, self.parcel_back = 0, self.i + 1, 0, True
+            elif self.calls >= s.get("calls", 120):  # nobody took it out: finish (skip the remaining steps)
+                self.i, self.calls = len(self.spec["steps"]) - 1, 0
         elif s is not None and "grip" in s:  # gentle grip: close slowly until the fingers stop on the object, then hold just there
             instr = "(grip %d)" % self.i
             self.calls += 1
@@ -327,9 +335,12 @@ class Sequence:
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
+                                   else ["parcel taken out of the bin: WALLX gets the task again"] if getattr(self, "parcel_back", False) and self.i != before
                                    else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if "parcel in the target bin: task done, going home" in self.last_log["flags"]:
             self.task_done = False  # log it once
+        if "parcel taken out of the bin: WALLX gets the task again" in self.last_log["flags"]:
+            self.parcel_back = False
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr
@@ -401,7 +412,7 @@ class Sequence:
             t = {a + "_ee": {"position": list(state[a + "_ee"]["position"]), "rotation_rpy": list(state[a + "_ee"]["rotation_rpy"]),
                              "gripper": self.hold_grip.get(a, self.gcmd.get(a, float(state[a + "_ee"]["gripper"])))} for a in s["grip"]}
             return move_response(embodiment, state, self._with_grips(state, t))
-        if s and ("wait" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
+        if s and ("wait" in s or "wait_parcel" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
             return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
             arm = {"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else s["release"]

@@ -1,0 +1,162 @@
+{
+ "watchdog": false,
+ "zones": {
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
+ },
+ "roi": [
+  0.02,
+  0.17,
+  0.98,
+  1.0
+ ],
+ "zip_vote": true,
+ "code_hint": "420/90291/001",
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "locate": true,
+   "default": "the centre"
+  },
+  {
+   "say": "Pick up the hat and put it into the right corner bin.",
+   "say_moved": "Pick up the hat and put it into the right corner bin.",
+   "relocate": true,
+   "relocate_calls": 230,
+   "calls": 150,
+   "arm": "lane",
+   "until": "in_bin"
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "wait_parcel": true,
+   "calls": 150
+  },
+  {
+   "locate": true,
+   "default": "the centre"
+  },
+  {
+   "say": "Pick up the hat and put it into the right corner bin.",
+   "say_moved": "Pick up the hat and put it into the right corner bin.",
+   "relocate": true,
+   "relocate_calls": 230,
+   "calls": 150,
+   "arm": "lane",
+   "until": "in_bin"
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "wait_parcel": true,
+   "calls": 150
+  },
+  {
+   "locate": true,
+   "default": "the centre"
+  },
+  {
+   "say": "Pick up the hat and put it into the right corner bin.",
+   "say_moved": "Pick up the hat and put it into the right corner bin.",
+   "relocate": true,
+   "relocate_calls": 230,
+   "calls": 150,
+   "arm": "lane",
+   "until": "in_bin"
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 2,
+   "max_step": 0.05
+  }
+ ]
+}

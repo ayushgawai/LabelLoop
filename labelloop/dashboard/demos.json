@@ -205,10 +205,10 @@
  {
   "id": "case4",
   "label": "4 · Position change",
-  "trial": "20261122_115220",
-  "run": "scenarios/wx/sc5j.json",
-  "recipe": "scenarios/wx/sc5j.json",
-  "relay": "--sequence scenarios/wx/sc5j_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "trial": null,
+  "run": "scenarios/wx/case4_position.json",
+  "recipe": "scenarios/wx/case4_position.json",
+  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
   "title": "Case 4, position change: the parcel is taken out of its bin and put somewhere else; the harness finds it, WALLX puts it back; the harness ends the run when it is in the bin",
   "steps": [
    {
@@ -225,25 +225,83 @@
    },
    {
     "who": "wallx",
-    "title": "WALLX picks up the hat and puts it into the right corner bin",
-    "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and WALLX starts the task again from the hat's new spot. When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
+    "title": "WALLX puts the hat into the right corner bin",
+    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
    },
    {
     "who": "robot",
-    "title": "Release",
-    "prompt": "Open the claw fully and lift straight up.",
-    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
    },
    {
     "who": "robot",
-    "title": "Right arm home",
-    "prompt": "Right arm: go to rest.",
-    "detail": "The right arm goes to rest; the left arm never moved."
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Watch: is the hat back on the table?",
+    "prompt": "Keep looking at the table; when the hat is out of the bin, give WALLX the task again.",
+    "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
+   },
+   {
+    "who": "harness",
+    "title": "Locate the cap on the 3x3 table grid",
+    "prompt": "Find the cap on the head camera and name its grid cell.",
+    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the hat into the right corner bin",
+    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
+   },
+   {
+    "who": "robot",
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Watch: is the hat back on the table?",
+    "prompt": "Keep looking at the table; when the hat is out of the bin, give WALLX the task again.",
+    "detail": "A person takes the hat out of the bin and puts it somewhere else; after 3 calls of seeing it on the table the next round starts."
+   },
+   {
+    "who": "harness",
+    "title": "Locate the cap on the 3x3 table grid",
+    "prompt": "Find the cap on the head camera and name its grid cell.",
+    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right); the cell goes into the WALLX sentence."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the hat into the right corner bin",
+    "detail": "WALLX does all the motion (head + both gripper cameras, right arm). The harness watches the hat on its grid; when it sits in the bin for 3 calls WALLX is stopped."
+   },
+   {
+    "who": "robot",
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Release + right arm home",
+    "prompt": "Open the claw, lift, back to rest.",
+    "detail": ""
    },
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+    "detail": "Session ends."
    }
   ]
  },
