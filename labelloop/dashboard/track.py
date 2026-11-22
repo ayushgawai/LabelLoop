@@ -90,9 +90,36 @@ def track(trial_dir):
     return boxes
 
 
-def draw(jpeg_path, box):
-    """JPEG bytes of the frame with the tracked parcel boxed."""
+GRID_X, GRID_Y = (0.38, 0.62), (0.42, 0.62)  # = labelloop.sequence.where_words thresholds (image fractions)
+
+
+def draw_grid(img, cell_xy=None):
+    """The harness's 3x3 table grid (back/middle/front x left/middle/right) on a head frame; the cell holding cell_xy filled."""
+    H, W = img.shape[:2]
+    xs, ys = [0.05, *GRID_X, 0.95], [0.17, *GRID_Y, 0.99]
+    rows, cols = ("back", "middle", "front"), ("left", "middle", "right")
+    if cell_xy:
+        c = sum(cell_xy[0] >= v for v in GRID_X)
+        r = sum(cell_xy[1] >= v for v in GRID_Y)
+        over = img.copy()
+        cv2.rectangle(over, (int(xs[c] * W), int(ys[r] * H)), (int(xs[c + 1] * W), int(ys[r + 1] * H)), (40, 140, 255), -1)
+        img[:] = cv2.addWeighted(over, 0.28, img, 0.72, 0)
+    for v in GRID_X:
+        cv2.line(img, (int(v * W), int(ys[0] * H)), (int(v * W), int(ys[-1] * H)), (255, 255, 255), 2)
+    for v in GRID_Y:
+        cv2.line(img, (int(xs[0] * W), int(v * H)), (int(xs[-1] * W), int(v * H)), (255, 255, 255), 2)
+    for r in range(3):
+        for c in range(3):
+            name = "centre" if (r, c) == (1, 1) else "%s %s" % (rows[r], cols[c])
+            cv2.putText(img, name, (int(xs[c] * W) + 8, int(ys[r] * H) + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+    return img
+
+
+def draw(jpeg_path, box, grid=False, cell_xy=None):
+    """JPEG bytes of the frame with the tracked parcel boxed (and the harness grid when asked)."""
     img = cv2.imread(str(jpeg_path))
+    if grid:
+        draw_grid(img, cell_xy)
     if box:
         x, y, w, h = box
         cv2.rectangle(img, (x, y), (x + w, y + h), (0, 200, 255), 3)

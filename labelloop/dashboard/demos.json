@@ -254,34 +254,72 @@
  {
   "id": "sc5",
   "label": "Scenario 5",
-  "trial": null,
-  "run": "scenarios/wx/sc5_wallx.json",
-  "recipe": "scenarios/wx/sc5_wallx.json",
-  "relay": "--sequence scenarios/wx/sc5_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Scenario 5: a person moves the cap while WALLX reaches for it, WALLX finds it again and still delivers it to the right zone",
+  "trial": "20261122_103003",
+  "run": "scenarios/wx/sc5h.json",
+  "recipe": "scenarios/wx/sc5h.json",
+  "relay": "--sequence scenarios/wx/sc5h_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04",
+  "title": "Scenario 5: a person moves the cap mid-grasp; the harness finds it again on its table grid and tells WALLX where it is; WALLX delivers it to zone 2",
   "steps": [
    {
     "who": "harness",
-    "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt)",
-    "detail": "Barcode reader first, pincode OCR reader as fallback. Cap label 90291 → zone 2 → right arm.",
-    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
+    "title": "Harness call (read the label, choose zone + arm)",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm.",
+    "detail": "Cap label 90291 → zone 2 → right arm."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (go to the cap, open the claw to grab it)",
+    "prompt": "Right arm: go to the cap and open the claw to grab it.",
+    "detail": "A person moves the cap away as soon as the claw opens over it.",
+    "sub": [
+     {
+      "call": 1,
+      "text": "right arm rises and moves out over the cap"
+     },
+     {
+      "call": 11,
+      "text": "claw opens and lowers to grab"
+     },
+     {
+      "call": 14,
+      "text": "(the person moves the cap now)"
+     }
+    ]
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (lift straight up)",
+    "prompt": "Right arm: lift straight up, claw open.",
+    "detail": "Clears the cap wherever it was moved."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (back to rest so the camera sees the table)",
+    "prompt": "Right arm: back to rest, claw open.",
+    "detail": "The head camera now has a clear view of the whole table."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (locate the cap on the 3x3 table grid)",
+    "prompt": "Find the cap on the head camera and name its grid cell.",
+    "detail": "Tracks the cap on the head camera and maps it to the table grid (back / middle / front x left / middle / right). The cell (highlighted orange on the head camera) is written into the WALLX sentence."
    },
    {
     "who": "wallx",
-    "title": "WALLX picks the cap up and puts it into the zone (a person moves it once)",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 90 calls, so there is time to recover. WALLX re-plans from a fresh head-camera image every call: when the package is moved, its next action chunk goes to the new spot."
+    "title": "WALLX grabs the cap where the harness says it is and puts it into zone 2",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the head camera AND both gripper cameras + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call, opens the claw fully when WALLX opens it and sinks it 4 cm before it may close. 90 calls."
    },
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
-    "prompt": "Open the claw fully and lift straight up."
+    "prompt": "Open the claw fully and lift straight up.",
+    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
-    "prompt": "Both arms: go to rest."
+    "prompt": "Both arms: go to rest.",
+    "detail": "Both arms go to rest."
    },
    {
     "who": "done",

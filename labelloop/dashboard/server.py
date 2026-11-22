@@ -252,7 +252,12 @@ class Handler(BaseHTTPRequestHandler):
             if camera == "front" and query.get("track", ["0"])[0] == "1":  # the tracked parcel boxed on the head frame
                 from labelloop.dashboard import track
                 try:
-                    return self._send(200, track.draw(p, track.track(d).get(int(Path(p).name.split("_")[0]))), "image/jpeg")
+                    n = int(Path(p).name.split("_")[0])
+                    rows = read_rows(d)  # grid trials (a harness 'locate' step logged harness.where): grid + the located cell
+                    wh = [(row_index(r), (r.get("harness") or {}).get("where")) for r in rows if (r.get("harness") or {}).get("where")]
+                    grid = bool(wh) or any("where" in (r.get("harness") or {}) for r in rows[:3])
+                    cell = next((w for i, w in reversed(wh) if i <= n), None)
+                    return self._send(200, track.draw(p, track.track(d).get(n), grid, cell), "image/jpeg")
                 except Exception:
                     pass
             return self._file(p, "image/jpeg")
