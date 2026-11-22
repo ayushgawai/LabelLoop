@@ -1,0 +1,8 @@
+{
+ "name": "w4x_try3c",
+ "goal": "Scenario 4 with WALLX, try 3c (handout idea 2: a container inside zone 1; else as try 2): replayed pick + handover, then WALLX (left arm, right locked, 40 calls): 'Put the box into the bowl.' (the organisers' spoon-example grammar); scripted release + home.",
+ "setup": "Bhindi box on the scenario 4 start marks (right side, in front of zone 2); arms at rest.",
+ "relay": "--sequence scenarios/w4x/try3c_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 180,
+ "wording": {}
+}
