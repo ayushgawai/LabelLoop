@@ -1,0 +1,8 @@
+{
+ "name": "sc5g",
+ "goal": "Scenario 5 G: label read + harness approach over the cap (Ayush's demo), then SMALL WALLX steps (find, above, open+lower, close, lift, put into zone) with all cameras, --open-wide 1.5, --deep-close 0.04, --slow 0.4",
+ "setup": "Cap standing upright in the middle, label facing the camera (as in scenario 1)",
+ "relay": "--sequence scenarios/wx/sc5g_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04",
+ "seconds": 240,
+ "wording": {}
+}
