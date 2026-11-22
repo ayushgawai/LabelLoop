@@ -4,5 +4,6 @@
  "setup": "White mailer bag in the centre (scenario 1 start marks), label up; arms at rest. After each put-back (arms home), take it out and put it in the centre again.",
  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
  "seconds": 470,
- "wording": {}
+ "wording": {},
+ "quick": true
 }

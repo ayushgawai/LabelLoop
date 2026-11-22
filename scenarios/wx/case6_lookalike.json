@@ -4,5 +4,6 @@
  "setup": "Two IQBAR boxes: one with a barcode label, one without, one on the left half and one on the right half of the table, labels up; arms at rest.",
  "relay": "--sequence scenarios/wx/case6_lookalike_steps.json --slow 0.4 --no-reset-on-subgoal --deep-close 0.04 --deep-to 0.03 --grip-binary 0.7",
  "seconds": 470,
- "wording": {}
+ "wording": {},
+ "quick": true
 }

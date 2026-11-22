@@ -172,7 +172,9 @@ def main():
     else:
         d = ROOT / "runs/manual" / o.name
     d.mkdir(parents=True, exist_ok=True)
-    print("homing arms ...", home(d), flush=True)
+    quick = bool(sc and sc.get("quick"))  # recipe "quick": no separate homing sessions before / after (the sequence starts from
+    if not quick:                         # rest and ends with its own home steps; the client homes on stop anyway)
+        print("homing arms ...", home(d), flush=True)
     if o.home_only:
         return
     n0 = len(fronts(d))
@@ -186,7 +188,8 @@ def main():
     t0 = time.time()
     print("trial ...", session(d, flags, o.instruction, o.seconds, d / "trial.jsonl"), flush=True)
     files = fronts(d)[n0:]
-    print("homing arms ...", home(d), flush=True)
+    if not quick:
+        print("homing arms ...", home(d), flush=True)
     s = summarize(d / "trial.jsonl")
     s.update(name=o.name, relay=o.relay, wording=o.wording, wall_s=round(time.time() - t0))
     (d / "summary.json").write_text(json.dumps(s, indent=1))
