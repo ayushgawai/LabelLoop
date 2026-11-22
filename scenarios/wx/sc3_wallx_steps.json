@@ -10,7 +10,7 @@
    "replay": "scenarios/wx/sc3_pick.json"
   },
   {
-   "say": "Put the bag into the square on the right side of the table.",
+   "say": "Stretch to the top right corner of the table and put the white bag into zone 2.",
    "calls": 40,
    "arm": "right"
   },

@@ -1,9 +1,9 @@
 {
  "name": "sc3_wallx_v1",
- "goal": "Scenario 3 with WALLX: replayed right-arm pick + lift (slice of the locked keeper), then WALLX (right arm, other locked, 40 calls): 'Put the bag into the square on the right side of the table.'; scripted release + home. Same pattern as scenarios/w4x/saved/sc4_wallx_v1.",
+ "goal": "Scenario 3 with WALLX (sc4_wallx pattern): replayed left-arm pick + turn + set-down and right-arm pick + lift (slice of keepers/sc3, 44.7 s), then WALLX (right arm, left locked, head camera only, 40 calls): 'Stretch to the top right corner of the table and put the white bag into zone 2.'; scripted release + home.",
  "setup": "Mailer label-down on its taped start marks; arms at rest.",
- "relay": "--sequence scenarios/wx/sc3_wallx_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "relay": "--sequence scenarios/wx/sc3_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
  "seconds": 200,
  "wording": {},
- "prompt": "Put the bag into the square on the right side of the table."
+ "prompt": "Stretch to the top right corner of the table and put the white bag into zone 2."
 }
