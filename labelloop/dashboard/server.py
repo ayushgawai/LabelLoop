@@ -8,6 +8,7 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
   /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
+  /api/demos                      one-click demos (demos.json): trial id + step-by-step story
   /api/story                      every trial + trial-agent run in time order (labelloop.dashboard.story)
   /api/agent/<ts>                 one agent run: journal, report text, progress notes
 """
@@ -21,6 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 TRIAL_ID_RE = re.compile(r"^\d{8}_\d{6}$")
 CAMERA_RE = re.compile(r"^[a-z_]+$")
 INDEX_HTML = Path(__file__).resolve().parent / "index.html"
+DEMOS = Path(__file__).resolve().parent / "demos.json"  # one-click demos: trial id + the step-by-step story
 
 
 def _read_json(path):
@@ -153,6 +155,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(INDEX_HTML, "text/html; charset=utf-8")
             if parts[0] == "api" and len(parts) >= 2 and parts[1] == "trials":
                 return self._trials(parts[2:], parse_qs(url.query))
+            if parts[0] == "api" and parts[1:] == ["demos"]:
+                return self._json(_read_json(DEMOS) or [])
             if parts[0] == "api" and parts[1:] == ["story"]:
                 from labelloop.dashboard import story
                 return self._json(story.build(self.root, self.agent_root, self.reports_root))

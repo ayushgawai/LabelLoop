@@ -43,8 +43,8 @@
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
   main{position:relative;z-index:1;display:grid;gap:14px;padding:14px 22px 60px 78px;
     grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
-    grid-template-areas:"table pose" "table perf" "cams log" "time log" "story story"}
-  #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf}
+    grid-template-areas:"steps steps" "table pose" "table perf" "cams log" "time log" "story story"}
+  #stepsCard{grid-area:steps} #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf}
   #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log} #storyCard{grid-area:story}
   .story{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto;padding:2px 4px 2px 0}
   .st{border:1.3px solid rgba(35,40,46,.35);border-radius:10px 7px 11px 6px / 7px 11px 6px 10px;padding:6px 9px;background:rgba(255,255,255,.72)}
@@ -117,8 +117,37 @@
   .logRow{padding:2px 4px;border-radius:6px;border-left:3px solid transparent;word-break:break-word}
   .logRow.hi{background:#fff6d8;border-left-color:var(--amber)}
   .lt{color:var(--ink2);margin-right:7px;font-size:11px}
+  .demoBtn{background:var(--ink);color:var(--paper);font-weight:700}
+  .stepsWrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px}
+  .stepList{display:flex;flex-direction:column;gap:3px;margin:0;padding:0;list-style:none}
+  .stepItem{display:grid;grid-template-columns:34px 70px 1fr auto;gap:6px;align-items:center;font-size:12.5px;padding:4px 7px;
+    border-radius:8px;border:1.2px solid transparent;color:var(--ink2);cursor:pointer}
+  .stepItem .n{font-weight:700;text-align:center;font-variant-numeric:tabular-nums}
+  .stepItem .calls{font-size:11px;font-variant-numeric:tabular-nums}
+  .stepItem.done{color:var(--ink)} .stepItem.done .n::after{content:" ✓";color:var(--green)}
+  .stepItem.active{color:#111;background:#fff;border-color:var(--ink);box-shadow:0 0 0 3px rgba(230,126,34,.25);font-weight:600}
+  .who{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;padding:1px 6px;border-radius:8px;color:#fff;text-align:center}
+  .who.harness{background:#7c6ce0} .who.replay{background:#16a085} .who.scripted{background:#7f8c8d}
+  .who.wallx{background:#e67e22} .who.done{background:#2e8b57}
+  .stepNow{border:1.6px solid var(--ink);border-radius:12px 8px 13px 7px / 8px 13px 7px 12px;background:#fff;padding:9px 11px}
+  .stepNow h3{margin:0 0 4px;font-size:15px} .stepNow .big{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink2)}
+  .prompt{margin:8px 0;padding:9px 11px;border-left:5px solid #e67e22;background:#fff4e6;font-size:16px;font-weight:700;border-radius:4px}
+  .prompt small{display:block;font-size:10.5px;font-weight:400;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink2);margin-bottom:3px}
+  .stepNow p{margin:6px 0;font-size:12.5px}
+  .bar{height:7px;border-radius:4px;background:rgba(35,40,46,.12);overflow:hidden;margin:6px 0}
+  .bar i{display:block;height:100%;background:#e67e22}
+  .armsNow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .armBox{border:1.2px solid rgba(35,40,46,.35);border-radius:8px;padding:5px 8px;font-size:12px}
+  .armBox b{font-size:12.5px} .armBox.act{border-color:var(--ink);box-shadow:0 0 0 2px rgba(46,139,87,.3)}
+  .armBox.lock{background:repeating-linear-gradient(45deg,#fff,#fff 6px,#f3f3f3 6px,#f3f3f3 12px)}
+  .subs{margin:6px 0 0;padding:0;list-style:none;font-size:12px}
+  .subs li{padding:2px 0 2px 16px;position:relative;color:var(--ink2)}
+  .subs li::before{content:"○";position:absolute;left:0}
+  .subs li.done{color:var(--ink)} .subs li.done::before{content:"●";color:var(--green)}
+  .subs li.active{color:#111;font-weight:700} .subs li.active::before{content:"▶";color:#e67e22}
+  @media (max-width:900px){ .stepsWrap{grid-template-columns:minmax(0,1fr)} }
   @media (max-width:900px){
-    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
+    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"steps" "table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
     header{padding:10px 12px 8px 16px} body::before{display:none}
   }
 </style>
@@ -133,9 +162,14 @@
     <input id="scrub" type="range" min="0" max="0" value="0" step="1" title="scrub">
     <span class="speeds" id="speeds"></span>
   </div>
+  <span id="demoBtns"></span>
   <div class="chips" id="chips"></div>
 </header>
 <main>
+  <section class="card" id="stepsCard" hidden>
+    <div class="cardTitle" id="stepsTitle">steps</div>
+    <div class="stepsWrap"><ol class="stepList" id="stepList"></ol><div class="stepNow" id="stepNow"></div></div>
+  </section>
   <section class="card" id="tableCard">
     <div class="cardTitle">arms · joint chains from IK (cm)</div>
     <div class="viewTag">top view · x-y</div>
@@ -211,7 +245,7 @@
     hist: { left: { z: [], g: [] }, right: { z: [], g: [] } },
     shownFrame: -1, logHi: -1, logIndex: [], busy: false, summaryAt: 0, story: [], storySig: '', storyShown: false,
     stats: null, perfKey: '', listAt: 0, tlDirty: false, tlAt: 0,
-    lastPaint: 0, lastSlow: 0
+    lastPaint: 0, lastSlow: 0, demos: [], steps: null, stepKey: ''
   };
 
   const $ = (id) => document.getElementById(id);
@@ -507,7 +541,7 @@
   }
 
   const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Scripted'],
-                 ['hold', 'HOLD'], ['qr', 'QR decode'], ['verify', 'Verify']];
+                 ['hold', 'HOLD'], ['lock', 'Arm lock'], ['qr', 'QR decode'], ['verify', 'Verify']];
 
   function buildChips() {
     $('chips').innerHTML = CHIPS.map(function (c) {
@@ -530,6 +564,7 @@
       row && typeof row.latency_ms === 'number' ? Math.round(row.latency_ms) + 'ms' : '');
     setChip('scripted', !!row && row.source === 'scripted');
     setChip('hold', !!row && row.source === 'hold');
+    setChip('lock', !!(h.lock && h.lock.length), (h.lock || []).join('+'));
     setChip('qr', !!(h.codes && h.codes.length), (h.codes || []).length ? (h.codes.length + '') : '');
     setChip('verify', !!(h.confirmed && h.confirmed.length));
   }
@@ -705,17 +740,18 @@
     if (!rows.length) { tl.innerHTML = '<div class="muted">waiting for a trial…</div>'; return; }
     const segs = [];
     rows.forEach(function (r, i) {
-      const st = (r.harness && r.harness.state) || r.source || '—';
+      const h = r.harness || {}, sp = S.steps && h.step != null ? S.steps[h.step] : null;
+      const st = h.state || (sp ? (h.step + 1) + ' ' + sp.who.toUpperCase() : null) || r.source || '—';
       const cur = segs[segs.length - 1];
       if (cur && cur.state === st) cur.to = i;
-      else segs.push({ state: st, from: i, to: i });
+      else segs.push({ state: st, from: i, to: i, color: sp ? WHO_COLORS[sp.who] : null });
     });
     const n = rows.length;
     let html = '<div class="tl">';
     segs.forEach(function (s) {
       html += '<div class="tlSeg" title="' + esc(s.state) + '" style="left:' + (s.from / n * 100).toFixed(2) +
         '%;width:' + ((s.to - s.from + 1) / n * 100).toFixed(2) + '%;background:' +
-        (STATE_COLORS[s.state] || '#9aa6b2') + '"><span>' + esc(s.state) + '</span></div>';
+        (STATE_COLORS[s.state] || s.color || '#9aa6b2') + '"><span>' + esc(s.state) + '</span></div>';
     });
     const ticks = [], flags = [];  // one SVG path each, however many rows: transitions as short ticks, flags as red marks
     rows.forEach(function (r, i) {
@@ -730,6 +766,97 @@
     tl.innerHTML = html;
     S.tlDirty = false;
     S.tlAt = performance.now();
+  }
+
+  /* ------------------------------------------------------------------ steps (sequence trials + one-click demos) */
+  const WHO_COLORS = { harness: '#7c6ce0', replay: '#16a085', scripted: '#7f8c8d', wallx: '#e67e22', done: '#2e8b57' };
+
+  function whoOf(r) {
+    const h = r.harness || {}, ins = String(h.instruction || '');
+    if (r.source === 'wallx') return 'wallx';
+    if (/^\(replay/.test(ins)) return 'replay';
+    if (r.source === 'hold' || !ins) return 'done';
+    return 'scripted';
+  }
+
+  function buildSteps() {  // step list + the row range of each step (from harness.step); null when the trial has no steps
+    const demo = S.demos.filter(function (d) { return d.trial === S.id; })[0];
+    const rows = S.rows, rng = {};
+    rows.forEach(function (r, i) {
+      const k = (r.harness || {}).step;
+      if (k == null) return;
+      if (!rng[k]) rng[k] = { from: i, to: i, row: r }; else rng[k].to = i;
+    });
+    const keys = Object.keys(rng).map(Number);
+    if (!demo && !keys.length) { S.steps = null; $('stepsCard').hidden = true; return; }
+    const n = demo ? demo.steps.length : Math.max.apply(null, keys) + 1;
+    S.steps = [];
+    for (let k = 0; k < n; k++) {
+      const d = demo ? demo.steps[k] || {} : {}, r = rng[k];
+      const ins = r ? (r.row.harness || {}).instruction : null;
+      S.steps.push({ who: d.who || (r ? whoOf(r.row) : 'scripted'), title: d.title || (r && r.row.source === 'wallx' ? 'WALLX' : ins || 'step ' + (k + 1)),
+        detail: d.detail || '', prompt: d.prompt || (r && r.row.source === 'wallx' ? ins : null), sub: d.sub || null,
+        from: r ? r.from : null, to: r ? r.to : null });
+    }
+    S.demo = demo || null;
+    $('stepsTitle').textContent = demo ? demo.title : 'steps of this trial';
+    $('stepsCard').hidden = false;
+    S.stepKey = '';
+  }
+
+  function armBox(arm, row, act, locked) {
+    const st = ((row && row.state) || {})[arm + '_ee'] || {}, g = st.gripper, p = st.position || [0, 0, 0];
+    const role = locked ? 'LOCKED (holds still)' : act === true ? 'moved by WALLX' : act || 'idle';
+    return '<div class="armBox ' + (locked ? 'lock' : act ? 'act' : '') + '"><b style="color:' + CFG.ARM_COL[arm] + '">' + arm + ' arm</b> · ' + role +
+      '<br>claw ' + (typeof g === 'number' ? Math.round(clamp(g / 1.526, 0, 1) * 100) + '% open' : '—') +
+      ' · EE ' + p.map(function (v) { return (v * 100).toFixed(0); }).join(', ') + ' cm</div>';
+  }
+
+  function renderSteps(i) {
+    if (!S.steps) return;
+    const row = S.rows[i] || null, h = (row && row.harness) || {};
+    const k = h.step != null ? h.step : -1, sp = S.steps[k];
+    const call = sp && sp.from != null ? i - sp.from + 1 : 0, total = sp && sp.to != null ? sp.to - sp.from + 1 : 0;
+    const key = k + ':' + i;
+    if (key === S.stepKey) return;
+    S.stepKey = key;
+    $('stepList').innerHTML = S.steps.map(function (s, n) {
+      const cls = n < k ? 'done' : n === k ? 'active' : '';
+      const calls = s.from != null ? (s.to - s.from + 1) + ' call' + (s.to > s.from ? 's' : '') : '';
+      return '<li class="stepItem ' + cls + '" data-row="' + (s.from != null ? s.from : '') + '"><span class="n">' + (n + 1) +
+        '</span><span class="who ' + s.who + '">' + s.who + '</span><span>' + esc(s.title) + '</span><span class="calls">' + calls + '</span></li>';
+    }).join('');
+    if (!sp) { $('stepNow').innerHTML = '<div class="muted">press play</div>'; return; }
+    const lock = h.lock || [], wallx = row.source === 'wallx';
+    const acting = wallx ? ['left', 'right'].filter(function (a) { return lock.indexOf(a) < 0; }) : [];
+    const t0 = S.rows[sp.from] && S.rows[sp.from].t, el = row.t && t0 ? row.t - t0 : 0;
+    let html = '<div class="big">step ' + (k + 1) + ' of ' + S.steps.length + ' · <span class="who ' + sp.who + '">' + sp.who + '</span> · call ' +
+      call + ' / ' + total + ' · ' + el.toFixed(1) + ' s</div><h3>' + esc(sp.title) + '</h3>' +
+      '<div class="bar"><i style="width:' + (total ? call / total * 100 : 0).toFixed(1) + '%;background:' + WHO_COLORS[sp.who] + '"></i></div>';
+    const prompt = wallx ? (row.subgoal || h.instruction || sp.prompt) : sp.prompt;
+    if (prompt) html += '<div class="prompt"><small>exact instruction sent to WALLX' + (wallx ? ' · this call' : '') + '</small>“' + esc(prompt) + '”</div>';
+    if (wallx) html += '<p class="muted">WALLX reply in ' + (typeof row.latency_ms === 'number' ? Math.round(row.latency_ms) + ' ms' : '—') +
+      ' · inputs: head + 2 wrist cameras, both arms\' state, the sentence above · output: action chunk, 40% executed (--slow 0.4)</p>';
+    if (sp.sub) {
+      let cur = -1;
+      sp.sub.forEach(function (s, n) { if (call >= s.call) cur = n; });
+      html += '<ul class="subs">' + sp.sub.map(function (s, n) {
+        return '<li class="' + (n < cur ? 'done' : n === cur ? 'active' : '') + '">call ' + s.call + ': ' + esc(s.text) + '</li>';
+      }).join('') + '</ul>';
+    }
+    if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
+    if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → ' + esc(h.bin || '?') + ' bin / zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' (source ' + esc(h.source || '?') + ')</p>';
+    const other = { replay: 'replaying the recording', scripted: 'scripted move', harness: 'at rest', done: 'home' }[sp.who] || 'idle';
+    html += '<div class="armsNow">' + armBox('left', row, wallx ? acting.indexOf('left') >= 0 : other, lock.indexOf('left') >= 0) +
+      armBox('right', row, wallx ? acting.indexOf('right') >= 0 : other, lock.indexOf('right') >= 0) + '</div>';
+    $('stepNow').innerHTML = html;
+  }
+
+  async function loadDemos() {
+    try { S.demos = await api('/api/demos'); } catch (e) { S.demos = []; }
+    $('demoBtns').innerHTML = S.demos.map(function (d) {
+      return '<button class="demoBtn" data-demo="' + esc(d.id) + '" title="replay the recorded run step by step">▶ ' + esc(d.label) + '</button>';
+    }).join(' ');
   }
 
   /* ------------------------------------------------------------------ log */
@@ -977,6 +1104,7 @@
     S.after = last ? (Number.isFinite(last.index) ? last.index : S.rows.length - 1) : -1;
     S.cursor = Math.max(0, S.rows.length - 1);
     updateScrub();
+    buildSteps();
     rebuildTimeline();
     appendLog(0);
     renderSlow(true);
@@ -1009,6 +1137,7 @@
         S.after = Number.isFinite(last.index) ? last.index : S.after + add.length;
         updateScrub();
         S.tlDirty = true;   // rebuilt at most once a second (renderSlow)
+        buildSteps();
         appendLog(from);
         renderSlow(true);
       }
@@ -1043,6 +1172,7 @@
       if (idx !== S.shownFrame) { S.shownFrame = idx; renderCams(idx); }
     }
     if (S.logIndex.length) highlightLog(i);
+    renderSteps(i);
     if (S.tlDirty && now - (S.tlAt || 0) > 1000) rebuildTimeline();
   }
 
@@ -1128,6 +1258,20 @@
       if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); $('playBtn').click(); }
     });
 
+    $('demoBtns').addEventListener('click', function (e) {
+      const b = e.target.closest('button[data-demo]');
+      if (!b) return;
+      const d = S.demos.filter(function (x) { return x.id === b.dataset.demo; })[0];
+      if (d) replay(d.trial).then(function () { $('stepsCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); }).catch(function () {});
+    });
+    $('stepList').addEventListener('click', function (e) {
+      const li = e.target.closest('li[data-row]');
+      if (!li || li.dataset.row === '') return;
+      S.follow = false;
+      S.cursor = Number(li.dataset.row);
+      updateScrub();
+    });
+
     $('story').addEventListener('click', function (e) {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;
@@ -1142,11 +1286,18 @@
     buildStatic();
     buildChips();
     wireControls();
+    await loadDemos();
     requestAnimationFrame(loop);
     try { await refreshTrials(); } catch (e) { /* server starting */ }
     try {
       if (S.trials.length) await loadTrial(S.trials[0].id);
     } catch (e) { /* ignore */ }
+    const q = new URLSearchParams(location.search), qd = S.demos.filter(function (x) { return x.id === q.get('demo'); })[0];
+    if (qd) {  // ?demo=<id> starts that demo on load; &at=<row> shows one row, paused (screenshots)
+      await replay(qd.trial).catch(function () {});
+      if (q.get('at') != null) { setPlaying(false); S.cursor = Number(q.get('at')) || 0; updateScrub(); }
+      $('stepsCard').scrollIntoView({ block: 'start' });
+    }
     setInterval(poll, CFG.POLL_MS);
     loadStory();
     setInterval(loadStory, CFG.STORY_MS);
