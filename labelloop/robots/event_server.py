@@ -66,6 +66,7 @@ class Relay:
         self.recorder, self.record_meta = recorder, dict(record_meta or {})
         self.overlay_mode = overlay_mode
         self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
+        self.save_every = 10  # --save-every: keep the camera frames of every Nth request
         self.reset_on_subgoal = True  # --no-reset-on-subgoal: reset WALLX history only at the episode start
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
@@ -172,7 +173,7 @@ class Relay:
                     if trial:  # a new goal starts a new trial (the previous one is ended by start())
                         i = 0
                         self.recorder.start(goal, **self.record_meta)
-                if self.save_dir and k % 10 == 0:  # the 1st request of an episode, then every 10th (the instruction logged is the robot's)
+                if self.save_dir and k % self.save_every == 0:  # the 1st request of an episode, then every 10th (the instruction logged is the robot's)
                     save_request(self.save_dir, ep, k, req)
                 k += 1
                 state = _plain_state(req["observation"]["state"])
@@ -254,6 +255,7 @@ async def main():
     p.add_argument("--sequence", default="", help="JSON atomic step list (labelloop/sequence.py) instead of the harness state machine")
     p.add_argument("--reset-on-subgoal", action=argparse.BooleanOptionalAction, default=True, help="reset WALLX history on every sub-goal change / retry (off: only at the episode start)")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open ~0.85; 0 = off)")
+    p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
     p.add_argument("--cfg", default="", help="JSON merged into the task config (recipes), e.g. '{\"tries\": {\"STAND\": 2}}'")
@@ -301,6 +303,7 @@ async def main():
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
+    relay.save_every = max(1, a.save_every)
     relay.reset_on_subgoal = a.reset_on_subgoal
     async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
