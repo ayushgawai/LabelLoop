@@ -9,7 +9,7 @@
   "title": "Case 1, roll & scan: the left arm rolls the label-down parcel label-up for the scan; WALLX picks it and puts it into its zone",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Flip the bag label up",
     "detail": "Left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
     "sub": [
@@ -47,13 +47,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -75,7 +75,7 @@
   "title": "Case 2, handheld scanner: the left hand holds the phone and scans the label; the harness routes the code; WALLX sorts the parcel with the right hand",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left claw opens for the phone",
     "prompt": "Left arm: open the claw.",
     "detail": ""
@@ -87,13 +87,13 @@
     "detail": "5 s."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Gentle grip on the phone",
     "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
     "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left hand holds the phone over the parcel",
     "prompt": "Left arm: hold the phone over the parcel's label.",
     "detail": ""
@@ -105,7 +105,7 @@
     "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left arm home quickly (scan done)",
     "prompt": "Left arm: straight back to rest, keep the phone.",
     "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
@@ -116,19 +116,19 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release the parcel",
     "prompt": "Open the right claw and lift straight up.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left arm home with the phone",
     "prompt": "Left arm: back to rest, keep holding the phone.",
     "detail": "The phone stays gripped; take it out after the run."
@@ -161,13 +161,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -184,13 +184,13 @@
     "detail": "Same as above."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -209,16 +209,16 @@
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
   "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Case 4, position change: the bag goes into zone 1; a person takes it out again and puts it back in the centre; the harness sees it and WALLX puts it back into zone 1",
+  "title": "Case 4, position change (harness + WALLX): the bag goes into zone 1; a person takes it out and puts it in the centre; the harness sees it, picks it up and WALLX puts it back into zone 1",
   "steps": [
    {
-    "who": "robot",
-    "title": "Left arm puts the bag into zone 1",
+    "who": "harness",
+    "title": "Put the bag into zone 1 (50% speed)",
     "prompt": "Left arm: pick up the white bag and put it into zone 1.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -230,53 +230,24 @@
     "detail": "After 3 calls of seeing it on the table."
    },
    {
-    "who": "robot",
-    "title": "Left arm picks up the bag",
+    "who": "harness",
+    "title": "Pick up the bag (50% speed)",
     "prompt": "Left arm: pick up the white bag and lift it.",
     "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX carries the bag into zone 1",
+    "title": "WALLX puts the bag back into zone 1",
     "detail": "WALLX (head camera) moves the left arm; the harness watches the bin and stops it when the bag is in."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw and lift.",
-    "detail": ""
-   },
-   {
-    "who": "robot",
-    "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Watch: is the bag back on the table?",
-    "prompt": "Keep looking at the table; when the bag is out of the bin, start again.",
-    "detail": "After 3 calls of seeing it on the table."
-   },
-   {
-    "who": "robot",
-    "title": "Left arm picks up the bag",
-    "prompt": "Left arm: pick up the white bag and lift it.",
-    "detail": ""
-   },
-   {
-    "who": "wallx",
-    "title": "WALLX carries the bag into zone 1",
-    "detail": "WALLX (head camera) moves the left arm; the harness watches the bin and stops it when the bag is in."
-   },
-   {
-    "who": "robot",
-    "title": "Release",
-    "prompt": "Open the claw and lift.",
-    "detail": ""
-   },
-   {
-    "who": "robot",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -315,13 +286,13 @@
     "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and WALLX starts the task again from the hat's new spot. When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw fully and lift straight up.",
     "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": "The right arm goes to rest; the left arm never moved."
@@ -354,13 +325,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head + both gripper cameras + both arms' state + the sentence; the other arm is locked."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -377,13 +348,13 @@
     "detail": "Same as above."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw and lift.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "prompt": "Both arms: go to rest.",
     "detail": ""
@@ -411,7 +382,7 @@
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Pick + handover",
     "detail": "the right arm picks the box and hands it to the left claw in the air.",
     "sub": [
@@ -447,13 +418,13 @@
     "prompt": "Right arm: pick up the purple box and hand it to the left arm in the air."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm backs off",
     "detail": "Move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
     "prompt": "Right arm: let go and move up and away from the box."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "detail": "Home, claw closed. From here the right arm stays parked.",
     "prompt": "Right arm: go to rest."
@@ -465,13 +436,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -505,13 +476,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts from rest. Every call it gets the HEAD camera image (black wrist images) + both arms' state + the sentence above and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone does the grasp, the lift, the carry and the set-down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -534,7 +505,7 @@
   "title": "Scenario 2: the right arm picks up the Miro box, WALLX puts it into zone 2",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm picks up the box",
     "detail": "Right arm: reach over the standing Miro box, grasp it from the top, lift it.",
     "sub": [
@@ -564,13 +535,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm, holding the box. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the left arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to carry the box and where to set it down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -593,7 +564,7 @@
   "title": "Scenario 3: the left arm flips the label-down mailer label up, WALLX picks it up and puts it into zone 1",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Flip the bag label up",
     "detail": "Left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
     "sub": [
@@ -631,13 +602,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -666,7 +637,7 @@
     "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Pick + handover",
     "detail": "the right arm picks the box and hands it to the left claw in the air.",
     "sub": [
@@ -702,13 +673,13 @@
     "prompt": "Right arm: pick up the purple box and hand it to the left arm in the air."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm backs off",
     "detail": "Move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
     "prompt": "Right arm: let go and move up and away from the box."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "detail": "Home, claw closed. From here the right arm stays parked.",
     "prompt": "Right arm: go to rest."
@@ -720,13 +691,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (the harness sends black wrist images: the held box blocks the left wrist camera, so it only confuses WALLX) + both arms' state + this sentence every call, and returns an action chunk for both arms. The harness LOCKS the right arm (its WALLX actions are replaced by 'hold still'), runs 40% of each chunk per call (--slow 0.4, smoother and safer), and keeps the same sub-goal across calls (--no-reset-on-subgoal). 40 calls. WALLX alone decides where to move, how to lower and where to set the box down."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -767,13 +738,13 @@
     "detail": "WALLX does all the motion (head camera + both gripper cameras, left arm locked, 230 calls at 30% speed, one prompt). The harness keeps watching the cap on its grid every call: when the cap sits in a NEW cell for 3 calls, the prompt is cancelled, WALLX's history is reset and WALLX starts the task again from the hat's new spot. When WALLX starts to close the claw, the harness first takes the open claw down to grab height (no depth camera on this robot). Red marks on the timeline = re-targets."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "prompt": "Open the claw fully and lift straight up.",
     "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": "The right arm goes to rest; the left arm never moved."
@@ -796,7 +767,7 @@
   "title": "Scenario 6: handheld scanner. The left hand holds the phone and scans the parcel's label; the harness routes it; WALLX picks the parcel up with the right hand and sorts it into the scanned zone",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left claw opens for the phone",
     "prompt": "Left arm: open the claw.",
     "detail": ""
@@ -808,13 +779,13 @@
     "detail": "5 s."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Gentle grip on the phone",
     "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
     "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left hand holds the phone over the parcel",
     "prompt": "Left arm: hold the phone over the parcel's label.",
     "detail": ""
@@ -826,7 +797,7 @@
     "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left arm home quickly (scan done)",
     "prompt": "Left arm: straight back to rest, keep the phone.",
     "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
@@ -837,19 +808,19 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release the parcel",
     "prompt": "Open the right claw and lift straight up.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left arm home with the phone",
     "prompt": "Left arm: back to rest, keep holding the phone.",
     "detail": "The phone stays gripped; take it out after the run."
@@ -883,13 +854,13 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release",
     "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
     "prompt": "Open the claw fully and lift straight up."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Both arms home",
     "detail": "Both arms go to rest (≤ 5 cm per call).",
     "prompt": "Both arms: go to rest."
@@ -912,7 +883,7 @@
   "title": "Handheld scanner: the left hand holds the phone and scans the parcel's label; the harness routes it; WALLX picks the parcel up with the right hand and sorts it into the scanned zone",
   "steps": [
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left claw opens for the phone",
     "prompt": "Left arm: open the claw.",
     "detail": ""
@@ -924,13 +895,13 @@
     "detail": "5 s."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Gentle grip on the phone",
     "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
     "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left hand holds the phone over the parcel",
     "prompt": "Left arm: hold the phone over the parcel's label.",
     "detail": ""
@@ -942,7 +913,7 @@
     "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left hand moves the phone back",
     "prompt": "Left arm: back to rest, keep the phone.",
     "detail": ""
@@ -953,19 +924,19 @@
     "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Release the parcel",
     "prompt": "Open the right claw and lift straight up.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
     "detail": ""
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left hand presents the phone",
     "prompt": "Left arm: bring the phone to the front.",
     "detail": ""
@@ -977,13 +948,13 @@
     "detail": "15 s."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left claw opens",
     "prompt": "Open the left claw slowly.",
     "detail": "Opens to 1.2."
    },
    {
-    "who": "robot",
+    "who": "harness",
     "title": "Left arm home",
     "prompt": "Left arm: go to rest.",
     "detail": ""

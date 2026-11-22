@@ -284,7 +284,7 @@
   };
 
   const $ = (id) => document.getElementById(id);
-  const srcName = (s) => ({ scripted: 'ROBOT', hold: 'DONE', wallx: 'WALLX' }[s] || String(s || '—').toUpperCase());
+  const srcName = (s) => ({ scripted: 'HARNESS', hold: 'DONE', wallx: 'WALLX' }[s] || String(s || '—').toUpperCase());
   const n1 = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const lerp = (a, b, t) => a + (b - a) * t;
   const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
@@ -576,7 +576,7 @@
     $('pose').innerHTML = html || '<div class="muted">waiting…</div>';
   }
 
-  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Robot motion'],
+  const CHIPS = [['harness', 'Harness'], ['wallx', 'WALLX'], ['scripted', 'Harness'],
                  ['hold', 'Harness hold'], ['lock', 'Arm lock'], ['qr', 'QR decode'], ['verify', 'Verify']];
 
   function buildChips() {
@@ -822,14 +822,14 @@
   function whoOf(r) {
     const h = r.harness || {}, ins = String(h.instruction || '');
     if (r.source === 'wallx') return 'wallx';
-    if (/^\(replay/.test(ins)) return 'robot';
+    if (/^\(replay/.test(ins)) return 'harness';
     if (r.source === 'hold' || !ins) return 'done';
-    return 'robot';
+    return 'harness';
   }
 
   function harnessTitle(ins) {  // '(replay 1)' / '(scripted move 2)' / '(release 5)' -> step titles
     if (!ins) return null;
-    if (/^\(replay/.test(ins)) return 'Robot motion';
+    if (/^\(replay/.test(ins)) return 'Harness motion';
     if (/^\(scripted move/.test(ins)) return 'Move';
     if (/^\(release/.test(ins)) return 'Release';
     return ins;
