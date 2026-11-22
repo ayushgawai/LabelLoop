@@ -62,3 +62,5 @@
 - 2026-11-22 01:02 | sc4_bhindi_handover_zone1 run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 01:06 | sc4_bhindi_handover_zone1 run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 01:06 | SCENARIO 4 FINAL 3/3 (sc4_bhindi_handover_zone1 run_1..3; run_2-3 smooth final) | recipe scenarios/keepers/sc4/recipe.json | videos runs/scenarios/sc4_bhindi_handover_zone1/run_*/demo.mp4
+- 2026-11-22 01:14 | sc4_final run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 01:27 | w4a_replay_handover_wallx_place run_1 | harness no verdict in None s | observed: - | states {} | flags []

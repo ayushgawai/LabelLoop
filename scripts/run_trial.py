@@ -20,7 +20,7 @@ import numpy as np  # noqa: E402
 PY = str(ROOT / ".venv/bin/python")
 ASKPASS = os.environ.get("ROBOT_ASKPASS", str(Path.home() / ".config/labelloop/robot_askpass.sh"))
 CLIENT = ("source /opt/xr/bot/x2robot_client/share/x2robot_client/scripts/session_env.sh >/dev/null 2>&1; timeout -s INT {sec} python3 "
-          "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address 192.168.1.157:8001 --instruction \\\"{instr}\\\" "
+          "/opt/xr/bot/x2robot_client/share/x2robot_client/scripts/start_desktop.py --model-address " + os.environ.get("LL_RELAY_ADDR", "192.168.1.157:8001") + " --instruction \\\"{instr}\\\" "
           "--robot-mode end_pose --infer-type sync --embodiment teletwin_desktop/gripper-g --image-wire-format base64 --attach{home}")
 
 
