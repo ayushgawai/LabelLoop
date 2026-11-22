@@ -49,6 +49,25 @@
    "move": {
     "left": {
      "position": [
+      0.262,
+      -0.175,
+      0.06
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.03
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
       0,
       0,
       0
@@ -61,7 +80,7 @@
      "gripper": 0.0
     }
    },
-   "calls": 6,
+   "calls": 8,
    "max_step": 0.04
   },
   {
