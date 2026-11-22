@@ -3,7 +3,7 @@
  "goal": "Scenario 3 variant: harness replays the left-arm flip (pick, turn label to camera, set down label up; keepers/sc3 rows 0-1000), then WALLX (starting right where the flip ends, no homing) (left arm, right locked, head camera only, 60 calls) picks the bag up and puts it into zone 1: 'Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.'; scripted release + home.",
  "setup": "Mailer label-down on the scenario 3 taped start marks (middle, between zones 1 and 2); arms at rest.",
  "relay": "--sequence scenarios/wx/sc3b_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
- "seconds": 240,
+ "seconds": 470,
  "wording": {},
  "prompt": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1."
 }

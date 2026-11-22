@@ -437,6 +437,11 @@ class Sequence:
                 if drop0:  # the arm holding the parcel is AT the target bin's recorded drop point and lowered: strongest check
                     p_ = state.get((self._arm(s) or "right") + "_ee", {}).get("position", [9, 9, 9])
                     near = np.hypot(p_[0] - drop0[0], p_[1] - drop0[1]) < s.get("drop_r", 0.12) and p_[2] < s.get("drop_z", 0.15)
+                    if not near and kind == "light":  # OR (white bag): WALLX already let it go into the box: seen in it, gone from the table
+                        area = parcel_in_box(images["front"], box, "light")
+                        if self.calls == 1 or getattr(self, "bin_base", None) is None:
+                            self.bin_base = area
+                        near = area - self.bin_base >= s.get("bin_area", 3500) and not locate_parcel(images["front"], "light")
                     self.bincount = getattr(self, "bincount", 0) + 1 if near else 0
                 elif kind == "change":  # held parcel over the target bin (whatever its colour): compare with the bin at step start
                     H, W = images["front"].shape[:2]

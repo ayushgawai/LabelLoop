@@ -6,8 +6,18 @@
   },
   {
    "say": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.",
-   "calls": 60,
-   "arm": "left"
+   "calls": 300,
+   "arm": "left",
+   "until": "in_bin",
+   "bin_box": 0,
+   "drop_at": [
+    0.4,
+    0.02
+   ],
+   "drop_r": 0.07,
+   "drop_z": 0.12,
+   "parcel": "light",
+   "bin_area": 3500
   },
   {
    "release": "left",
