@@ -1,8 +1,7 @@
 # Phone QR scanner → dashboard package card
 
 An iPhone in the middle of the bench, next to the head camera, reads the parcel's QR label and the dashboard shows the package:
-code, ZIP, lane (blue / red / black bin) and zone. **Display only.** The demo is scripted and WALLX already knows where the parcel
-goes, so a scan never changes what the robot does.
+code, ZIP, lane (blue / red / black bin) and zone. **It can steer the robot:** a recipe whose read step has `"from_phone": true` (e.g. `scenarios/wx/phone_wallx.json`, dashboard button **Phone scan**) holds the arms until the phone has read a label, then routes that code (zone + arm) and puts it into the WALLX prompt. Other recipes only display it.
 
 ```
 iPhone Safari  ──HTTPS, one JPEG every ~0.3 s──▶  dashboard server on the laptop  ──▶  package card (http://127.0.0.1:8095)

@@ -34,6 +34,21 @@ def norm_code(text):
     return "420/%s/000" % m.group(1) if m else None
 
 
+BOARD = __import__("pathlib").Path(__file__).resolve().parents[1] / "runs" / "package" / "board.json"  # the phone scanner's board
+
+
+def phone_code(max_age=180.0, path=None):
+    """The code the phone scanner read last (dashboard /scan -> runs/package/board.json), if seen within max_age seconds; else None."""
+    import json
+    import time
+    try:
+        cur = json.loads((path or BOARD).read_text()).get("current") or {}
+    except (OSError, ValueError):
+        return None
+    t = float(cur.get("last_seen") or cur.get("scanned") or 0)
+    return norm_code(cur.get("code")) if cur.get("code") and time.time() - t <= max_age else None
+
+
 def any_barcodes(img):
     """(text, (cx, cy)) of every 1D / 2D barcode zxing finds (all formats), with an upscaled + sharpened retry for small labels."""
     import cv2
@@ -181,6 +196,17 @@ class Sequence:
             self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
         while self.step_spec is not None and ("read" in self.step_spec or "locate" in self.step_spec):  # cost no robot call
+            if self.step_spec.get("from_phone"):  # the label comes from the phone scanner: hold (arms still) until it has read one
+                code = phone_code(self.step_spec.get("max_age", 180))
+                if not code and self.calls < self.step_spec.get("wait_calls", 0):
+                    self.calls += 1
+                    self.waiting_phone = True
+                    break
+                self.waiting_phone = False
+                if code:
+                    self.code, self.source, self.mat = code, "phone", bin_for(code)
+                    self.i, self.calls = self.i + 1, 0
+                    continue
             if "locate" in self.step_spec:  # where is the parcel now (it may have been moved): grid words for {where}
                 xy = locate_dark(images["front"])
                 self.where = where_words(*xy) if xy else self.step_spec.get("default", "the centre")
@@ -212,6 +238,8 @@ class Sequence:
             self.calls += 1
             if self.calls >= s.get("calls", 3):
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and ("read" in s or "locate" in s):  # waiting for the phone scan: hold
+            instr = None
         elif s is not None:
             moved = False
             if s.get("relocate") and self.calls < s.get("relocate_calls", 45):  # the harness keeps watching the parcel: if it was
@@ -250,7 +278,7 @@ class Sequence:
         self.done = s is None
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
-                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None),
+                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "waiting_phone": getattr(self, "waiting_phone", False),
                          "flags": ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved") else [], "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if self.runlog:
             self.runlog.write(**self.last_log)

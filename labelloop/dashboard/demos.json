@@ -396,5 +396,44 @@
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
   ]
+ },
+ {
+  "id": "phone",
+  "label": "Phone scan",
+  "trial": null,
+  "run": "scenarios/wx/phone_wallx.json",
+  "recipe": "scenarios/wx/phone_wallx.json",
+  "relay": "--sequence scenarios/wx/phone_wallx_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",
+  "title": "Handheld phone scanner: the phone reads the label, the harness routes it to a zone and arm, WALLX delivers the parcel there",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Harness call (wait for the phone scanner, route the code)",
+    "prompt": "Wait for the handheld scanner to read the label, then choose the zone and the arm.",
+    "detail": "The phone (dashboard /scan page) sends camera frames; the dashboard decodes the barcode / QR / pincode and puts it on the package board. The harness takes the newest scan, routes it (940/941/950/951 → zone 1 / left arm, 900-902 → zone 2 / right arm, else zone 3) and writes the zone and arm into the WALLX sentence. The arms hold still until a scan arrives."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks up the parcel and puts it into the scanned zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call. The harness LOCKS the arm the zone does not use. 90 calls."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (release)",
+    "prompt": "Open the claw fully and lift straight up.",
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (both arms home)",
+    "prompt": "Both arms: go to rest.",
+    "detail": "Both arms go to rest."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call and the log are saved."
+   }
+  ]
  }
 ]

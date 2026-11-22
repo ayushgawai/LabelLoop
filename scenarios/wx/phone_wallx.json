@@ -1,0 +1,8 @@
+{
+ "name": "phone_wallx",
+ "goal": "Phone scanner scenario: the robot holds until the handheld phone scanner (dashboard /scan) reads the parcel's label; the harness routes the code (zone + arm) and prompts WALLX, which picks the parcel up and puts it into that zone; release, home.",
+ "setup": "Parcel in the middle of the table; phone scanner page open (https://<Mac IP>:8443/scan); arms at rest. Scan the label with the phone after pressing the button (or up to 3 min before).",
+ "relay": "--sequence scenarios/wx/phone_wallx_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",
+ "seconds": 330,
+ "wording": {}
+}

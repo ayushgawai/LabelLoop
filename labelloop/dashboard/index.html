@@ -897,7 +897,8 @@
       }).join('') + '</ul>';
     }
     if (sp.detail) html += '<p>' + esc(sp.detail) + '</p>';
-    const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', demo: 'preset label (no reader hit)' };
+    const READER = { qr: 'barcode reader', zip: 'pincode OCR reader', phone: 'handheld phone scanner', demo: 'preset label (no reader hit)' };
+    if (h.waiting_phone) html += '<p><b>Waiting for the handheld phone scanner…</b> scan the label with the phone.</p>';
     if (h.code) html += '<p class="muted">label ' + esc(h.code) + ' → zone ' + (h.bin === 'blue' ? '1' : h.bin === 'red' ? '2' : '3') + ' · read by ' + esc(READER[h.source] || h.source || '?') + '</p>';
     const other = /^\(replay/.test(String(h.instruction || '')) ? 'harness call'
       : { harness: 'harness call', scripted: 'harness call', done: 'home' }[sp.who] || 'idle';

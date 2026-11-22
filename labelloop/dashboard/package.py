@@ -37,8 +37,10 @@ def decode_jpeg(data):
     img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return []
-    seen = []
-    for text, _ in locate(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)):
+    from labelloop.sequence import any_barcodes, norm_code  # also 1D barcodes and bare pincodes (90291 -> 420/90291/000)
+    rgb, seen = cv2.cvtColor(img, cv2.COLOR_BGR2RGB), []
+    for text, _ in locate(rgb) + any_barcodes(rgb):
+        text = norm_code(text) or text
         if text and text not in seen:
             seen.append(text)
     return seen
