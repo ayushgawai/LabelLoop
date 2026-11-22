@@ -10,7 +10,7 @@
    {
     "who": "harness",
     "title": "Harness call (read the label, route to zone 1)",
-    "detail": "Code 420/95126/001 = ZIP 951 → blue lane → zone 1 (left). The harness tries the QR, then the printed ZIP; this run used the preset demo code for the Bhindi box (source 'demo').",
+    "detail": "Barcode reader first, pincode OCR reader as fallback. Code 420/95126/001 = pincode 951 → zone 1 → left arm.",
     "what": "label → lane → acting arm → target zone"
    },
    {
@@ -212,7 +212,7 @@
    {
     "who": "harness",
     "title": "Harness call (read the label, choose zone + arm, build the WALLX prompt)",
-    "detail": "Head camera: QR decode, then printed-ZIP OCR, then the preset demo code if neither reads (the 'source' below says which). ZIP3 940/941/950/951 -> blue = zone 1 -> left arm; 900-902 -> red = zone 2 -> right arm; else black = zone 3. The zone number and arm are written into the WALLX sentence."
+    "detail": "Barcode reader first, pincode OCR reader as fallback. Pincode 940/941/950/951 → zone 1 → left arm; 900-902 → zone 2 → right arm; else zone 3. The zone number and arm are written into the WALLX sentence."
    },
    {
     "who": "wallx",
