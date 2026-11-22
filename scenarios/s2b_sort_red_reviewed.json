@@ -1,0 +1,12 @@
+{
+ "name": "s2b_sort_red_reviewed",
+ "goal": "Harness sort: label 420/90024/001 (hardcoded for the demo) -> red lane -> right arm acts, left arm locked -> 'put the IQBAR box into the red bin' -> verify -> home.",
+ "setup": "IQBAR standing on its long narrow side, long axis front-to-back, right of centre, about 15 cm in front of the red bin and a hand's width from the right gripper; bins on their marks; arms at rest.",
+ "relay": "--assume-code 420/90024/001 --lock-idle --cfg {\"scene\":{\"big_presence\":2.0},\"success_calls\":3} --no-reset-on-subgoal",
+ "seconds": 90,
+ "wording": {
+  "PLACE": "put the box into the {mat} bin",
+  "HOME": "put both arms back to the home position"
+ },
+ "notes": "s2 + review fixes: WALLX history kept through sub-goals (reset only at the episode start), organiser wording, no reply edits except the idle-arm lock."
+}

@@ -18,3 +18,4 @@
 - 2026-11-21 17:43 | s3_read_turn_sort run_1 | harness failed in 123.4 s | observed: - | states {'IDLE': 1, 'SCAN': 4, 'INSPECT': 11, 'PLACE': 70, 'HOME': 1, 'DONE': 17} | flags ['failed:420/90024/001:routed']
 - 2026-11-21 17:57 | s4_atomic_read_pick_turn_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 18:01 | s4_atomic_read_pick_turn_place run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 18:06 | s5_read_pick_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
