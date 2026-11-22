@@ -1,0 +1,10 @@
+{
+ "name": "sc4_wallx_v2",
+ "goal": "sc4_wallx_v1 unchanged except the WALLX prompt names zone 1: 'Put the purple box into zone 1, the square on the left side of the table.'",
+ "setup": "Bhindi box STANDING on its long narrow edge just in front of zone 2's front-left corner, big face toward the camera, long side left-right (slightly angled), as in try 3 run 1 after placement (runs/manual/sc4_demo_start_pose.jpg); arms at rest.",
+ "relay": "--sequence scenarios/w4x/sc4_wallx_v2/steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 180,
+ "wording": {},
+ "prompt": "Put the purple box into zone 1, the square on the left side of the table.",
+ "notes": "Saved 2026-11-22 as the scenario 4 WALLX demo candidate (= try 3 recipe). Results: try3 run_1 half in zone 1; w4x_demo run_1 ~20 cm front-left of zone 1 (user: good enough), run_2 in front of zone 2, run_3 ~15 cm front-right. Pick + handover 4/4. Known issue: the held box covers the LEFT wrist camera right after the handover."
+}
