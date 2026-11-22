@@ -67,7 +67,7 @@ def any_barcodes(img):
 ZONE_BOXES = ((0.10, 0.15, 0.38, 0.50), (0.64, 0.15, 0.90, 0.50), (0.78, 0.52, 1.0, 1.0))  # zones 1/2/3 (trays / bins sit there)
 
 
-TABLE_POLY = ((0.15, 0.12), (0.86, 0.12), (0.97, 0.80), (0.02, 0.80))  # the table top in the head image, incl. a parcel standing at the
+TABLE_POLY = ((0.15, 0.19), (0.86, 0.19), (0.97, 0.80), (0.02, 0.80))  # the table top in the head image, incl. a parcel standing at the
 # back edge (it sticks up over the wall); stops above the robot's front strip where the arm bases and parked claws are
 
 
@@ -95,6 +95,17 @@ def locate_dark(img_rgb, vmax=70, min_area=1500):
         return None
     i = 1 + int(np.argmax(st[1:, 4]))
     return None if st[i][4] < min_area else (float(cen[i][0] / W), float(cen[i][1] / H))
+
+
+def dark_in_box(img_rgb, box, vmax=70):
+    """Area (px) of the largest dark blob inside an image box (fractions): the dark parcel sitting in a zone's tray."""
+    import cv2
+    H, W = img_rgb.shape[:2]
+    x0, y0, x1, y1 = box
+    hsv = cv2.cvtColor(img_rgb[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)], cv2.COLOR_RGB2HSV)
+    m = cv2.morphologyEx((hsv[..., 2] < vmax).astype(np.uint8), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+    n, _, st, _ = cv2.connectedComponentsWithStats(m)
+    return int(st[1:, 4].max()) if n > 1 else 0
 
 
 def where_words(x, y):
@@ -242,7 +253,9 @@ class Sequence:
             instr = None
         elif s is not None:
             moved = False
-            if s.get("relocate") and self.calls < s.get("relocate_calls", 45):  # the harness keeps watching the parcel: if it was
+            claw = float(state.get((self._arm(s) or "right") + "_ee", {}).get("gripper", 1.0) or 0.0)
+            if s.get("relocate") and self.calls < s.get("relocate_calls", 45) and claw >= 0.3:  # (claw closed = holding it: no re-target)
+                # the harness keeps watching the parcel: if it was
                 xy = locate_dark(images["front"])  # moved to another grid cell (same cell 3 calls in a row), the prompt is cancelled
                 cell = where_words(*xy) if xy else None  # and WALLX gets a new one with the new location (history reset)
                 self._cand, self._candn = (cell, getattr(self, "_candn", 0) + 1) if cell and cell == getattr(self, "_cand", None) else (cell, 1)
@@ -258,6 +271,13 @@ class Sequence:
             instr = tmpl.format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
                                     where=getattr(self, "where", "the centre"))
             self.calls += 1
+            if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
+                box = ZONE_BOXES[{"blue": 0, "red": 1}.get(self.mat, 2)]
+                area = dark_in_box(images["front"], box)
+                self.bincount = getattr(self, "bincount", 0) + 1 if area >= s.get("bin_area", 7000) and not locate_dark(images["front"]) else 0
+                if self.bincount >= s.get("bin_calls", 3):  # 3 calls in a row: done, stop WALLX, release + home
+                    self.i, self.calls, self.bincount, self.task_done = self.i + 1, 0, 0, True
+                    self.subgoal_changed = True
             if s.get("until") == "in_zone":  # cut WALLX off as soon as the parcel is over its zone (m1: it kept carrying it around)
                 inside, c = self._bag_in_zone(images["front"])
                 self.seen_out = getattr(self, "seen_out", False) or (c is not None and not inside)  # only after the parcel was outside
@@ -285,7 +305,8 @@ class Sequence:
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
                          "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "waiting_phone": getattr(self, "waiting_phone", False),
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
-                                   else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved") else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
+                                   else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
+                                   else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr

@@ -20,7 +20,8 @@
    "relocate": true,
    "relocate_calls": 230,
    "calls": 230,
-   "arm": "lane"
+   "arm": "lane",
+   "until": "in_bin"
   },
   {
    "release": "lane",
