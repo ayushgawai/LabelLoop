@@ -71,7 +71,19 @@ class Relay:
         self.slow = 1.0  # --slow: fraction of each WALLX chunk executed per call (time-stretched)
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
+        self.front_only = False  # --front-only: WALLX gets black wrist images (only the head camera)
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
+
+    def _front_only(self, req):
+        req, obs = dict(req), dict(req["observation"])
+        images = dict(obs["images"])
+        for name in ("left_wrist", "right_wrist"):
+            h, w = decode_jpeg_b64(images[name]).shape[:2]
+            ok, buf = cv2.imencode(".jpg", np.zeros((h, w, 3), np.uint8))
+            images[name] = base64.b64encode(buf.tobytes()).decode("ascii")
+        obs["images"] = images
+        req["observation"] = obs
+        return req
 
     def _overlay_front(self, harness, req, frame_index):
         mask_bins = getattr(harness, "mask_bins", None)
@@ -186,6 +198,8 @@ class Relay:
                     instruction = await asyncio.to_thread(harness.step, images, state)
                 scripted = harness.scripted_reply(req["embodiment"], state) if harness else None
                 forward = self._overlay_front(harness, req, i) if scripted is None and instruction is not None else req
+                if self.front_only and forward is not None and scripted is None and instruction is not None:
+                    forward = self._front_only(forward)
                 reply, source, latency_ms, err = None, None, None, None
                 if scripted is not None:
                     reply, source = scripted, "scripted"
@@ -286,6 +300,7 @@ async def main():
     p.add_argument("--grasp-dz", type=float, default=0.0, help="lower WALLX's planned z by this (m) while a claw is wide open and below 10 cm")
     p.add_argument("--grasp-floor", type=float, default=-0.015, help="never plan below this z (m, home-relative) when lowering")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
+    p.add_argument("--front-only", action="store_true", help="WALLX calls get black wrist images: only the head camera is seen")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
@@ -334,6 +349,7 @@ async def main():
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
+    relay.front_only = a.front_only
     relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
     relay.force_roll = a.force_roll
     relay.slow = min(1.0, max(0.1, a.slow))
