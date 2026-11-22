@@ -1,7 +1,7 @@
 {
  "name": "case3_auto",
- "goal": "Case 3 multi-parcel, parcels anywhere: for each half of the table the harness reads the label (zone), finds the parcel, picks it with the nearer arm; WALLX carries it into its zone.",
- "setup": "Two labelled parcels, one anywhere on the left half and one anywhere on the right half, labels up; arms at rest.",
+ "goal": "Case 3 multi-parcel: the parcel on the left half goes into the left box (left arm), the parcel on the right half into the right box (right arm); harness finds and picks each, WALLX carries it, harness confirms at the box and homes.",
+ "setup": "Two parcels: one anywhere on the LEFT half, one anywhere on the RIGHT half of the open table (not in the boxes); arms at rest.",
  "relay": "--sequence scenarios/wx/case3_auto_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
  "seconds": 470,
  "wording": {},

@@ -14,17 +14,8 @@
  ],
  "steps": [
   {
-   "read": true,
-   "roi": [
-    0.02,
-    0.17,
-    0.5,
-    1.0
-   ]
-  },
-  {
    "autopick": {
-    "arm": "auto",
+    "arm": "left",
     "z": 0.02,
     "roi": [
      0.0,
@@ -37,16 +28,18 @@
    }
   },
   {
-   "say": "Put the package you are holding into zone {zone}.",
+   "say": "Put the package you are holding into the box at the top left corner of the table.",
    "calls": 170,
    "arm": "picked",
    "until": "in_bin",
-   "bin_area": 6000,
-   "bin_calls": 3,
-   "drop_auto": true,
+   "parcel": "change",
+   "bin_box": 0,
+   "drop_at": [
+    0.4,
+    0.02
+   ],
    "drop_r": 0.07,
-   "drop_z": 0.12,
-   "parcel": "change"
+   "drop_z": 0.12
   },
   {
    "release": "picked",
@@ -87,17 +80,8 @@
    "max_step": 0.12
   },
   {
-   "read": true,
-   "roi": [
-    0.5,
-    0.17,
-    0.98,
-    1.0
-   ]
-  },
-  {
    "autopick": {
-    "arm": "auto",
+    "arm": "right",
     "z": 0.02,
     "roi": [
      0.5,
@@ -110,16 +94,18 @@
    }
   },
   {
-   "say": "Put the package you are holding into zone {zone}.",
+   "say": "Put the package you are holding into the box at the top right corner of the table.",
    "calls": 170,
    "arm": "picked",
    "until": "in_bin",
-   "bin_area": 6000,
-   "bin_calls": 3,
-   "drop_auto": true,
+   "parcel": "change",
+   "bin_box": 1,
+   "drop_at": [
+    0.405,
+    -0.04
+   ],
    "drop_r": 0.07,
-   "drop_z": 0.12,
-   "parcel": "change"
+   "drop_z": 0.12
   },
   {
    "release": "picked",
