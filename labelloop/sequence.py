@@ -249,6 +249,11 @@ class Sequence:
                 if cell and cell != getattr(self, "where", None) and self._candn >= 3:
                     self.where, self.where_xy, self.moved_n = cell, [round(v, 3) for v in xy], getattr(self, "moved_n", 0) + 1
                     moved = True
+                elif s.get("reissue_every") and self.calls and self.calls % s["reissue_every"] == 0:  # no progress: re-scan and
+                    if cell:  # give WALLX the task again from scratch (history reset), with where the parcel is now
+                        self.where, self.where_xy = cell, [round(v, 3) for v in xy]
+                    self.reissued = getattr(self, "reissued", 0) + 1
+                    moved = "reissue"
             tmpl = s["say_moved"] if s.get("say_moved") and getattr(self, "moved_n", 0) else s["say"]
             instr = tmpl.format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
                                     where=getattr(self, "where", "the centre"))
@@ -279,7 +284,8 @@ class Sequence:
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
                          "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "waiting_phone": getattr(self, "waiting_phone", False),
-                         "flags": ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved") else [], "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
+                         "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
+                                   else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved") else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr
