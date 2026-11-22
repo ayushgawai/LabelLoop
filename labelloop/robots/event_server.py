@@ -68,6 +68,7 @@ class Relay:
         self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
         self.save_every = 10  # --save-every: keep the camera frames of every Nth request
         self.reset_on_subgoal = True  # --no-reset-on-subgoal: reset WALLX history only at the episode start
+        self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
     def _overlay_front(self, harness, req, frame_index):
@@ -199,6 +200,9 @@ class Relay:
                         req["reset_history"] = True
                     fresh = False if harness else fresh
                     req["instruction"] = instruction  # whole original request forwarded, extras preserved
+                    if self.z_offset is not None:  # the one trained height knob (control_context; -1 = grasp lower, about 1-2 cm)
+                        K = ["eff_delay_ms", "lpf_T_ms", "grip_delay_ms", "grip_gain", "grip_offset", "z_offset_mm", "rot_offset_deg"]
+                        req["control_context"] = {a: {k: (self.z_offset if k == "z_offset_mm" else None) for k in K} for a in ("left", "right")}
                     t1, err = time.monotonic(), None
                     try:
                         reply = await asyncio.to_thread(self._infer_retry, wallx, req)
@@ -209,6 +213,11 @@ class Relay:
                     latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
                         harness.log_reply(latency_ms / 1000, err)
+                    if self.grasp_dz and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # approach lower than WALLX plans
+                        for arm in ("left_ee", "right_ee"):  # only while that claw is wide open and low (approaching a flat parcel)
+                            a = reply["actions"].get(arm, {})
+                            if float(state[arm]["gripper"]) > 1.0 and float(state[arm]["position"][2]) < 0.10 and isinstance(a.get("position"), list):
+                                a["position"] = [[q[0], q[1], max(self.grasp_floor, q[2] - self.grasp_dz)] for q in a["position"]]
                     if self.open_wide and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # open the gripper fully while WALLX opens it (no re-adjusting)
                         for arm in ("left_ee", "right_ee"):
                             g = reply["actions"].get(arm, {}).get("gripper")
@@ -254,6 +263,9 @@ async def main():
     p.add_argument("--assume-after-search", action="store_true", help="DEMO: use --assume-code only after reading + turning the parcel (INSPECT) failed")
     p.add_argument("--sequence", default="", help="JSON atomic step list (labelloop/sequence.py) instead of the harness state machine")
     p.add_argument("--reset-on-subgoal", action=argparse.BooleanOptionalAction, default=True, help="reset WALLX history on every sub-goal change / retry (off: only at the episode start)")
+    p.add_argument("--z-offset", type=float, default=None, help="control_context z_offset_mm for both arms, -1..1 (-1 = grasp lower)")
+    p.add_argument("--grasp-dz", type=float, default=0.0, help="lower WALLX's planned z by this (m) while a claw is wide open and below 10 cm")
+    p.add_argument("--grasp-floor", type=float, default=-0.015, help="never plan below this z (m, home-relative) when lowering")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
@@ -303,6 +315,7 @@ async def main():
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
+    relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
     relay.save_every = max(1, a.save_every)
     relay.reset_on_subgoal = a.reset_on_subgoal
     async with start(relay, a.host, a.port):
