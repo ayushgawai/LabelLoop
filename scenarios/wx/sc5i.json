@@ -1,0 +1,8 @@
+{
+ "name": "sc5i",
+ "goal": "Scenario 5 I: label read; harness locates the cap (grid) -> WALLX prompt 1 with its cell (25 calls); a person moves the cap; harness lifts the arm, backs to rest, RE-SCANS the table -> WALLX prompt 2 with the NEW cell, same target zone (65 calls); release, home. All cameras.",
+ "setup": "Cap in the centre of the table, label to the camera; trays in zones 1 and 2; arms at rest. Move the cap while WALLX reaches for it in the first ~40 s.",
+ "relay": "--sequence scenarios/wx/sc5i_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04",
+ "seconds": 300,
+ "wording": {}
+}

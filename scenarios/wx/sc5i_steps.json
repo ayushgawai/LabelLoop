@@ -1,0 +1,102 @@
+{
+ "watchdog": false,
+ "code_hint": "420/90291/001",
+ "zones": {
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
+ },
+ "steps": [
+  {
+   "read": true
+  },
+  {
+   "locate": true,
+   "default": "the centre"
+  },
+  {
+   "say": "The cap is at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
+   "calls": 25,
+   "arm": "lane"
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.1
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 1.5
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "locate": true,
+   "default": "the centre"
+  },
+  {
+   "say": "The cap has been moved. It is now at {where} of the table. Use the {arm} arm to pick up the cap and put it into zone {zone}.",
+   "calls": 65,
+   "arm": "lane"
+  },
+  {
+   "release": "lane",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  }
+ ],
+ "roi": [
+  0.02,
+  0.17,
+  0.98,
+  1.0
+ ],
+ "zip_vote": true
+}
