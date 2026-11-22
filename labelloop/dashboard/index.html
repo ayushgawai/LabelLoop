@@ -883,8 +883,7 @@
   async function loadDemos() {
     try { S.demos = await api('/api/demos'); } catch (e) { S.demos = []; }
     $('demoBtns').innerHTML = S.demos.map(function (d) {
-      return '<button class="demoBtn" data-demo="' + esc(d.id) + '" title="replay the recorded run step by step (robot does not move)">▶ ' + esc(d.label) + '</button>' +
-        (d.run ? ' <button class="runBtn" data-run="' + esc(d.id) + '" title="run the frozen recipe on the real robot">● Run on robot</button>' : '');
+      return d.run ? '<button class="runBtn" data-run="' + esc(d.id) + '" title="runs ' + esc(d.run) + ' on the real robot">▶ ' + esc(d.label) + '</button>' : '';
     }).join(' ') + ' <span id="runState"></span>';
     pollRun();
     setInterval(pollRun, 2000);
