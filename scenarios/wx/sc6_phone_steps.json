@@ -1,0 +1,101 @@
+{
+ "watchdog": false,
+ "zones": {
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
+ },
+ "steps": [
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0.06
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 1.5
+    }
+   },
+   "calls": 6,
+   "max_step": 0.04
+  },
+  {
+   "wait": "Put the phone in the LEFT claw now (scanner page open, 3x, camera facing out of the claw tip).",
+   "calls": 5
+  },
+  {
+   "grip": {
+    "left": 0.08
+   },
+   "rate": 0.05,
+   "contact": 0.1,
+   "calls": 40
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_A.json"
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 30,
+   "wait_calls": 60
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_B.json"
+  },
+  {
+   "say": "Use the right arm to pick up the package from the table and put it into zone {zone}.",
+   "calls": 120,
+   "arm": "right"
+  },
+  {
+   "release": "right",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 10,
+   "max_step": 0.04
+  }
+ ]
+}

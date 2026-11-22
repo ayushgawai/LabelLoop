@@ -300,61 +300,74 @@
   "id": "sc6",
   "label": "Scenario 6",
   "trial": null,
-  "run": "scenarios/wx/sc6_wallx.json",
-  "recipe": "scenarios/wx/sc6_wallx.json",
-  "relay": "--sequence scenarios/wx/sc6_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Scenario 6: two parcels, two labels, two zones: the harness reads each label, WALLX sorts each parcel with the arm on its side",
+  "run": "scenarios/wx/sc6_phone.json",
+  "recipe": "scenarios/wx/sc6_phone.json",
+  "relay": "--sequence scenarios/wx/sc6_phone_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Scenario 6: handheld scanner. The left hand holds the phone and scans the parcel's label; the harness routes it; WALLX picks the parcel up with the right hand and sorts it into the scanned zone",
   "steps": [
    {
-    "who": "harness",
-    "title": "Read the label (barcode reader, pincode OCR fallback), choose zone + arm — left parcel",
-    "detail": "Reads only the left half of the table. Bag: pincode 94043 → zone 1 → left arm.",
-    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
-   },
-   {
-    "who": "wallx",
-    "title": "WALLX puts the left parcel into its zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
-   },
-   {
     "who": "robot",
-    "title": "Release",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
-    "prompt": "Open the claw fully and lift straight up."
-   },
-   {
-    "who": "robot",
-    "title": "Both arms home",
-    "detail": "Both arms go to rest (≤ 5 cm per call).",
-    "prompt": "Both arms: go to rest."
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
    },
    {
     "who": "harness",
-    "title": "Read the label (barcode reader, pincode OCR fallback), choose zone + arm — right parcel",
-    "detail": "Reads only the right half of the table. Cap: pincode 90291 → zone 2 → right arm.",
-    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (5 s, claw wide open). Hands off after that.",
+    "detail": "5 s."
+   },
+   {
+    "who": "robot",
+    "title": "Gentle grip on the phone",
+    "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
+    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
+   },
+   {
+    "who": "robot",
+    "title": "Left hand holds the phone over the parcel",
+    "prompt": "Left arm: hold the phone over the parcel's label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold until a scan arrives."
+   },
+   {
+    "who": "robot",
+    "title": "Left hand moves the phone back",
+    "prompt": "Left arm: back to rest, keep the phone.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX puts the right parcel into its zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) gets the HEAD camera image (black wrist images) + both arms' state + the sentence above every call and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal. 60 calls."
+    "title": "WALLX picks up the parcel with the right hand and puts it into the scanned zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
    },
    {
     "who": "robot",
-    "title": "Release",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
-    "prompt": "Open the claw fully and lift straight up."
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": ""
    },
    {
     "who": "robot",
-    "title": "Both arms home",
-    "detail": "Both arms go to rest (≤ 5 cm per call).",
-    "prompt": "Both arms: go to rest."
+    "title": "Right arm home",
+    "prompt": "Right arm: go to rest.",
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Left arm home with the phone",
+    "prompt": "Left arm: back to rest, keep holding the phone.",
+    "detail": "The phone stays gripped; take it out after the run."
    },
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+    "detail": "Session ends; video, every call and the log are saved."
    }
   ]
  },
@@ -422,7 +435,7 @@
     "who": "robot",
     "title": "Gentle grip on the phone",
     "prompt": "Close slowly until the fingers touch the phone; hold without squeezing.",
-    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds just 0.02 past contact for the rest of the run."
+    "detail": "The claw closes in small steps and stops as soon as its fingers meet the phone (the measured opening stops following); it holds 0.08 past contact (firm, no crushing) for the rest of the run."
    },
    {
     "who": "robot",
