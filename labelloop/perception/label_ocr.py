@@ -76,13 +76,23 @@ def known_zips(csv_path=None):
         return set()
 
 
+def _near_known(z, known):
+    """A 5-digit read -> the one known pincode it equals or differs from in exactly one digit (90297 -> 90291); else None."""
+    if z in known:
+        return z
+    near = [k for k in known if len(k) == 5 and sum(a != b for a, b in zip(k, z)) == 1]
+    return near[0] if len(near) == 1 else None
+
+
 def zip_vote(img_rgb, roi, known=None, max_labels=4):
-    """Robust pincode read for small labels: every white label blob in `roi`, several crops (whole label, right half, its middle band)
-    x scales (4, 6, 8) x page modes (6, 7, 11); 5-digit reads are counted and the most frequent KNOWN pincode wins (else the most
-    frequent read seen at least 3 times). Returns (zip5, votes, center) or None. ~1-2 s."""
+    """Robust pincode read for small, tilted labels: every label-shaped white blob in `roi`; crops (whole label, right part, its lower
+    right) x scales (6, 8) x tilt (-12..12 deg) x page modes (7, 11), OCR'd in parallel. Each 5-digit read votes for the known pincode
+    (docs/labels/labels.csv) it matches or misses by one digit; the most voted known pincode with >= 2 votes wins, else an unknown
+    read seen >= 3 times. Returns (zip5, votes, center) or None. ~1 s."""
     if not TESSERACT:
         return None
     from collections import Counter
+    from concurrent.futures import ThreadPoolExecutor
     known = known_zips() if known is None else known
     h, w = img_rgb.shape[:2]
     x0, y0, x1, y1 = int(roi[0] * w), int(roi[1] * h), int(roi[2] * w), int(roi[3] * h)
@@ -90,26 +100,42 @@ def zip_vote(img_rgb, roi, known=None, max_labels=4):
     mask = cv2.morphologyEx(((hsv[..., 1] < 50) & (hsv[..., 2] > 170)).astype(np.uint8) * 255, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     n, _, st, _ = cv2.connectedComponentsWithStats(mask)
     grey = cv2.cvtColor(img_rgb[y0:y1, x0:x1], cv2.COLOR_RGB2GRAY)
-    votes, where = Counter(), {}
     blobs = [i for i in range(1, n) if st[i][4] >= 800 and 0.4 < st[i][2] / max(1, st[i][3]) < 3 and st[i][4] > 0.45 * st[i][2] * st[i][3]]
+    jobs = []
     for i in sorted(blobs, key=lambda i: -st[i][4])[:max_labels]:  # label-shaped and filled: not the long thin zone tape
         x, y, bw, bh, _ = st[i]
-        lab = grey[y:y + bh, x:x + bw]
-        for crop in (lab, lab[:, bw * 2 // 5:], lab[bh // 3:bh * 5 // 6, bw * 2 // 5:]):
-            for f in (4, 6, 8):
-                big = cv2.resize(crop, None, fx=f / 4, fy=f / 4, interpolation=cv2.INTER_CUBIC)  # _ocr upsamples x4 again
-                for psm in ("6", "7", "11"):
-                    try:
-                        r = subprocess.run([TESSERACT, "stdin", "stdout", "--psm", psm, "-c", "tessedit_char_whitelist=0123456789"],
-                                           input=cv2.imencode(".png", cv2.resize(big, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC))[1].tobytes(),
-                                           capture_output=True, timeout=3)
-                    except subprocess.TimeoutExpired:
-                        continue
-                    for z in ZIP.findall(r.stdout.decode()):
-                        votes[z] += 1
-                        where[z] = (x0 + x + bw / 2, y0 + y + bh / 2)
-    good = [(c, z) for z, c in votes.items() if z in known] or [(c, z) for z, c in votes.items() if c >= 3]
-    if not good:
+        lab, center = grey[y:y + bh, x:x + bw], (x0 + x + bw / 2, y0 + y + bh / 2)
+        for crop in (lab, lab[:, bw * 2 // 5:], lab[bh // 3:, bw * 2 // 5:]):
+            for f in (6, 8):
+                big = cv2.resize(crop, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)
+                bh2, bw2 = big.shape
+                for a in (-12, -8, -4, 0, 4, 8, 12):
+                    rot = cv2.warpAffine(big, cv2.getRotationMatrix2D((bw2 / 2, bh2 / 2), a, 1), (bw2, bh2), borderValue=255)
+                    jobs += [(rot, psm, center) for psm in ("7", "11")]
+
+    def run(job):
+        img, psm, center = job
+        try:
+            r = subprocess.run([TESSERACT, "stdin", "stdout", "--psm", psm, "-c", "tessedit_char_whitelist=0123456789"],
+                               input=cv2.imencode(".png", img)[1].tobytes(), capture_output=True, timeout=3)
+            return [(z, center) for z in ZIP.findall(r.stdout.decode())]
+        except subprocess.TimeoutExpired:
+            return []
+
+    with ThreadPoolExecutor(8) as ex:
+        reads = [r for out in ex.map(run, jobs) for r in out]
+    kv, raw, where = Counter(), Counter(), {}
+    for z, center in reads:
+        raw[z] += 1
+        k = _near_known(z, known)
+        if k:
+            kv[k] += 1
+            where[k] = center
+        where.setdefault(z, center)
+    if kv and kv.most_common(1)[0][1] >= 2:
+        z, c = kv.most_common(1)[0]
+    elif raw and raw.most_common(1)[0][1] >= 3:
+        z, c = raw.most_common(1)[0]
+    else:
         return None
-    c, z = max(good)
     return z, c, where[z]
