@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>LabelLoop · phone scanner</title>
+<style>
+  :root{--blue:#2f6fd0;--red:#c0392b;--black:#23282e;--green:#2e8b57;--amber:#c98a1b;--ink:#f4f1e8;--ink2:#a9b1ba}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0f1214;color:var(--ink);font:15px/1.35 -apple-system,system-ui,sans-serif;
+    -webkit-user-select:none;user-select:none}
+  body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px}
+  h1{font-size:16px;margin:0;font-weight:600}
+  #dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#555;margin-right:6px;vertical-align:middle}
+  #dot.ok{background:var(--green)} #dot.err{background:var(--red)} #dot.busy{background:var(--amber)}
+  #status{font-size:12px;color:var(--ink2)}
+  #stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
+  video{width:100%;height:100%;object-fit:contain;display:block}
+  #crop{position:absolute;border:2px dashed rgba(255,255,255,.75);border-radius:10px;pointer-events:none;display:none}
+  #start{position:absolute;inset:0;margin:auto;width:220px;height:64px;font-size:18px;font-weight:600;border-radius:16px;border:0;
+    background:var(--green);color:#fff}
+  #msg{position:absolute;left:12px;right:12px;bottom:12px;text-align:center;font-size:13px;color:#fff;background:rgba(192,57,43,.9);
+    border-radius:10px;padding:8px;display:none}
+  #pkg{margin:8px 10px;padding:10px 12px;border-radius:14px;background:#1b2024;border:2px solid #2a3036;transition:background .25s}
+  #pkg.flash{background:#1f4d33}
+  #pkg .code{font:600 20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.5px}
+  #pkg .row{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:14px;color:var(--ink2)}
+  .lane{display:inline-block;padding:2px 10px;border-radius:999px;color:#fff;font-weight:700;text-transform:uppercase;font-size:13px}
+  .lane.blue{background:var(--blue)} .lane.red{background:var(--red)} .lane.black{background:#000;border:1px solid #666}
+  .bar{display:flex;gap:8px;align-items:center;padding:0 10px 10px}
+  .bar button,.bar input{height:40px;border-radius:10px;border:1px solid #3a424a;background:#1b2024;color:var(--ink);font-size:15px}
+  .bar button{padding:0 12px} .bar button.on{background:var(--ink);color:#111}
+  .bar input{flex:1;min-width:0;padding:0 10px;-webkit-user-select:text;user-select:text}
+  .muted{color:var(--ink2);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="dot"></span>LabelLoop scanner</h1>
+  <span id="status">not started</span>
+</header>
+<div id="stage">
+  <video id="video" playsinline muted autoplay></video>
+  <div id="crop"></div>
+  <button id="start">Start camera</button>
+  <div id="msg"></div>
+</div>
+<div id="pkg"><div class="muted">no package scanned yet</div></div>
+<div class="bar">
+  <span class="muted">zoom</span>
+  <button data-zoom="1" class="on">1×</button><button data-zoom="2">2×</button><button data-zoom="3">3×</button>
+  <span class="muted" id="rate"></span>
+</div>
+<form class="bar" id="manual" autocomplete="off">
+  <input id="code" placeholder="type a code: 420/94043/001" inputmode="text" autocapitalize="off" spellcheck="false">
+  <button type="submit">Send</button>
+</form>
+<script>
+(function () {
+  'use strict';
+  const Q = new URLSearchParams(location.search);
+  const CFG = {
+    MAX_W: Number(Q.get('w')) || 1600,      // sent frame width (px) after the zoom crop
+    QUALITY: Number(Q.get('q')) || 0.82,    // JPEG quality
+    GAP_MS: Number(Q.get('gap')) || 250,    // pause between frames (one frame in flight at a time)
+  };
+  const $ = function (id) { return document.getElementById(id); };
+  const video = $('video'), canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+  let running = false, zoom = 1, wake = null, lastVer = -1, lastCode = null, sent = 0, t0 = 0;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function status(text, kind) { $('status').textContent = text; $('dot').className = kind || ''; }
+  function msg(text) { const m = $('msg'); m.textContent = text || ''; m.style.display = text ? 'block' : 'none'; }
+
+  function showPackage(p, isNew) {
+    if (!p) { $('pkg').innerHTML = '<div class="muted">no package scanned yet</div>'; lastCode = null; return; }
+    $('pkg').innerHTML = '<div class="code">' + esc(p.code) + '</div><div class="row">' +
+      '<span class="lane ' + esc(p.lane) + '">' + esc(p.lane) + '</span>' +
+      '<span>zone ' + esc(p.zone) + ' · ' + esc(p.where) + '</span>' +
+      (p.zip5 ? '<span>ZIP ' + esc(p.zip5) + '</span>' : '<span>not a 420/ZIP/seq label</span>') + '</div>';
+    if (isNew || p.code !== lastCode) {
+      $('pkg').classList.add('flash');
+      setTimeout(function () { $('pkg').classList.remove('flash'); }, 700);
+      if (navigator.vibrate) navigator.vibrate(80);
+    }
+    lastCode = p.code;
+  }
+
+  async function post(path, body, type) {
+    const r = await fetch(path, { method: 'POST', body: body, headers: { 'Content-Type': type }, cache: 'no-store' });
+    if (!r.ok) throw new Error('laptop answered ' + r.status);
+    return r.json();
+  }
+
+  function cropRect() {  // the centre 1/zoom of the frame, in video pixels
+    const vw = video.videoWidth, vh = video.videoHeight, w = vw / zoom, h = vh / zoom;
+    return { x: (vw - w) / 2, y: (vh - h) / 2, w: w, h: h };
+  }
+
+  function drawCropBox() {
+    const box = $('crop');
+    if (!running || zoom === 1 || !video.videoWidth) { box.style.display = 'none'; return; }
+    const st = $('stage').getBoundingClientRect(), vw = video.videoWidth, vh = video.videoHeight;
+    const s = Math.min(st.width / vw, st.height / vh), ox = (st.width - vw * s) / 2, oy = (st.height - vh * s) / 2, c = cropRect();
+    box.style.display = 'block';
+    box.style.left = (ox + c.x * s) + 'px'; box.style.top = (oy + c.y * s) + 'px';
+    box.style.width = (c.w * s) + 'px'; box.style.height = (c.h * s) + 'px';
+  }
+
+  function grab() {
+    const c = cropRect(), s = Math.min(1, CFG.MAX_W / c.w);
+    canvas.width = Math.round(c.w * s); canvas.height = Math.round(c.h * s);
+    ctx.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, canvas.width, canvas.height);
+    return new Promise(function (ok) { canvas.toBlob(ok, 'image/jpeg', CFG.QUALITY); });
+  }
+
+  async function loop() {
+    while (running) {
+      if (document.hidden || !video.videoWidth) { await sleep(300); continue; }
+      try {
+        const blob = await grab();
+        if (!blob) { await sleep(CFG.GAP_MS); continue; }
+        const r = await post('/api/package/frame', blob, 'image/jpeg');
+        sent++;
+        const secs = (performance.now() - t0) / 1000;
+        $('rate').textContent = (sent / Math.max(secs, 0.001)).toFixed(1) + ' frames/s · ' + Math.round(blob.size / 1024) + ' kB';
+        status(r.codes && r.codes.length ? 'read ' + r.codes[0] : 'looking for a QR…', 'ok');
+        msg('');
+        if (r.package) showPackage(r.package, r.new);
+      } catch (e) {
+        status('laptop unreachable', 'err');
+        msg('Cannot reach the laptop (' + (e && e.message || e) + '). Same Wi-Fi? Dashboard running with --https-port?');
+        await sleep(1000);
+      }
+      await sleep(CFG.GAP_MS);
+    }
+  }
+
+  function sleep(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+
+  async function keepAwake() {
+    try { if ('wakeLock' in navigator && !document.hidden) wake = await navigator.wakeLock.request('screen'); } catch (e) { /* optional */ }
+  }
+
+  async function start() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      msg('The camera needs HTTPS. Open https://' + location.hostname + ':8443/scan (dashboard run with --https-port 8443).');
+      return;
+    }
+    $('start').disabled = true;
+    status('asking for the camera…', 'busy');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      $('start').disabled = false;
+      status('no camera', 'err');
+      msg('Camera blocked: ' + (e && e.name || e) + '. Allow camera access for this site (Settings › Safari › Camera).');
+      return;
+    }
+    $('start').style.display = 'none';
+    running = true; sent = 0; t0 = performance.now();
+    keepAwake();
+    drawCropBox();
+    loop();
+  }
+
+  $('start').addEventListener('click', start);
+  document.querySelectorAll('[data-zoom]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      zoom = Number(b.dataset.zoom) || 1;
+      document.querySelectorAll('[data-zoom]').forEach(function (x) { x.classList.toggle('on', x === b); });
+      drawCropBox();
+    });
+  });
+  $('manual').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const code = $('code').value.trim();
+    if (!code) return;
+    try {
+      const r = await post('/api/package/scan', JSON.stringify({ code: code }), 'application/json');
+      showPackage(r.package, r.new);
+      $('code').value = '';
+      $('code').blur();
+    } catch (err) { msg('Send failed: ' + (err && err.message || err)); }
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && running) keepAwake(); });
+  window.addEventListener('resize', drawCropBox);
+  video.addEventListener('loadedmetadata', drawCropBox);
+
+  // the board as it is now (another phone / a typed code may have set it)
+  fetch('/api/package', { cache: 'no-store' }).then(function (r) { return r.json(); })
+    .then(function (s) { if (s && s.current) showPackage(s.current, false); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

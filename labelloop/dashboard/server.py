@@ -10,17 +10,31 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
   /api/story                      every trial + trial-agent run in time order (labelloop.dashboard.story)
   /api/agent/<ts>                 one agent run: journal, report text, progress notes
+
+Phone QR scanner (labelloop.dashboard.package; display only, never steers the robot):
+  /scan                           the phone's scanner page (camera needs HTTPS on iOS: run with --https-port)
+  /api/package                    {current, history, scans, ver, phone}
+  POST /api/package/frame         body = one JPEG from the phone; decoded here with labelloop.perception.qr -> {codes, package, new}
+  POST /api/package/scan          {"code": "420/94043/001"} (JSON or form): put a code on the board by hand / from an iOS Shortcut
+  POST /api/package/clear         empty the board (between demo runs)
+
+  python -m labelloop.dashboard.server --https-port 8443   ->   phone opens https://<this laptop's Wi-Fi IP>:8443/scan
 """
 import argparse
 import json
 import re
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from labelloop.dashboard.package import PackageBoard, decode_jpeg
+
 TRIAL_ID_RE = re.compile(r"^\d{8}_\d{6}$")
 CAMERA_RE = re.compile(r"^[a-z_]+$")
 INDEX_HTML = Path(__file__).resolve().parent / "index.html"
+SCAN_HTML = Path(__file__).resolve().parent / "scan.html"
+MAX_BODY = 8 * 1024 * 1024  # one phone frame (a 1920 px JPEG is ~0.5 MB)
 
 
 def _read_json(path):
@@ -117,6 +131,8 @@ class Handler(BaseHTTPRequestHandler):
     root = "runs/trials"
     agent_root = "runs/agent"
     reports_root = "results/agent"
+    board = None  # PackageBoard (make_server binds one; shared by the HTTP and HTTPS listeners)
+    phone_only = False  # the HTTPS listener (every interface, shared event Wi-Fi): only /scan and /api/package*, no trials / reports
     server_version = "LabelLoopDashboard/1.0"
     protocol_version = "HTTP/1.1"
 
@@ -149,8 +165,14 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         parts = [unquote(p) for p in url.path.split("/") if p]
         try:
+            if self.phone_only and not (parts in (["scan"], ["scan.html"]) or parts[:2] == ["api", "package"]):
+                return self._json({"error": "not found"}, 404)
             if not parts or parts[0] == "index.html":
                 return self._file(INDEX_HTML, "text/html; charset=utf-8")
+            if parts == ["scan"] or parts == ["scan.html"]:
+                return self._file(SCAN_HTML, "text/html; charset=utf-8")
+            if parts == ["api", "package"]:
+                return self._json(self._board().state())
             if parts[0] == "api" and len(parts) >= 2 and parts[1] == "trials":
                 return self._trials(parts[2:], parse_qs(url.query))
             if parts[0] == "api" and parts[1:] == ["story"]:
@@ -163,6 +185,66 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
         except Exception as e:  # a bad request never takes the dashboard down
             self._json({"error": type(e).__name__}, 500)
+
+    def do_POST(self):
+        parts = [unquote(p) for p in urlparse(self.path).path.split("/") if p]
+        try:
+            if parts[:2] != ["api", "package"] or len(parts) != 3 or parts[2] not in ("frame", "scan", "clear"):
+                self.close_connection = True  # the body was never read: don't reuse this connection
+                return self._json({"error": "not found"}, 404)
+            body = self._body()
+            if body is None:
+                return
+            board, client = self._board(), self.client_address[0]
+            if parts[2] == "clear":
+                board.clear()
+                return self._json(board.state())
+            if parts[2] == "frame":
+                codes = decode_jpeg(body)
+                board.frame(client, codes)
+                pkg, new = (board.scan(codes[0], "phone camera", client) if codes else (None, False))
+                return self._json({"codes": codes, "package": pkg, "new": new})
+            code = self._code(body)
+            if not code:
+                return self._json({"error": "no code"}, 400)
+            pkg, new = board.scan(code, "typed", client)
+            return self._json({"codes": [code], "package": pkg, "new": new})
+        except Exception as e:
+            self._json({"error": type(e).__name__}, 500)
+
+    # ---- package board ----
+    def _board(self):
+        if self.board is None:  # a bare Handler (no make_server): one in-memory board for the class
+            type(self).board = PackageBoard()
+        return self.board
+
+    def _body(self):
+        """The request body, or None after answering 411 / 413."""
+        try:
+            n = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self.close_connection = True
+            self._json({"error": "Content-Length required"}, 411)
+            return None
+        if n < 0 or n > MAX_BODY:
+            self.close_connection = True
+            self._json({"error": "body too large"}, 413)
+            return None
+        return self.rfile.read(n) if n else b""
+
+    def _code(self, body):
+        """The code of a /scan body: JSON {"code": ...}, form code=..., or the bare text."""
+        text = body.decode("utf-8", "replace").strip()
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype == "application/json" or text.startswith("{"):
+            try:
+                d = json.loads(text)
+            except ValueError:
+                return None
+            return str(d.get("code") or "").strip() if isinstance(d, dict) else None
+        if ctype == "application/x-www-form-urlencoded":
+            return (parse_qs(text).get("code") or [""])[0].strip()
+        return text
 
     # ---- routes ----
     def _trials(self, rest, query):
@@ -203,14 +285,27 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
 
-def make_server(root="runs/trials", host="127.0.0.1", port=8095, agent_root=None, reports_root=None):
+def make_server(root="runs/trials", host="127.0.0.1", port=8095, agent_root=None, reports_root=None, board=None):
     """ThreadingHTTPServer bound to (host, port) serving `root` (port 0 = any free port). Agent runs default to <root>/../agent, their
-    reports to <root>/../../results/agent (runs/trials -> runs/agent, results/agent)."""
+    reports to <root>/../../results/agent (runs/trials -> runs/agent, results/agent). `board` (PackageBoard) defaults to one saved in
+    <root>/../package/board.json."""
     root = Path(root)
     agent_root = Path(agent_root) if agent_root else root.parent / "agent"
     reports_root = Path(reports_root) if reports_root else root.parent.parent / "results" / "agent"
-    handler = type("BoundHandler", (Handler,), {"root": str(root), "agent_root": str(agent_root), "reports_root": str(reports_root)})
+    board = board if board is not None else PackageBoard(root.parent / "package" / "board.json")
+    handler = type("BoundHandler", (Handler,), {"root": str(root), "agent_root": str(agent_root), "reports_root": str(reports_root),
+                                                "board": board})
     return ThreadingHTTPServer((host, port), handler)
+
+
+def make_tls_server(http_server, host="0.0.0.0", port=8443, cert=None, key=None, cert_dir=None):
+    """A second listener over HTTPS for the phone: the scanner page + package API only, on the same package board as `http_server`.
+    Without cert/key a self-signed pair is made once in `cert_dir` (default <root>/../package/tls)."""
+    from labelloop.dashboard import tls
+    handler = type("PhoneHandler", (http_server.RequestHandlerClass,), {"phone_only": True})
+    if not (cert and key):
+        cert, key = tls.ensure_cert(cert_dir or Path(handler.root).parent / "package" / "tls")
+    return tls.TLSServer((host, port), handler, cert, key)
 
 
 def main(argv=None):
@@ -221,15 +316,31 @@ def main(argv=None):
     p.add_argument("--reports", default=None, help="trial-agent reports REPORT_<ts>.md (default <root>/../../results/agent)")
     p.add_argument("--port", type=int, default=8095)
     p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--https-port", type=int, default=None, help="also serve over HTTPS on this port (the phone scanner: try 8443)")
+    p.add_argument("--https-host", default="0.0.0.0", help="HTTPS bind address (default: every interface, so the phone can reach it)")
+    p.add_argument("--cert", default=None, help="TLS certificate (PEM); default: a self-signed one made with openssl")
+    p.add_argument("--key", default=None, help="TLS private key (PEM)")
     a = p.parse_args(argv)
     server = make_server(a.root, a.host, a.port, a.agent, a.reports)
     print(f"Dashboard at http://{a.host}:{server.server_address[1]} (trials in {a.root})", flush=True)
+    servers = [server]
+    if a.https_port is not None:
+        from labelloop.dashboard.tls import lan_ips
+        tls_server = make_tls_server(server, a.https_host, a.https_port, a.cert, a.key)
+        servers.append(tls_server)
+        port = tls_server.server_address[1]
+        for ip in (lan_ips() if a.https_host in ("0.0.0.0", "") else [a.https_host]) or ["<this laptop's IP>"]:
+            print(f"Phone scanner at https://{ip}:{port}/scan", flush=True)
+        threading.Thread(target=tls_server.serve_forever, name="https", daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
+        for s in servers[1:]:  # the HTTPS thread; the HTTP loop has already returned
+            s.shutdown()
+        for s in servers:
+            s.server_close()
 
 
 if __name__ == "__main__":
