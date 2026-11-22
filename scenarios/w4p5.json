@@ -1,0 +1,8 @@
+{
+ "name": "w4p5",
+ "goal": "WALLX placement prompt sweep #5: 'Put the box into square 1.' (left arm, right locked), harness cuts off over zone 1.",
+ "setup": "Bhindi box wherever it lies on the table; arms at rest.",
+ "relay": "--sequence scenarios/w4p5_steps.json --slow 0.4",
+ "seconds": 90,
+ "wording": {}
+}
