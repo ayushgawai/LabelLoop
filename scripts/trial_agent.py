@@ -72,7 +72,7 @@ What we learned so far (do not repeat these):
 - OLDER TEST PLAN, in this order, from a matched start: (1) the organisers' own phrase verbatim, PLACE "put the box into the {mat} bin",
   raw image (WALLX was likely fine-tuned on it; it was never tested with the label already read); (2) the same with overlay "mask"
   (non-target bins painted out); (3) the smaller food carton instead of the wide black box; (4) grasp phrases.
-- PARCEL SIZES (mm, L x W x H) vs the 97.5 mm gripper opening: Miro black box 216 x 165 x 38, Bhindi food carton 165 x 102 x 38,
+- PARCEL SIZES (mm, L x W x H) (the gripper opens much wider than the old 97.5 mm note; fully open = 1.526): Miro black box 216 x 165 x 38, Bhindi food carton 165 x 102 x 38,
   IQBAR 267 x 102 x 64, perfume box 152 x 102 x 51 -> ALL too wide for ONE gripper lying flat (that is why single-arm pickups slid
   and tilted them). Use TWO-ARM wording for these, e.g. PLACE "pick up the box with both arms and put it into the {mat} bin" or
   "use both arms to lift the flat package at the {where} of the green table by its two short ends and put it into the {mat} bin".

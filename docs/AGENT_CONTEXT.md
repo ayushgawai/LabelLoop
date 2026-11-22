@@ -4,7 +4,7 @@ Read this first. It is the running thread for every helper agent; append a dated
 
 ## What this is
 LabelLoop: a harness around the organizers' WALLX VLA (X Square Robot hackathon, BRIGHT 2026, SF, Nov 21-22; competition ends Nov 22 16:00).
-Dual-arm 6-DOF desktop robot (teletwin_desktop, G gripper 97.5 mm). Parcels (flat retail boxes) lie on a green table; one QR label
+Dual-arm 6-DOF desktop robot (teletwin_desktop, G gripper; opens much wider than the old 97.5 mm note, WALLX gripper units 0..1.526 = fully open). Parcels (flat retail boxes) lie on a green table; one QR label
 (payload `420/<ZIP5>/<seq>`) on top or bottom. Route by ZIP3: 940/941/950/951 -> blue bin, 900-902 -> red bin, else/no label -> black bin.
 Official rules: WALLX must generate the actions; our harness plans sub-goals, reads labels, verifies, retries. Everything stays on the
 workbench (black bin on the table, no floor drops). 8 min per case. Score = sum of 6 B-board case scores x difficulty K.

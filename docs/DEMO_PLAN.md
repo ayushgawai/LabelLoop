@@ -10,7 +10,7 @@ Our harness wins by making that one skill reliable and wrapping it in perception
 - Three bins along the far edge: blue (back left), red (back right), black (right edge). Use the shoe-box **lids** (low trays:
   WALLX grabbed the tall shoe boxes when no arm was locked) or the shoe boxes themselves (5/6 worked with the idle-arm lock).
 - Parcels **standing on their narrow side, long axis front-to-back**, ~15 cm in front of their bin, a hand's width from the gripper
-  (flat 102 mm boxes do not fit the 97.5 mm gripper; left-to-right boxes get knocked over).
+  (left-to-right boxes get knocked over; the gripper opens wider than the old 97.5 mm note: fully open = 1.526 in WALLX units).
 - Labels: big QR (6-8 cm) taped flat on top so the head camera reads them (the 35-45 px QR codes today were physically unreadable).
   Until then the harness uses the demo code (`--assume-code`, says so in the log).
 

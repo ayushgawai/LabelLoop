@@ -13,7 +13,7 @@ make our harness + WALLX reproduce it on the robot, trial by trial. Read this wh
 - Props and bin types are the team's choice.
 
 ## 2. Hardware and network
-- Robot: dual 6-DOF arms (teletwin_desktop, G gripper, opening 97.5 mm), head camera 1280x720 looking down from behind the robot,
+- Robot: dual 6-DOF arms (teletwin_desktop, G gripper; opens much wider than the old 97.5 mm note, units 0..1.526 = fully open), head camera 1280x720 looking down from behind the robot,
   two wrist cameras. Host `xr@192.168.1.21`; the client runs in Docker container `desktop_client-robot_client-1`.
 - WALLX on the LAN: `ws://192.168.1.10:33677` (0.07 s/call). Our relay on this Mac: `0.0.0.0:8001` (Mac IP 192.168.1.157).
 - SSH password: NEVER write it anywhere. Use the askpass helper `~/.config/labelloop/robot_askpass.sh` (outside the repo).
@@ -69,7 +69,7 @@ make our harness + WALLX reproduce it on the robot, trial by trial. Read this wh
   red Nike box far edge right of centre, black = black/white box at the right edge mid-depth. Head-image regions in
   configs/task_qr_sort.yaml `profiles.real.bin_rois`; RE-MEASURE them if the bins are moved (take a snapshot, fractions x0,y0,x1,y1).
 - Parcels (mm): Miro black box 216x165x38 (420/90012 -> red), Bhindi carton 165x102x38 (420/95126 -> blue), IQBAR 267x102x64,
-  perfume 152x102x51, wallet 114x89x19 (the only one narrower than the 97.5 mm gripper). docs/props/README.md has all.
+  perfume 152x102x51, wallet 114x89x19 (the gripper opens wider than the old 97.5 mm note, so the 102 mm faces may fit when fully open). docs/props/README.md has all.
 
 ## 7. What happened so far (real robot, 2026-11-21)
 - Trials 1-2: label not read (small taped QR) -> fixed. "flip the box over" -> WALLX grabbed the RED BIN.
