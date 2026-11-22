@@ -49,21 +49,35 @@ def any_barcodes(img):
     return out
 
 
+ZONE_BOXES = ((0.10, 0.15, 0.38, 0.50), (0.64, 0.15, 0.90, 0.50), (0.78, 0.52, 1.0, 1.0))  # zones 1/2/3 (trays / bins sit there)
+
+
+def table_free_mask(img_rgb, hsv=None, erode_px=30):
+    """1 where a loose parcel can be: inside the mat's convex hull shrunk by erode_px (no table-edge / floor / person), minus the
+    zone boxes (trays, bins) and the parked claws."""
+    import cv2
+    H, W = img_rgb.shape[:2]
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV) if hsv is None else hsv
+    mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(mat)
+    inside = np.zeros((H, W), np.uint8)
+    if n < 2:
+        return inside
+    k = 1 + int(np.argmax(st[1:, 4]))
+    cv2.fillConvexPoly(inside, cv2.convexHull(np.column_stack(np.nonzero(lab == k)[::-1]).astype(np.int32)), 1)
+    inside = cv2.erode(inside, np.ones((erode_px, erode_px), np.uint8))
+    for x0, y0, x1, y1 in ZONE_BOXES + ((0.0, 0.60, 0.20, 1.0),):  # + parked left claw (the right one is in zone 3's box)
+        inside[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)] = 0
+    return inside
+
+
 def locate_dark(img_rgb, vmax=70, min_area=1500):
     """(x, y) image fractions of the largest dark object ON THE TABLE (inside the convex hull of the green mat; parked-claw corners
     masked), e.g. the black cap; None if nothing big enough."""
     import cv2
     H, W = img_rgb.shape[:2]
     hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
-    mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).astype(np.uint8)
-    n, lab, st, _ = cv2.connectedComponentsWithStats(mat)
-    if n < 2:
-        return None
-    k = 1 + int(np.argmax(st[1:, 4]))
-    inside = np.zeros((H, W), np.uint8)
-    cv2.fillConvexPoly(inside, cv2.convexHull(np.column_stack(np.nonzero(lab == k)[::-1]).astype(np.int32)), 1)
-    inside[int(0.60 * H):, :int(0.20 * W)] = 0  # parked left claw
-    inside[int(0.55 * H):, int(0.78 * W):] = 0  # parked right claw
+    inside = table_free_mask(img_rgb, hsv)
     m = cv2.morphologyEx(((hsv[..., 2] < vmax) & (inside > 0)).astype(np.uint8), cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
     n, _, st, cen = cv2.connectedComponentsWithStats(m)
     if n < 2:

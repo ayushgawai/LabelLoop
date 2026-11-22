@@ -23,9 +23,11 @@ def _table_mask(hsv):
 
 
 def find_parcel(img_bgr):
-    """(x, y, w, h) of the parcel at rest, or None."""
+    """(x, y, w, h) of the loose parcel (not a tray / bin in a zone, not the table edge), or None."""
+    from labelloop.sequence import table_free_mask
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    inside, mat = _table_mask(hsv)
+    _, mat = _table_mask(hsv)
+    inside = table_free_mask(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB), cv2.cvtColor(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB), cv2.COLOR_RGB2HSV))
     m = ((mat == 0) & (inside > 0)).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((15, 15), np.uint8))  # thin tape lines and digits drop out
     n, _, st, _ = cv2.connectedComponentsWithStats(m)
