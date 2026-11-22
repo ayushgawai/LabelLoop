@@ -11,7 +11,8 @@
    {
     "who": "harness",
     "title": "Harness call (read the label, choose zone + arm, build the WALLX prompt)",
-    "detail": "Barcode reader first, pincode OCR reader as fallback. Pincode 940/941/950/951 → zone 1 → left arm; 900-902 → zone 2 → right arm; else zone 3. The zone number and arm are written into the WALLX sentence."
+    "detail": "Barcode reader first, pincode OCR reader as fallback. Pincode 940/941/950/951 → zone 1 → left arm; 900-902 → zone 2 → right arm; else zone 3. The zone number and arm are written into the WALLX sentence.",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "wallx",
@@ -21,12 +22,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -47,7 +50,7 @@
    {
     "who": "harness",
     "title": "Harness call (right arm picks up the box)",
-    "detail": "The harness runs a stored scenario-2 trajectory (25 s, 32 rows per call) with the right arm: reach over the standing Miro box, grasp it from the top, lift it.",
+    "detail": "Harness call (32 rows per call) with the right arm: reach over the standing Miro box, grasp it from the top, lift it.",
     "sub": [
      {
       "call": 1,
@@ -65,7 +68,8 @@
       "call": 22,
       "text": "right arm lifts the box (WALLX starts from here)"
      }
-    ]
+    ],
+    "prompt": "Right arm: grip the black box from the top and lift it."
    },
    {
     "who": "wallx",
@@ -76,12 +80,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The right claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -102,7 +108,7 @@
    {
     "who": "harness",
     "title": "Harness call (flip the bag label up)",
-    "detail": "The harness runs a stored scenario-3 trajectory (34 s, 32 rows per call) with the left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
+    "detail": "Harness call (32 rows per call) with the left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
     "sub": [
      {
       "call": 1,
@@ -128,7 +134,8 @@
       "call": 26,
       "text": "left arm lifts away (WALLX starts from here)"
      }
-    ]
+    ],
+    "prompt": "Left arm: pick up the white bag, turn it over so the label faces up, set it down."
    },
    {
     "who": "wallx",
@@ -139,12 +146,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -165,12 +174,13 @@
     "who": "harness",
     "title": "Harness call (read the label, route to zone 1)",
     "detail": "Barcode reader first, pincode OCR reader as fallback. Code 420/95126/001 = pincode 951 → zone 1 → left arm.",
-    "what": "label → lane → acting arm → target zone"
+    "what": "label → lane → acting arm → target zone",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "harness",
     "title": "Harness call (pick + handover)",
-    "detail": "The harness runs a stored scenario-4 trajectory (59 s, 32 rows per call): right arm picks the box and hands it to the left claw in the air.",
+    "detail": "Harness call (32 rows per call): the right arm picks the box and hands it to the left claw in the air.",
     "sub": [
      {
       "call": 1,
@@ -200,17 +210,20 @@
       "call": 54,
       "text": "right claw opens: the box is in the left claw only"
      }
-    ]
+    ],
+    "prompt": "Right arm: pick up the purple box and hand it to the left arm in the air."
    },
    {
     "who": "harness",
     "title": "Harness call (right arm backs off)",
-    "detail": "Slow harness move (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm."
+    "detail": "Harness call (≤ 4 cm per call): right claw lifts and moves away to (0.35, 0.20, 0.26) m so it cannot hit the box or the left arm.",
+    "prompt": "Right arm: let go and move up and away from the box."
    },
    {
     "who": "harness",
     "title": "Harness call (right arm home)",
-    "detail": "Slow harness move to home, claw closed. From here the right arm stays parked."
+    "detail": "Harness call to home, claw closed. From here the right arm stays parked.",
+    "prompt": "Right arm: go to rest."
    },
    {
     "who": "wallx",
@@ -221,12 +234,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1."
+    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up, so the box stays inside zone 1.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -248,7 +263,8 @@
    {
     "who": "harness",
     "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt)",
-    "detail": "Barcode reader first, pincode OCR reader as fallback. Cap label 90291 → zone 2 → right arm."
+    "detail": "Barcode reader first, pincode OCR reader as fallback. Cap label 90291 → zone 2 → right arm.",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "wallx",
@@ -258,12 +274,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -284,7 +302,8 @@
    {
     "who": "harness",
     "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt) — left parcel",
-    "detail": "Reads only the left half of the table. Bag: pincode 94043 → zone 1 → left arm."
+    "detail": "Reads only the left half of the table. Bag: pincode 94043 → zone 1 → left arm.",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "wallx",
@@ -294,17 +313,20 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "harness",
     "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt) — right parcel",
-    "detail": "Reads only the right half of the table. Cap: pincode 90291 → zone 2 → right arm."
+    "detail": "Reads only the right half of the table. Cap: pincode 90291 → zone 2 → right arm.",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "wallx",
@@ -314,12 +336,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",
@@ -340,7 +364,8 @@
    {
     "who": "harness",
     "title": "Harness call (read the label: barcode reader, then pincode OCR reader; choose zone + arm; build the WALLX prompt)",
-    "detail": "Pincode 10001 is not in zone 1 (940/941/950/951) or zone 2 (900-902) → zone 3 (exceptions) → right arm."
+    "detail": "Pincode 10001 is not in zone 1 (940/941/950/951) or zone 2 (900-902) → zone 3 (exceptions) → right arm.",
+    "prompt": "Read the label with the barcode reader (pincode OCR reader as fallback), choose the zone and the arm."
    },
    {
     "who": "wallx",
@@ -350,12 +375,14 @@
    {
     "who": "harness",
     "title": "Harness call (release)",
-    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up.",
+    "prompt": "Open the claw fully and lift straight up."
    },
    {
     "who": "harness",
     "title": "Harness call (both arms home)",
-    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+    "detail": "Harness call of both arms to home (≤ 5 cm per call).",
+    "prompt": "Both arms: go to rest."
    },
    {
     "who": "done",

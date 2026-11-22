@@ -249,6 +249,12 @@ class Handler(BaseHTTPRequestHandler):
             p = frame_path(d, index, camera)
             if p is None:
                 return self._json({"error": "no frame"}, 404)
+            if camera == "front" and query.get("track", ["0"])[0] == "1":  # the tracked parcel boxed on the head frame
+                from labelloop.dashboard import track
+                try:
+                    return self._send(200, track.draw(p, track.track(d).get(int(Path(p).name.split("_")[0]))), "image/jpeg")
+                except Exception:
+                    pass
             return self._file(p, "image/jpeg")
         self._json({"error": "not found"}, 404)
 
