@@ -215,6 +215,8 @@ class StateMachine:
         if not self.lane and self.cfg.get("reject_mode", "tray") == "floor_right":
             return ev["presence"] < sc["presence_min"]  # swiped off the table: the zone is empty
         bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
+        if ev.get("obj"):  # event_fast: a parcel-sized object is still on the table (s1 v1: box pushed against a bin read as "gone" by presence)
+            return False
         return (ev["presence"] < sc.get("success_presence_max", sc["presence_min"])  # real table: resting arms keep the zone at 0.06-0.15 after a drop
                 and ev["bins"][bin_] >= sc.get("success_bin_gain", sc["bin_gain"]))
 

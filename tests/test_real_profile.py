@@ -549,3 +549,11 @@ def test_arm_occlusion_is_not_a_moved_bin():  # v1: the right arm covered the ca
     for _ in range(3):  # c1: the black bin dragged away uncovers mat (+0.37 .. +0.62)
         sm.step({**ev, "bins_vacated": {"blue": -0.05, "red": -0.07, "black": 0.5}})
     assert sm.state == "HOLD"
+
+
+def test_success_needs_the_table_clear():  # s1 v1: the box was pushed against the blue bin (zone 0.235, red drifted to 0.3) -> not delivered
+    cfg = apply_profile({**CFG, "profile": "real", "event_fast": True})
+    sm = StateMachine(cfg)
+    sm.lane = [k for k, v in cfg["lanes"].items() if v == "red"][0]
+    ev = {"presence": 0.2, "bins": {"blue": 0.13, "red": 0.31, "black": 0.48}}
+    assert not sm._success({**ev, "obj": True}) and sm._success({**ev, "obj": False})
