@@ -1,0 +1,1 @@
+{"name": "r_demo_prev2", "goal": "Teach and repeat: replay the recorded controller demo demo_prev2.", "setup": "Box exactly where it was at the start of the demo; arms at rest.", "relay": "--sequence scenarios/r_demo_prev2_steps.json", "seconds": 60, "wording": {}}

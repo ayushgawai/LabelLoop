@@ -39,13 +39,10 @@ def read(bag):
     pose, grip = {"left": [], "right": []}, {"left": [], "right": []}
     with open(bag, "rb") as fh:
         for _, ch, raw, m in make_reader(fh, decoder_factories=[DecoderFactory()]).iter_decoded_messages(
-                topics=["/left_arm/end_pose", "/right_arm/end_pose", "/joint_states"]):
+                topics=["/left_arm/end_pose", "/right_arm/end_pose", "/left_gripper_controller/commands", "/right_gripper_controller/commands"]):
             t = raw.log_time * 1e-9
-            if ch.topic == "/joint_states":
-                names = list(m.name)
-                for arm in ("left", "right"):
-                    if arm + "_arm_gripper" in names:
-                        grip[arm].append((t, m.position[names.index(arm + "_arm_gripper")]))
+            if ch.topic.endswith("gripper_controller/commands"):  # commanded, not measured: a held box stops the fingers at 0.2-0.6
+                grip[ch.topic.split("_")[0].strip("/")].append((t, m.data[0]))  # while the command is 0 (squeeze); replaying that would barely grip
             else:
                 p, q = m.pose.position, m.pose.orientation
                 rpy = quat_rpy(q.x, q.y, q.z, q.w)
