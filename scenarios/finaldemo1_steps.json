@@ -43,8 +43,31 @@
    "read": true
   },
   {
-   "say": "Use only the {arm} arm. Turn the gripper on its side so one finger is below and the other finger is above. Lower the open gripper to the table right next to the edge of the white plastic bag, slide the lower finger flat along the table under the edge of the bag, then close the gripper to pinch the bag firmly, lift it 10 centimeters, carry it over the taped square marked {zone}, and open the gripper to drop the bag inside that square.",
-   "calls": 60,
+   "say": "Move the open {arm} gripper slowly to a position just above the white plastic bag lying on the green table.",
+   "calls": 12,
+   "arm": "lane"
+  },
+  {
+   "say": "Lower the open {arm} gripper slowly straight down until its fingers are around the edge of the white plastic bag, touching the table.",
+   "calls": 10,
+   "arm": "lane"
+  },
+  {
+   "say": "Close the {arm} gripper to grasp the white plastic bag firmly.",
+   "calls": 6,
+   "arm": "lane"
+  },
+  {
+   "say": "Lift the white plastic bag slowly 10 centimeters up with the {arm} gripper.",
+   "calls": 12,
+   "arm": "lane",
+   "until": "lifted",
+   "hold": [],
+   "lift_calls": 2
+  },
+  {
+   "say": "Move the white plastic bag slowly over the taped square marked {zone} and hold it there.",
+   "calls": 40,
    "arm": "lane",
    "until": "in_zone",
    "zone_calls": 2

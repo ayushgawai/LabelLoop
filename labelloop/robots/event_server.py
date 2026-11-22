@@ -68,6 +68,7 @@ class Relay:
         self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
         self.save_every = 10  # --save-every: keep the camera frames of every Nth request
         self.reset_on_subgoal = True  # --no-reset-on-subgoal: reset WALLX history only at the episode start
+        self.slow = 1.0  # --slow: fraction of each WALLX chunk executed per call (time-stretched)
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
@@ -214,6 +215,16 @@ class Relay:
                     latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
                         harness.log_reply(latency_ms / 1000, err)
+                    if self.slow < 1.0 and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # time-stretch: half the path
+                        for arm, a in reply["actions"].items():  # per call at the same row rate -> slower, WALLX replans from there
+                            if not isinstance(a, dict):
+                                continue
+                            for ch in ("position", "rotation_rpy", "gripper"):
+                                v = np.asarray(a.get(ch), float) if a.get(ch) is not None else None
+                                if v is None or len(v) < 2:
+                                    continue
+                                src = np.arange(len(v)); dst = src * self.slow
+                                a[ch] = (np.interp(dst, src, v) if v.ndim == 1 else np.column_stack([np.interp(dst, src, v[:, k]) for k in range(v.shape[1])])).tolist()
                     if self.force_roll is not None and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):
                         for arm in ("left_ee", "right_ee"):  # claw turned on its side while open: lower finger slides under a flat parcel
                             a = reply["actions"].get(arm, {})
@@ -269,6 +280,7 @@ async def main():
     p.add_argument("--assume-after-search", action="store_true", help="DEMO: use --assume-code only after reading + turning the parcel (INSPECT) failed")
     p.add_argument("--sequence", default="", help="JSON atomic step list (labelloop/sequence.py) instead of the harness state machine")
     p.add_argument("--reset-on-subgoal", action=argparse.BooleanOptionalAction, default=True, help="reset WALLX history on every sub-goal change / retry (off: only at the episode start)")
+    p.add_argument("--slow", type=float, default=1.0, help="execute only this fraction of each WALLX chunk per call, stretched over the chunk (0.5 = half speed)")
     p.add_argument("--force-roll", type=float, default=None, help="while a claw is open, force its wrist roll to this (rad; 1.57 = claw on its side)")
     p.add_argument("--z-offset", type=float, default=None, help="control_context z_offset_mm for both arms, -1..1 (-1 = grasp lower)")
     p.add_argument("--grasp-dz", type=float, default=0.0, help="lower WALLX's planned z by this (m) while a claw is wide open and below 10 cm")
@@ -324,6 +336,7 @@ async def main():
     relay.open_wide = a.open_wide
     relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
     relay.force_roll = a.force_roll
+    relay.slow = min(1.0, max(0.1, a.slow))
     relay.save_every = max(1, a.save_every)
     relay.reset_on_subgoal = a.reset_on_subgoal
     async with start(relay, a.host, a.port):
