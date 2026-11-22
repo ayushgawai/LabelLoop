@@ -66,6 +66,7 @@ class Relay:
         self.recorder, self.record_meta = recorder, dict(record_meta or {})
         self.overlay_mode = overlay_mode
         self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
+        self.reset_on_subgoal = True  # --no-reset-on-subgoal: reset WALLX history only at the episode start
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
     def _overlay_front(self, harness, req, frame_index):
@@ -193,7 +194,7 @@ class Relay:
                 else:
                     source = "wallx"
                     req = forward
-                    if harness and (fresh or harness.subgoal_changed):
+                    if harness and (fresh or (self.reset_on_subgoal and harness.subgoal_changed)):  # reviews: keep history through wording-only changes
                         req["reset_history"] = True
                     fresh = False if harness else fresh
                     req["instruction"] = instruction  # whole original request forwarded, extras preserved
@@ -251,6 +252,7 @@ async def main():
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
     p.add_argument("--assume-after-search", action="store_true", help="DEMO: use --assume-code only after reading + turning the parcel (INSPECT) failed")
     p.add_argument("--sequence", default="", help="JSON atomic step list (labelloop/sequence.py) instead of the harness state machine")
+    p.add_argument("--reset-on-subgoal", action=argparse.BooleanOptionalAction, default=True, help="reset WALLX history on every sub-goal change / retry (off: only at the episode start)")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open ~0.85; 0 = off)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
     p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
@@ -299,6 +301,7 @@ async def main():
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
+    relay.reset_on_subgoal = a.reset_on_subgoal
     async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
