@@ -161,6 +161,9 @@ def parcel_in_box(img_rgb, box, kind="dark", base=None):
 # calibration (claw tip at a grid of points) if picks keep landing beside the parcel.
 PIX2RIGHT = None
 BASE_SEP = 0.51
+DROP_POINTS = {  # recorded release points (home-relative) per zone colour and arm: zone 1 from scenarios 1 / 4 (left),
+    "blue": {"left": [0.40, 0.02], "right": [0.40, 0.53]},  # zone 2 from scenarios 2 / 3 / phone demo (right); other arm via the 0.51 m base offset
+    "red": {"right": [0.405, -0.04], "left": [0.405, -0.55]}}
 GRASP_RPY = {"left": [-0.13, 0.80, -0.29], "right": [0.11, 1.01, 0.38]}  # recorded top-down grasp orientations
 
 
@@ -353,6 +356,10 @@ class Sequence:
                     x, y = x + c.get("dx", 0.0), y + c.get("dy", 0.0)
                     zg, zh, rpy = c.get("z", 0.0), c.get("z_high", 0.15), c.get("rpy", GRASP_RPY[arm])
                     self.pick_arm, self.pick_px = arm, [round(px[0]), round(px[1])]
+                    from labelloop.dashboard.track import find_parcel as _fp
+                    import cv2 as _cv2
+                    bb = _fp(_cv2.cvtColor(images["front"], _cv2.COLOR_RGB2BGR))
+                    self.pick_box = bb if bb else (int(px[0]) - 40, int(px[1]) - 30, 80, 60)
                     p0 = list(state[arm + "_ee"]["position"])
                     self.pick_plan = [([p0[0], p0[1], zh], rpy, 1.5, 3),  # straight up first (never sweep low across the table)
                                       ([x, y, zh], rpy, 1.5, c.get("approach_calls", 7)), ([x, y, zg], rpy, 1.5, c.get("down_calls", 4)),
@@ -362,9 +369,13 @@ class Sequence:
                 self.calls += 1
                 self.pick_k = self.calls  # (scripted_reply runs after the index may have advanced and calls reset)
                 if self.calls >= sum(p[3] for p in self.pick_plan):
-                    self.i, self.calls = self.i + 1, 0
-                    self.pick_plan_done = self.pick_plan
-                    self.holding_arm = self.pick_arm  # the relay keeps this claw shut (a soft bag reads 'closed' even when held)
+                    if self._pick_spot_covered(images["front"]) and getattr(self, "pick_try", 1) < c.get("tries", 3):
+                        self.pick_try = getattr(self, "pick_try", 1) + 1  # the parcel is still on its spot: pick again (fresh detection)
+                        self.pick_plan, self.calls, self.pick_retry_flag = None, 0, True
+                    else:
+                        self.i, self.calls, self.pick_try = self.i + 1, 0, 1
+                        self.pick_plan_done = self.pick_plan
+                        self.holding_arm = self.pick_arm  # the relay keeps this claw shut (a soft bag reads 'closed' even when held)
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
@@ -418,7 +429,12 @@ class Sequence:
             if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
                 box = ZONE_BOXES[s["bin_box"] if "bin_box" in s else {"blue": 0, "red": 1}.get(self.mat, 2)]  # bin_box: fixed target
                 kind = s.get("parcel", self.spec.get("parcel", "dark"))
-                if kind == "change":  # held parcel over the target bin (whatever its colour): compare with the bin at step start
+                drop0 = s.get("drop_at") or (DROP_POINTS.get(self.mat, {}).get(self._arm(s) or "right") if s.get("drop_auto") else None)
+                if drop0:  # the arm holding the parcel is AT the target bin's recorded drop point and lowered: strongest check
+                    p_ = state.get((self._arm(s) or "right") + "_ee", {}).get("position", [9, 9, 9])
+                    near = np.hypot(p_[0] - drop0[0], p_[1] - drop0[1]) < s.get("drop_r", 0.12) and p_[2] < s.get("drop_z", 0.15)
+                    self.bincount = getattr(self, "bincount", 0) + 1 if near else 0
+                elif kind == "change":  # held parcel over the target bin (whatever its colour): compare with the bin at step start
                     H, W = images["front"].shape[:2]
                     if self.calls == 1 or getattr(self, "bin_img", None) is None:
                         self.bin_img = images["front"][int(box[1] * H):int(box[3] * H), int(box[0] * W):int(box[2] * W)].copy()
@@ -433,9 +449,10 @@ class Sequence:
                         H, W = images["front"].shape[:2]
                         self.bin_img = images["front"][int(box[1] * H):int(box[3] * H), int(box[0] * W):int(box[2] * W)].copy()
                     hit = area - self.bin_base >= s.get("bin_area", 7000) and not locate_parcel(images["front"], kind)
-                    if s.get("drop_at"):  # strongest: the arm holding the parcel is AT the bin (recorded drop point) and lowered
+                    drop = s.get("drop_at") or (DROP_POINTS.get(self.mat, {}).get(self._arm(s) or "right") if s.get("drop_auto") else None)
+                    if drop:  # strongest: the arm holding the parcel is AT the bin (recorded drop point) and lowered
                         p_ = state.get((self._arm(s) or "right") + "_ee", {}).get("position", [9, 9, 9])
-                        near = (np.hypot(p_[0] - s["drop_at"][0], p_[1] - s["drop_at"][1]) < s.get("drop_r", 0.12)
+                        near = (np.hypot(p_[0] - drop[0], p_[1] - drop[1]) < s.get("drop_r", 0.12)
                                 and p_[2] < s.get("drop_z", 0.15))
                         hit = near  # (camera checks gave false stops: arm low near the table centre looked like 'in the box')
                     elif s.get("also_change"):  # OR: the bin looks different and the arm is lowered into it (parcel being put there)
@@ -476,11 +493,13 @@ class Sequence:
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
                                    else ["parcel taken out of the bin: WALLX gets the task again"] if getattr(self, "parcel_back", False) and self.i != before
+                                   else ["pick missed (parcel still on its spot): picking again"] if getattr(self, "pick_retry_flag", False)
                                    else ["parcel in the target bin: task done, going home"] if getattr(self, "task_done", False) and self.i != before else []), "left_gripper": state["left_ee"]["gripper"], "right_gripper": state["right_ee"]["gripper"]}
         if "parcel in the target bin: task done, going home" in self.last_log["flags"]:
             self.task_done = False  # log it once
         if "parcel taken out of the bin: WALLX gets the task again" in self.last_log["flags"]:
             self.parcel_back = False
+        self.pick_retry_flag = False
         if self.runlog:
             self.runlog.write(**self.last_log)
         return instr
@@ -536,6 +555,17 @@ class Sequence:
             self.gcmd[arm] = max(0.0, cmd - rate)
             done = False
         return done
+
+    def _pick_spot_covered(self, front):
+        """After the lift: is the parcel still on its spot? (lower part of its detection box still mostly not mat)"""
+        import cv2
+        x, y, w, h = self.pick_box
+        hsv = cv2.cvtColor(front[y + h // 3:y + h, x:x + w], cv2.COLOR_RGB2HSV)
+        if hsv.size == 0:
+            return False
+        mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).mean()
+        self.pick_mat = round(float(mat), 2)
+        return mat < 0.45
 
     def _with_grips(self, state, targets):
         """Every arm holding a delicate object keeps its hold command (a plain 'hold still' would command the measured opening:
