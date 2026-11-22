@@ -337,9 +337,9 @@
    },
    {
     "who": "robot",
-    "title": "Left hand moves the phone back",
-    "prompt": "Left arm: back to rest, keep the phone.",
-    "detail": ""
+    "title": "Left arm home quickly (scan done)",
+    "prompt": "Left arm: straight back to rest, keep the phone.",
+    "detail": "As soon as the harness has the code, the left arm goes home so the right arm can start."
    },
    {
     "who": "wallx",

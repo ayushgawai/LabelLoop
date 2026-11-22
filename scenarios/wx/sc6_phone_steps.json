@@ -47,7 +47,22 @@
    "wait_calls": 60
   },
   {
-   "replay": "scenarios/wx/phone_scan_B2.json"
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0.03
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
   },
   {
    "say": "Use the right arm to pick up the package from the table and put it into zone {zone}.",
