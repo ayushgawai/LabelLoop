@@ -429,8 +429,14 @@ class Sequence:
                     area = parcel_in_box(images["front"], box, kind)
                     if self.calls == 1 or getattr(self, "bin_base", None) is None:  # how the bin looked when this round started
                         self.bin_base = area if kind == "light" else 0  # (white tape / wall already in the box: count only what is new)
-                    self.bincount = (getattr(self, "bincount", 0) + 1 if area - self.bin_base >= s.get("bin_area", 7000)
-                                     and not locate_parcel(images["front"], kind) else 0)
+                        H, W = images["front"].shape[:2]
+                        self.bin_img = images["front"][int(box[1] * H):int(box[3] * H), int(box[0] * W):int(box[2] * W)].copy()
+                    hit = area - self.bin_base >= s.get("bin_area", 7000) and not locate_parcel(images["front"], kind)
+                    if s.get("also_change"):  # OR: the bin looks different and the arm is lowered into it (parcel being put there)
+                        z = float(state.get((self._arm(s) or "right") + "_ee", {}).get("position", [0, 0, 1])[2])
+                        hit = hit or (parcel_in_box(images["front"], box, "change", self.bin_img) >= s.get("change_area", 6000)
+                                      and z < s.get("bin_z", 0.10))
+                    self.bincount = getattr(self, "bincount", 0) + 1 if hit else 0
                 if self.bincount >= s.get("bin_calls", 3):  # 3 calls in a row: done, stop WALLX, release + home
                     self.i, self.calls, self.bincount, self.task_done = self.i + 1, 0, 0, True
                     self.subgoal_changed = True

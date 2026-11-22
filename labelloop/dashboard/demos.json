@@ -231,54 +231,89 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Find the parcel on the camera and pick it up there",
-    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
-    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+    "title": "Find the bag on the camera and pick it up there",
+    "prompt": "Find the bag on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX carries the parcel into its zone",
-    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
+    "title": "WALLX puts the bag into the top-left box",
+    "detail": "Prompt: “Put the white bag into the box at the top left corner of the table.”. The harness watches the box: bag seen in it (or the box changed with the arm lowered into it) for 3 calls → WALLX stopped."
    },
    {
     "who": "harness",
-    "title": "Release",
-    "prompt": "Open the claw and lift.",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Watch: is the bag back on the table?",
-    "prompt": "When the bag is out of the bin, start again.",
+    "title": "Watch: bag back on the table?",
+    "prompt": "When the bag is out of the box, pick it up again.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Find the parcel on the camera and pick it up there",
-    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
-    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+    "title": "Find the bag on the camera and pick it up there",
+    "prompt": "Find the bag on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX carries the parcel into its zone",
-    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
+    "title": "WALLX puts the bag into the top-left box",
+    "detail": "Prompt: “Put the white bag into the box at the top left corner of the table.”. The harness watches the box: bag seen in it (or the box changed with the arm lowered into it) for 3 calls → WALLX stopped."
    },
    {
     "who": "harness",
-    "title": "Release",
-    "prompt": "Open the claw and lift.",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Watch: bag back on the table?",
+    "prompt": "When the bag is out of the box, pick it up again.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Find the bag on the camera and pick it up there",
+    "prompt": "Find the bag on the head camera, move above it, open, go down, close tight, lift.",
+    "detail": ""
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX puts the bag into the top-left box",
+    "detail": "Prompt: “Put the white bag into the box at the top left corner of the table.”. The harness watches the box: bag seen in it (or the box changed with the arm lowered into it) for 3 calls → WALLX stopped."
+   },
+   {
+    "who": "harness",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Release + home",
+    "prompt": "Open the claw, lift, both arms to rest.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Home",
+    "prompt": "",
     "detail": ""
    },
    {
