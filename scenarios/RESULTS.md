@@ -126,3 +126,5 @@
 - 2026-11-22 09:48 | sc5_d run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 09:51 | sc5_d run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 09:58 | sc5_d run_2 (same recipe; box started further right, almost touching zone 2's front-left corner) | FAIL: WALLX hovered near zone 2 and never went for the box (no interference made) | video runs/scenarios/sc5_d/run_2/demo.mp4
+- 2026-11-22 09:56 | sc5_d run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 10:02 | sc5_d run_3 (interference) | FAIL: start near zone 1 as in run 1; WALLX reached the box (~call 10), the person pushed the box right/back to just left of zone 2; WALLX then hovered near zone 2 for the rest of the run and never re-grasped (same spot where run 2 never engaged) | video runs/scenarios/sc5_d/run_3/demo.mp4
