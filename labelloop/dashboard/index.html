@@ -836,7 +836,7 @@
     const prompt = wallx ? (row.subgoal || h.instruction || sp.prompt) : sp.prompt;
     if (prompt) html += '<div class="prompt"><small>exact instruction sent to WALLX' + (wallx ? ' · this call' : '') + '</small>“' + esc(prompt) + '”</div>';
     if (wallx) html += '<p class="muted">WALLX reply in ' + (typeof row.latency_ms === 'number' ? Math.round(row.latency_ms) + ' ms' : '—') +
-      ' · inputs: head + 2 wrist cameras, both arms\' state, the sentence above · output: action chunk, 40% executed (--slow 0.4)' + (S.demo && /front-only/.test(S.demo.relay || '') ? ' · wrist images blacked out (head camera only)' : '') + '</p>';
+      ' · inputs: ' + (S.demo && /front-only/.test(S.demo.relay || '') ? 'head camera only (wrist images blacked out)' : 'head + 2 wrist cameras') + ', both arms\' state, the sentence above · output: action chunk, 40% executed (--slow 0.4)</p>';
     if (sp.sub) {
       let cur = -1;
       sp.sub.forEach(function (s, n) { if (call >= s.call) cur = n; });
