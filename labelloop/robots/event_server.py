@@ -71,6 +71,7 @@ class Relay:
         self.slow = 1.0  # --slow: fraction of each WALLX chunk executed per call (time-stretched)
         self.force_roll = None  # --force-roll: wrist roll (rad) forced while a claw is open
         self.z_offset, self.grasp_dz, self.grasp_floor = None, 0.0, -0.015  # --z-offset / --grasp-dz / --grasp-floor
+        self.deep_close, self.deep_done = 0.0, {}  # --deep-close: go this much lower with the claw open before WALLX may close it
         self.front_only = False  # --front-only: WALLX gets black wrist images (only the head camera)
         self.open_wide = 0.0  # --open-wide: gripper value used while WALLX is opening the gripper (0 = off)
 
@@ -249,6 +250,21 @@ class Relay:
                             a = reply["actions"].get(arm, {})
                             if float(state[arm]["gripper"]) > 1.0 and float(state[arm]["position"][2]) < 0.10 and isinstance(a.get("position"), list):
                                 a["position"] = [[q[0], q[1], max(self.grasp_floor, q[2] - self.grasp_dz)] for q in a["position"]]
+                    if self.deep_close and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):
+                        for arm in ("left_ee", "right_ee"):  # WALLX closes too high (corner grabs): first sink the OPEN claw deep_close lower
+                            a, g0 = reply["actions"].get(arm, {}), float(state[arm]["gripper"])
+                            g = a.get("gripper")
+                            if g0 < 0.3:
+                                self.deep_done[arm] = False  # claw closed (or holding): the next opening is a new attempt
+                            if (isinstance(g, list) and g and isinstance(a.get("position"), list) and g0 > 0.5 and float(g[-1]) < g0 - 0.2
+                                    and not self.deep_done.get(arm)):
+                                p0, n = state[arm]["position"], len(g)
+                                z1 = max(self.grasp_floor, float(p0[2]) - self.deep_close)
+                                a["position"] = [[p0[0], p0[1], float(p0[2]) + (z1 - float(p0[2])) * (k + 1) / n] for k in range(n)]
+                                a["gripper"] = [g0] * n
+                                if isinstance(a.get("rotation_rpy"), list):
+                                    a["rotation_rpy"] = [list(state[arm]["rotation_rpy"])] * n
+                                self.deep_done[arm] = True  # WALLX re-plans from down here; its next close goes through
                     if self.open_wide and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # open the gripper fully while WALLX opens it (no re-adjusting)
                         for arm in ("left_ee", "right_ee"):
                             g = reply["actions"].get(arm, {}).get("gripper")
@@ -300,6 +316,7 @@ async def main():
     p.add_argument("--grasp-dz", type=float, default=0.0, help="lower WALLX's planned z by this (m) while a claw is wide open and below 10 cm")
     p.add_argument("--grasp-floor", type=float, default=-0.015, help="never plan below this z (m, home-relative) when lowering")
     p.add_argument("--open-wide", type=float, default=0.0, help="while WALLX opens a gripper, open it straight to this value (real full open = 1.526; 0 = off)")
+    p.add_argument("--deep-close", type=float, default=0.0, help="when WALLX starts closing an open claw, first lower it this much (m, floor --grasp-floor) still open; then let it close")
     p.add_argument("--front-only", action="store_true", help="WALLX calls get black wrist images: only the head camera is seen")
     p.add_argument("--save-every", type=int, default=10, help="save camera frames + state of every Nth request (1 = all)")
     p.add_argument("--lock-idle", action="store_true", help="harness locks the arm the parcel's lane does not use while WALLX acts")
@@ -350,6 +367,7 @@ async def main():
     relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     relay.open_wide = a.open_wide
     relay.front_only = a.front_only
+    relay.deep_close = a.deep_close
     relay.z_offset, relay.grasp_dz, relay.grasp_floor = a.z_offset, a.grasp_dz, a.grasp_floor
     relay.force_roll = a.force_roll
     relay.slow = min(1.0, max(0.1, a.slow))
