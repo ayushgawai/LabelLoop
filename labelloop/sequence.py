@@ -292,7 +292,7 @@ class Sequence:
                                     where=getattr(self, "where", "the centre"))
             self.calls += 1
             if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
-                box = ZONE_BOXES[{"blue": 0, "red": 1}.get(self.mat, 2)]
+                box = ZONE_BOXES[s["bin_box"] if "bin_box" in s else {"blue": 0, "red": 1}.get(self.mat, 2)]  # bin_box: fixed target
                 area = dark_in_box(images["front"], box)
                 self.bincount = getattr(self, "bincount", 0) + 1 if area >= s.get("bin_area", 7000) and not locate_dark(images["front"]) else 0
                 if self.bincount >= s.get("bin_calls", 3):  # 3 calls in a row: done, stop WALLX, release + home

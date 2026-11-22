@@ -158,3 +158,7 @@
 - 2026-11-22 12:45 | sc5j run_7 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 12:48 | sc5j run_8 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 12:50 | sc5j run_9 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 13:17 | phone_scan run_2 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 13:24 | phone_scan run_3 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 13:30 | sc6_phone run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 13:41 | sc6_phone run_2 | harness no verdict in None s | observed: - | states {} | flags []
