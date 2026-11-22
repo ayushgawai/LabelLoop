@@ -4,7 +4,9 @@ client container logs /left_arm/end_pose, /right_arm/end_pose and the gripper co
 replayable demo (same format as scripts/demo_from_bag.py: home-relative poses + gripper, 0.0337 s rows).
 
   .venv/bin/python scripts/record_teleop.py start NAME        # starts recording on the robot (max 15 min)
-  .venv/bin/python scripts/record_teleop.py stop NAME         # stops, fetches, writes runs/demos/NAME.json
+  .venv/bin/python scripts/record_teleop.py stop NAME [SPEED] [SMOOTH_S]   # stops, fetches, writes runs/demos/NAME.json
+     SPEED (default 2): playback speed-up of a slow hand demo; SMOOTH_S (default 0.5): moving-average window on poses
+  .venv/bin/python scripts/record_teleop.py convert NAME [SPEED] [SMOOTH_S]  # re-convert an already fetched NAME.raw.jsonl
 """
 import json, os, subprocess, sys
 from pathlib import Path
@@ -50,24 +52,39 @@ def start(name):
     print("recording", name)
 
 
-def stop(name):
+def stop(name, speed="2", smooth="0.5"):
     sh("docker exec desktop_client-robot_client-1 pkill -f ll_rec.py")
     raw = sh("docker exec desktop_client-robot_client-1 cat /tmp/ll_%s.jsonl" % name).stdout
-    rows = [json.loads(l) for l in raw.splitlines() if l.strip()]
     (ROOT / "runs/demos" / (name + ".raw.jsonl")).write_text(raw)
+    convert(name, speed, smooth)
+
+
+def smooth_cols(X, w):  # centred moving average per column, edges padded with the end values
+    if w < 2:
+        return X
+    pad = np.pad(X, ((w // 2, w - 1 - w // 2), (0, 0)), mode="edge")
+    k = np.ones(w) / w
+    return np.column_stack([np.convolve(pad[:, j], k, mode="valid") for j in range(X.shape[1])])
+
+
+def convert(name, speed="2", smooth="0.5"):
+    speed, smooth = float(speed), float(smooth)
+    raw = (ROOT / "runs/demos" / (name + ".raw.jsonl")).read_text()
+    rows = [json.loads(l) for l in raw.splitlines() if l.strip()]
     pose = {a: np.array([[r["t"], *r["p"], *quat_rpy(*r["q"])] for r in rows if r["k"] == a]) for a in ("left", "right")}
     grip = {a: np.array([[r["t"], r["g"]] for r in rows if r["k"] == a + "_g"]) for a in ("left", "right")}
     t0, t1 = max(pose[a][0, 0] for a in pose), min(pose[a][-1, 0] for a in pose)
-    ts = np.arange(t0, t1, DT)
+    ts = np.arange(t0, t1, DT * speed)  # sample the slow demo every speed x DT, play at DT: speed x faster
     out = {}
     for a in ("left", "right"):
-        P = np.column_stack([np.interp(ts, pose[a][:, 0], pose[a][:, k]) for k in range(1, 7)])
+        P = np.column_stack([np.interp(ts, pose[a][:, 0], np.unwrap(pose[a][:, k]) if k >= 4 else pose[a][:, k]) for k in range(1, 7)])
+        P = smooth_cols(P, max(1, int(round(smooth / DT))))
         g = GRIP_SCALE * np.interp(ts, grip[a][:, 0], grip[a][:, 1]) if len(grip[a]) else np.zeros(len(ts))
         out[a] = np.column_stack([P, g]).round(5).tolist()
     p = ROOT / "runs/demos" / (name + ".json")
-    p.write_text(json.dumps({"dt": DT, "source": "record_teleop", "left": out["left"], "right": out["right"]}))
+    p.write_text(json.dumps({"dt": DT, "source": "record_teleop", "speed": speed, "smooth_s": smooth, "left": out["left"], "right": out["right"]}))
     print(f"{p}: {len(ts)} rows = {len(ts) * DT:.1f} s")
 
 
 if __name__ == "__main__":
-    {"start": start, "stop": stop}[sys.argv[1]](sys.argv[2])
+    {"start": start, "stop": stop, "convert": convert}[sys.argv[1]](*sys.argv[2:])
