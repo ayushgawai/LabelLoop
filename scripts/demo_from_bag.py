@@ -15,6 +15,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 ASKPASS = os.environ.get("ROBOT_ASKPASS", str(Path.home() / ".config/labelloop/robot_askpass.sh"))
 DT = 0.0337
+GRIP_SCALE = 0.55  # robot gripper command units (0 closed .. 1.53 open) -> relay / WALLX units (0 .. ~0.84 open)
 
 
 def quat_rpy(x, y, z, w):  # extrinsic xyz (roll, pitch, yaw), as the robot client reports rotation_rpy
@@ -64,7 +65,7 @@ def main():
     out = {}
     for arm in ("left", "right"):
         P = np.column_stack([np.interp(ts, pose[arm][:, 0], pose[arm][:, k]) for k in range(1, 7)])
-        g = np.interp(ts, grip[arm][:, 0], grip[arm][:, 1]) if len(grip[arm]) else np.zeros(len(ts))
+        g = GRIP_SCALE * np.interp(ts, grip[arm][:, 0], grip[arm][:, 1]) if len(grip[arm]) else np.zeros(len(ts))
         out[arm] = np.column_stack([P, g])
     moving = np.zeros(len(ts), bool)
     for arm in ("left", "right"):
