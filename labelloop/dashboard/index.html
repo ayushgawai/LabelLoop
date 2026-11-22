@@ -118,6 +118,9 @@
   .logRow.hi{background:#fff6d8;border-left-color:var(--amber)}
   .lt{color:var(--ink2);margin-right:7px;font-size:11px}
   .demoBtn{background:var(--ink);color:var(--paper);font-weight:700}
+  .runBtn{background:var(--red);color:#fff;font-weight:700;border-color:var(--red)}
+  .runBtn:disabled{opacity:.5;cursor:default}
+  #runState{font-size:12px;color:var(--ink2)}
   .stepsWrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:12px}
   .stepList{display:flex;flex-direction:column;gap:3px;margin:0;padding:0;list-style:none}
   .stepItem{display:grid;grid-template-columns:34px 70px 1fr auto;gap:6px;align-items:center;font-size:12.5px;padding:4px 7px;
@@ -780,7 +783,8 @@
   }
 
   function buildSteps() {  // step list + the row range of each step (from harness.step); null when the trial has no steps
-    const demo = S.demos.filter(function (d) { return d.trial === S.id; })[0];
+    const demo = S.demos.filter(function (d) { return d.trial === S.id; })[0] ||
+      (S.runDemo && S.runStartId && S.id > S.runStartId ? S.demos.filter(function (d) { return d.id === S.runDemo; })[0] : null);
     const rows = S.rows, rng = {};
     rows.forEach(function (r, i) {
       const k = (r.harness || {}).step;
@@ -852,11 +856,38 @@
     $('stepNow').innerHTML = html;
   }
 
+  async function pollRun() {
+    try {
+      const r = await api('/api/run'), el = $('runState');
+      Array.prototype.forEach.call(document.querySelectorAll('.runBtn'), function (b) { b.disabled = r.running; });
+      if (el) el.textContent = r.running ? 'robot running ' + r.demo + ' (' + Math.round(Date.now() / 1000 - r.started) + ' s)…'
+        : r.demo ? 'last robot run ' + r.demo + (r.exit === 0 ? ' finished' : ' exited ' + r.exit) : '';
+    } catch (e) { /* server restarting */ }
+  }
+
+  async function startRun(id) {
+    const d = S.demos.filter(function (x) { return x.id === id; })[0];
+    if (!d || !confirm('Run "' + d.label + '" on the REAL robot?\n\nBox on its start spot, arms at rest, table clear. The arms home first, then the run starts.')) return;
+    const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo: id }) });
+    const out = await r.json().catch(function () { return {}; });
+    if (!r.ok) { alert('Not started: ' + (out.error || r.status)); return; }
+    S.runDemo = id;
+    S.runStartId = S.trials.length ? S.trials[0].id : '0';
+    S.follow = true;              // the page follows the new trial live (step panel included)
+    setPlaying(false);
+    $('trialPicker').value = '__live__';
+    pollRun();
+    $('stepsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   async function loadDemos() {
     try { S.demos = await api('/api/demos'); } catch (e) { S.demos = []; }
     $('demoBtns').innerHTML = S.demos.map(function (d) {
-      return '<button class="demoBtn" data-demo="' + esc(d.id) + '" title="replay the recorded run step by step">▶ ' + esc(d.label) + '</button>';
-    }).join(' ');
+      return '<button class="demoBtn" data-demo="' + esc(d.id) + '" title="replay the recorded run step by step (robot does not move)">▶ ' + esc(d.label) + '</button>' +
+        (d.run ? ' <button class="runBtn" data-run="' + esc(d.id) + '" title="run the frozen recipe on the real robot">● Run on robot</button>' : '');
+    }).join(' ') + ' <span id="runState"></span>';
+    pollRun();
+    setInterval(pollRun, 2000);
   }
 
   /* ------------------------------------------------------------------ log */
@@ -1259,6 +1290,8 @@
     });
 
     $('demoBtns').addEventListener('click', function (e) {
+      const rb = e.target.closest('button[data-run]');
+      if (rb) { if (!rb.disabled) startRun(rb.dataset.run); return; }
       const b = e.target.closest('button[data-demo]');
       if (!b) return;
       const d = S.demos.filter(function (x) { return x.id === b.dataset.demo; })[0];

@@ -4,8 +4,8 @@
   "label": "Scenario 4 · WALLX",
   "trial": "20261122_073919",
   "title": "Scenario 4: right arm picks the Bhindi box, hands it to the left arm in the air, WALLX puts it into zone 1",
-  "recipe": "scenarios/w4x/sc4_wallx_v3/recipe.json",
-  "relay": "--sequence scenarios/w4x/sc4_wallx_v3/steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "recipe": "scenarios/keepers/sc4_wallx/recipe.json",
+  "relay": "--sequence scenarios/keepers/sc4_wallx/steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
   "steps": [
    {
     "who": "harness",
@@ -79,7 +79,8 @@
     "title": "Done",
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
-  ]
+  ],
+  "run": "scenarios/keepers/sc4_wallx/recipe.json"
  },
  {
   "id": "sc4_wallx_v2",

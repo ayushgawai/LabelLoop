@@ -8,6 +8,7 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
   /api/trials/<id>/rows?after=N   rows with index > N (live tail)
   /api/trials/<id>/joints         per-row joint chains of both arms via IK (labelloop.dashboard.kinematics; cached in joints.json)
   /api/trials/<id>/frame/<i>/<c>  JPEG (nearest earlier recorded index if missing)
+  POST /api/run {demo}              run that demo's frozen recipe on the REAL robot (GET /api/run: status)
   /api/demos                      one-click demos (demos.json): trial id + step-by-step story
   /api/story                      every trial + trial-agent run in time order (labelloop.dashboard.story)
   /api/agent/<ts>                 one agent run: journal, report text, progress notes
@@ -15,6 +16,10 @@ Reads the folders written by labelloop.robots.trial_recorder and serves the one-
 import argparse
 import json
 import re
+import subprocess
+import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -23,6 +28,33 @@ TRIAL_ID_RE = re.compile(r"^\d{8}_\d{6}$")
 CAMERA_RE = re.compile(r"^[a-z_]+$")
 INDEX_HTML = Path(__file__).resolve().parent / "index.html"
 DEMOS = Path(__file__).resolve().parent / "demos.json"  # one-click demos: trial id + the step-by-step story
+REPO = Path(__file__).resolve().parents[2]
+RUN = {"proc": None, "demo": None, "log": None, "started": None}  # the one robot run started from the page (only one at a time)
+RUN_LOCK = threading.Lock()
+
+
+def run_status():
+    p = RUN["proc"]
+    return {"running": bool(p and p.poll() is None), "demo": RUN["demo"], "started": RUN["started"],
+            "exit": None if not p or p.poll() is None else p.returncode, "log": RUN["log"]}
+
+
+def start_run(demo_id):
+    """POST /api/run {"demo": id}: runs that demo's FROZEN recipe on the real robot (scripts/run_trial.py: homes, runs, homes, records).
+    Only recipes listed in demos.json ("run") can be started, never a path from the request."""
+    d = next((x for x in (_read_json(DEMOS) or []) if x.get("id") == demo_id and x.get("run")), None)
+    if d is None:
+        return 404, {"error": "no runnable demo " + str(demo_id)}
+    with RUN_LOCK:
+        if run_status()["running"]:
+            return 409, {"error": "a run is already going", **run_status()}
+        log = REPO / "runs" / "dashboard_runs" / (time.strftime("%Y%m%d_%H%M%S") + "_" + demo_id + ".log")
+        log.parent.mkdir(parents=True, exist_ok=True)
+        py = REPO / ".venv/bin/python"
+        RUN.update(proc=subprocess.Popen([str(py if py.exists() else sys.executable), "scripts/run_trial.py", "--scenario", d["run"]], cwd=REPO,
+                                         stdout=open(log, "w"), stderr=subprocess.STDOUT),
+                   demo=demo_id, log=str(log.relative_to(REPO)), started=time.time())
+        return 200, run_status()
 
 
 def _read_json(path):
@@ -147,6 +179,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         self._send(200, body, ctype)
 
+    def do_POST(self):
+        url = urlparse(self.path)
+        if url.path.rstrip("/") != "/api/run":
+            return self._json({"error": "not found"}, 404)
+        try:
+            n = min(int(self.headers.get("Content-Length") or 0), 4096)
+            body = json.loads(self.rfile.read(n) or b"{}")
+            code, out = start_run(str(body.get("demo", "")))
+            return self._json(out, code)
+        except Exception as e:
+            return self._json({"error": type(e).__name__}, 500)
+
     def do_GET(self):
         url = urlparse(self.path)
         parts = [unquote(p) for p in url.path.split("/") if p]
@@ -155,6 +199,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(INDEX_HTML, "text/html; charset=utf-8")
             if parts[0] == "api" and len(parts) >= 2 and parts[1] == "trials":
                 return self._trials(parts[2:], parse_qs(url.query))
+            if parts[0] == "api" and parts[1:] == ["run"]:
+                return self._json(run_status())
             if parts[0] == "api" and parts[1:] == ["demos"]:
                 return self._json(_read_json(DEMOS) or [])
             if parts[0] == "api" and parts[1:] == ["story"]:
