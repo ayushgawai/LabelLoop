@@ -43,7 +43,7 @@
    "read": true
   },
   {
-   "say": "Put the purple box into the square on the left side of the table.",
+   "say": "Pick up the purple box.",
    "arm": "right",
    "calls": 30,
    "until": "lifted",
@@ -96,7 +96,7 @@
    "max_step": 0.03
   },
   {
-   "replay": "scenarios/w4x/sc4_from_lift.json"
+   "replay": "scenarios/sc4_wallx/trials/sc4_from_lift.json"
   },
   {
    "move": {
@@ -154,7 +154,7 @@
       0,
       0
      ],
-     "gripper": 1.5
+     "gripper": 0.0
     },
     "right": {
      "position": [
@@ -167,7 +167,7 @@
       0,
       0
      ],
-     "gripper": 1.5
+     "gripper": 0.0
     }
    },
    "calls": 8,

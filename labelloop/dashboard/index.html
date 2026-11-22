@@ -43,8 +43,22 @@
   @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
   main{position:relative;z-index:1;display:grid;gap:14px;padding:14px 22px 60px 78px;
     grid-template-columns:minmax(0,2fr) minmax(290px,1fr);
-    grid-template-areas:"steps steps" "table pose" "table perf" "cams log" "time log" "story story"}
-  #stepsCard{grid-area:steps} #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf}
+    grid-template-areas:"steps steps" "table pkg" "table pose" "table perf" "cams log" "time log" "story story"}
+  #stepsCard{grid-area:steps} #tableCard{grid-area:table} #poseCard{grid-area:pose} #perfCard{grid-area:perf} #pkgCard{grid-area:pkg}
+  #pkgCard{transition:box-shadow .3s ease}
+  #pkgCard.flash{box-shadow:0 0 0 4px rgba(46,139,87,.45)}
+  .pkgHead{display:flex;align-items:center;gap:6px}
+  .pkgHead .grow{flex:1}
+  .pkgHead button{padding:1px 8px;font-size:11.5px}
+  .pkgCode{font:700 21px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.4px;margin:2px 0 4px}
+  .pkgRoute{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;font-size:13px;margin-bottom:4px}
+  .lane{display:inline-block;padding:1px 11px;border-radius:20px;color:#fff;font-weight:700;font-size:12.5px;text-transform:uppercase;
+    letter-spacing:.6px}
+  .lane.blue{background:var(--blue)} .lane.red{background:var(--red)} .lane.black{background:var(--ink)}
+  .phone{font-size:11.5px;color:var(--ink2)} .phone i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#b9c3cd;
+    margin-right:4px;vertical-align:middle} .phone.live i{background:var(--green)}
+  .pkgHist{margin-top:5px;font-size:11.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .pkgHist div{display:flex;gap:8px} .pkgHist .c{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink)}
   #camCard{grid-area:cams} #timeCard{grid-area:time} #logCard{grid-area:log} #storyCard{grid-area:story}
   .story{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto;padding:2px 4px 2px 0}
   .st{border:1.3px solid rgba(35,40,46,.35);border-radius:10px 7px 11px 6px / 7px 11px 6px 10px;padding:6px 9px;background:rgba(255,255,255,.72)}
@@ -152,7 +166,7 @@
   .subs li.active{color:#111;font-weight:700} .subs li.active::before{content:"▶";color:#e67e22}
   @media (max-width:900px){ .stepsWrap{grid-template-columns:minmax(0,1fr)} }
   @media (max-width:900px){
-    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"steps" "table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
+    main{grid-template-columns:minmax(0,1fr);grid-template-areas:"steps" "pkg" "table" "pose" "perf" "cams" "time" "log" "story";padding:12px 12px 40px 16px}
     header{padding:10px 12px 8px 16px} body::before{display:none}
   }
 </style>
@@ -190,6 +204,11 @@
       <span><i class="fail"></i>IK failed</span><span><i class="pred"></i>WALLX predicted fingertip path</span>
       <span id="ikNote"></span><span id="workMs" title="moving average of the JS work per animation frame"></span>
     </div>
+  </section>
+  <section class="card" id="pkgCard">
+    <div class="pkgHead"><div class="cardTitle grow">package · phone QR scanner</div>
+      <button id="pkgClear" title="empty the board before the next run">clear</button></div>
+    <div id="pkg"><div class="muted">waiting for a scan…</div></div>
   </section>
   <section class="card" id="poseCard">
     <div class="cardTitle">pose</div>
@@ -239,7 +258,8 @@
     CAMERAS: ['front', 'left_wrist', 'right_wrist'],
     MOVE_M_S: 0.03,      // fingertip speed above which the arm glows / leaves a trail
     CASE_S: 480,         // the event case clock
-    POLL_MS: 300, LIST_MS: 2000, JOINTS_MS: 1500, STORY_MS: 10000
+    POLL_MS: 300, LIST_MS: 2000, JOINTS_MS: 1500, STORY_MS: 10000,
+    PKG_MS: 600          // package board poll (phone scanner)
   };
   const ARMS = ['left_ee', 'right_ee'];
 
@@ -1108,6 +1128,46 @@
     return r.json();
   }
 
+  /* ------------------------------------------------------------------ package (phone QR scanner) */
+  const PKG = { key: '', code: null, busy: false, loaded: false };
+
+  function renderPackage(b) {
+    const cur = b && b.current, ph = b && b.phone;
+    const live = !!(ph && ph.live);
+    const key = [b && b.ver, live, ph ? Math.min(99, Math.round(ph.age_s)) : '-'].join('|');
+    if (key === PKG.key) return;
+    PKG.key = key;
+    const phone = '<div class="phone' + (live ? ' live' : '') + '"><i></i>' +
+      (!ph ? 'phone not connected (open /scan on the phone)'
+        : live ? 'phone camera live · ' + esc(ph.client || '') + ' · ' + esc(ph.frames) + ' frames'
+        : 'phone silent for ' + Math.round(ph.age_s) + ' s · ' + esc(ph.client || '')) + '</div>';
+    if (!cur) { $('pkg').innerHTML = '<div class="muted">waiting for a scan…</div>' + phone; PKG.code = null; return; }
+    const t = (e) => (e ? new Date(e * 1000).toLocaleTimeString() : '—');
+    const hist = (b.history || []).slice(0, 4).map((h) =>
+      '<div><span>' + t(h.scanned) + '</span><span class="c">' + esc(h.code) + '</span><span>' + esc(h.lane) + ' · zone ' + esc(h.zone) +
+      '</span></div>').join('');
+    $('pkg').innerHTML =
+      '<div class="pkgCode">' + esc(cur.code) + '</div>' +
+      '<div class="pkgRoute"><span class="lane ' + esc(cur.lane) + '">' + esc(cur.lane) + ' bin</span>' +
+        '<b>zone ' + esc(cur.zone) + '</b><span>' + esc(cur.where) + '</span></div>' +
+      '<div class="kv"><span>ZIP</span><b>' + (cur.zip5 ? esc(cur.zip5) + ' (ZIP3 ' + esc(cur.zip3) + ')' : 'not a 420/ZIP/seq label') + '</b></div>' +
+      '<div class="kv"><span>scanned</span><b>' + t(cur.scanned) + ' · ' + esc(cur.source || '') + ' · seen ' + esc(cur.seen) + '×</b></div>' +
+      '<div class="kv"><span>packages this run</span><b>' + esc(b.scans) + '</b></div>' +
+      phone + (hist ? '<div class="pkgHist">' + hist + '</div>' : '');
+    if (PKG.loaded && cur.code !== PKG.code) {  // a new package (not the one already there when the page opened)
+      $('pkgCard').classList.add('flash');
+      setTimeout(() => $('pkgCard').classList.remove('flash'), 900);
+    }
+    PKG.code = cur.code;
+  }
+
+  async function pollPackage() {
+    if (PKG.busy) return;
+    PKG.busy = true;
+    try { renderPackage(await api('/api/package')); PKG.loaded = true; } catch (e) { /* server restarting */ }
+    PKG.busy = false;
+  }
+
   async function loadJoints(force) {
     if (!S.id || S.jBusy) return;
     const now = performance.now();
@@ -1362,6 +1422,13 @@
     wireControls();
     await loadDemos();
     requestAnimationFrame(loop);
+    pollPackage();
+    setInterval(pollPackage, CFG.PKG_MS);
+    $('pkgClear').addEventListener('click', async () => {
+      if (!confirm('Clear the package board?')) return;
+      try { await fetch('/api/package/clear', { method: 'POST', body: '', cache: 'no-store' }); } catch (e) { /* ignore */ }
+      PKG.key = ''; pollPackage();
+    });
     try { await refreshTrials(); } catch (e) { /* server starting */ }
     try {
       if (S.trials.length) await loadTrial(S.trials[0].id);

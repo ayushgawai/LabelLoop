@@ -1,8 +1,8 @@
 {
- "name": "w4x_pickany4",
+ "name": "sc4_wallx_pick_anywhere",
  "goal": "pickany3 + grasp deeper (user: 'let it go deep in the box before it grabs'): claws open fully when WALLX opens them and WALLX's approach is lowered 1.5 cm while the claw is wide open below 10 cm (floor -1.5 cm; m1's flags); pick step 45 calls (was 30); 300 s.",
  "setup": "Bhindi box STANDING on its long narrow side with a SHORT END toward the camera (long side pointing at the back wall), anywhere in the right half of the table in reach of the right arm (one change vs try 5: try 5 had the long side toward the camera); arms at rest.",
- "relay": "--sequence scenarios/w4x/pickany4_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1 --open-wide 1.5 --grasp-dz 0.015 --grasp-floor -0.015",
+ "relay": "--sequence scenarios/sc4_wallx/wip_wallx_pick_anywhere/steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1 --open-wide 1.5 --grasp-dz 0.015 --grasp-floor -0.015",
  "seconds": 300,
  "wording": {}
 }

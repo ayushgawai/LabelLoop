@@ -43,7 +43,60 @@
    "read": true
   },
   {
-   "replay": "scenarios/w4x/sc4_pick_handover.json"
+   "say": "Put the purple box into the square on the left side of the table.",
+   "arm": "right",
+   "calls": 30,
+   "until": "lifted",
+   "hold": [
+    "right"
+   ],
+   "lift_calls": 2
+  },
+  {
+   "carry": {
+    "arms": [
+     "right"
+    ],
+    "dz": 0.1,
+    "grip": 0.0
+   },
+   "calls": 4,
+   "max_step": 0.03
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.28552,
+      0.02529,
+      0.18004
+     ],
+     "rotation_rpy": [
+      -0.34351,
+      0.76175,
+      0.1327
+     ],
+     "gripper": 0.0
+    },
+    "left": {
+     "position": [
+      0.12071,
+      0.02137,
+      0.24563
+     ],
+     "rotation_rpy": [
+      0.07644,
+      0.28875,
+      -0.11073
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 12,
+   "max_step": 0.03
+  },
+  {
+   "replay": "scenarios/sc4_wallx/trials/sc4_from_lift.json"
   },
   {
    "move": {
@@ -78,7 +131,7 @@
    "max_step": 0.04
   },
   {
-   "say": "Put the box into the bowl.",
+   "say": "Put the purple box into the square on the left side of the table.",
    "calls": 40,
    "arm": "left"
   },
@@ -101,7 +154,7 @@
       0,
       0
      ],
-     "gripper": 0.0
+     "gripper": 1.5
     },
     "right": {
      "position": [
@@ -114,7 +167,7 @@
       0,
       0
      ],
-     "gripper": 0.0
+     "gripper": 1.5
     }
    },
    "calls": 8,

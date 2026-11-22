@@ -43,7 +43,7 @@
    "read": true
   },
   {
-   "replay": "scenarios/w4x/saved/sc4_wallx_v1/sc4_pick_handover.json"
+   "replay": "scenarios/sc4_wallx/demo_replay_pick_wallx_place/sc4_pick_handover.json"
   },
   {
    "move": {

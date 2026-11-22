@@ -2,7 +2,7 @@
  "name": "w4x_try3",
  "goal": "Scenario 4 with WALLX, try 3 (handout idea 1, prompt #3; else as try 2): replayed pick + handover, then WALLX (left arm, right locked, 40 calls): 'Put the purple box into the square on the left side of the table.'; scripted release + home.",
  "setup": "Bhindi box on the scenario 4 start marks (right side, in front of zone 2); arms at rest.",
- "relay": "--sequence scenarios/w4x/try3_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "relay": "--sequence scenarios/sc4_wallx/trials/try3_steps.json --slow 0.4 --no-reset-on-subgoal",
  "seconds": 180,
  "wording": {}
 }

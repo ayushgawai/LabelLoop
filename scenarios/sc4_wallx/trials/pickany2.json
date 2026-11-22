@@ -2,7 +2,7 @@
  "name": "w4x_pickany2",
  "goal": "Temp try 2 = pickany with ONE change: WALLX's pick prompt (right arm, until lifted) is 'Put the purple box into the square on the left side of the table.' instead of 'Pick up the purple box.' (a destination makes WALLX lift); plus a safety fix: the final home step opens both claws so a failed pick does not drag the box.",
  "setup": "Bhindi box STANDING on its long narrow side with a SHORT END toward the camera (long side pointing at the back wall), anywhere in the right half of the table in reach of the right arm (one change vs try 5: try 5 had the long side toward the camera); arms at rest.",
- "relay": "--sequence scenarios/w4x/pickany2_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1",
+ "relay": "--sequence scenarios/sc4_wallx/trials/pickany2_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1",
  "seconds": 240,
  "wording": {}
 }
