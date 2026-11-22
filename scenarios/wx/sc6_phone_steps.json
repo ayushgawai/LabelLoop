@@ -38,7 +38,7 @@
    "calls": 40
   },
   {
-   "replay": "scenarios/wx/phone_scan_A.json"
+   "replay": "scenarios/wx/phone_scan_A2.json"
   },
   {
    "read": true,
@@ -47,7 +47,7 @@
    "wait_calls": 60
   },
   {
-   "replay": "scenarios/wx/phone_scan_B.json"
+   "replay": "scenarios/wx/phone_scan_B2.json"
   },
   {
    "say": "Use the right arm to pick up the package from the table and put it into zone {zone}.",
