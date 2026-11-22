@@ -25,6 +25,27 @@ def bin_for(code):
     return next((b for b, zs in ZIP3.items() if z in zs), "black")
 
 
+def norm_code(text):
+    """Barcode / QR text -> '420/NNNNN/NNN': '420/90291/001', '(420)90291', '42090291', or a bare 5-digit pincode '90291'; else None."""
+    t = (text or "").strip()
+    if re.fullmatch(r"420/\d{5}/\d{3}", t):
+        return t
+    m = re.search(r"\(?420\)?\D?(\d{5})", t) or re.fullmatch(r"(\d{5})", t)
+    return "420/%s/000" % m.group(1) if m else None
+
+
+def any_barcodes(img):
+    """Texts of every 1D / 2D barcode zxing finds (all formats), with an upscaled + sharpened retry for small labels."""
+    import cv2
+    import zxingcpp
+    out = [b.text for b in zxingcpp.read_barcodes(img)]
+    if not out:
+        s = min(3.0, 3840 / max(img.shape[:2]))
+        g = cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC)
+        out = [b.text for b in zxingcpp.read_barcodes(cv2.addWeighted(g, 1.8, cv2.GaussianBlur(g, (0, 0), 2), -0.8, 0))]
+    return out
+
+
 class Sequence:
     def __init__(self, spec, runlog=None):
         self.spec, self.runlog = spec, runlog
@@ -53,7 +74,7 @@ class Sequence:
 
     def _read(self, images):
         front = images["front"]
-        codes = [t for t, _ in locate(front) if t.startswith("420/")]
+        codes = [c for c in map(norm_code, [t for t, _ in locate(front)] + any_barcodes(front)) if c]
         source = "qr" if codes else None
         if not codes:
             zips = [z for z, _ in label_ocr.zips(front, self.spec.get("roi", [0.02, 0.48, 0.78, 1.0]))]
