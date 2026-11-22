@@ -1,0 +1,4 @@
+{"watchdog": false, "steps": [
+  {"replay": "runs/demos/scenario4_smooth.json"},
+  {"move": {"left": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}, "right": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 6, "max_step": 0.05}
+]}
