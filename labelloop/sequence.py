@@ -99,6 +99,11 @@ class Sequence:
             self.replay = (s, self._demo_rows(s, self.calls))
             if self.replay[1] is None or self.calls >= s.get("calls", 10**6) or self._demo_rows(s, self.calls + 1) is None:
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and "carry" in s:  # scripted two-arm carry of the held box (both arms keep their offset)
+            instr = "(carry %d)" % self.i
+            self.calls += 1
+            if self.calls >= s.get("calls", 6):
+                self.i, self.calls = self.i + 1, 0
         elif s is not None and "move" in s:  # scripted move (organisers allowed simple scripted steps): scripted_reply drives it
             instr = "(scripted move %d)" % self.i
             self.calls += 1
@@ -128,8 +133,37 @@ class Sequence:
         a = 32 * (k - 1)
         return None if a >= len(d["right"]) else (a, min(a + 32, len(d["right"])))
 
+    def _carry(self, embodiment, state, s):
+        c = s["carry"]
+        if "_p0" not in s:  # pose and grip when the carry phase started (shared by the following carry steps via "from": "prev")
+            src = self.carry0 if c.get("from") == "prev" and getattr(self, "carry0", None) else None
+            s["_p0"] = src or {a: (np.asarray(state[a]["position"], float), list(state[a]["rotation_rpy"]), float(state[a]["gripper"])) for a in ("left_ee", "right_ee")}
+            self.carry0 = s["_p0"]
+        p0 = s["_p0"]
+        if c.get("anchor") == "mid":  # box centre = midpoint of the two claws, in the right arm's frame (frames parallel, +y left;
+            off = np.array([0.0, c.get("base_sep", 0.51), 0.0])  # left base ~0.51 m left of the right base: t_tip_A run 1 squeeze)
+            ref = (p0["right_ee"][0] + p0["left_ee"][0] + off) / 2
+        else:
+            ref = np.asarray(p0[c.get("anchor", "right") + "_ee"][0], float)
+        to = ref.copy()
+        if "to" in c:
+            to[:2] = c["to"][:2]
+        to[2] = ref[2] + c.get("dz", 0.0)
+        delta = to - ref
+        cap, targets = s.get("max_step", 0.04), {}
+        for a in ("left_ee", "right_ee"):
+            goal = p0[a][0] + delta
+            cur = np.asarray(state[a]["position"], float)
+            d = np.linalg.norm(goal - cur)
+            nxt = goal if d <= cap else cur + (goal - cur) * cap / d
+            g = c["grip"] if "grip" in c else max(0.0, p0[a][2] - c.get("squeeze", 0.15))  # hold: a bit more closed than measured
+            targets[a] = {"position": nxt.tolist(), "rotation_rpy": p0[a][1], "gripper": g}
+        return move_response(embodiment, state, targets)
+
     def scripted_reply(self, embodiment, state):
         s = self.active
+        if s and "carry" in s:
+            return self._carry(embodiment, state, s)
         if s and "replay" in s:
             span = self.replay[1] if getattr(self, "replay", None) and self.replay[0] is s else None
             if span is None:

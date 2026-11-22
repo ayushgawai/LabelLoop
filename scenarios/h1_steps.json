@@ -1,0 +1,12 @@
+{
+  "watchdog": false,
+  "steps": [
+    {"say": "use both arms to squeeze the short ends of the box and lift it up", "calls": 30, "until": "lifted"},
+    {"carry": {"anchor": "mid", "dz": 0.06}, "calls": 3, "max_step": 0.03},
+    {"carry": {"anchor": "mid", "to": [0.38, 0.02], "dz": 0.06, "from": "prev"}, "calls": 10, "max_step": 0.04},
+    {"carry": {"anchor": "mid", "to": [0.38, 0.02], "dz": 0.0, "from": "prev"}, "calls": 4, "max_step": 0.03},
+    {"carry": {"anchor": "mid", "to": [0.38, 0.02], "dz": 0.0, "grip": 0.84, "from": "prev"}, "calls": 3},
+    {"carry": {"anchor": "mid", "to": [0.38, 0.02], "dz": 0.12, "grip": 0.84, "from": "prev"}, "calls": 4, "max_step": 0.04},
+    {"move": {"left": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}, "right": {"position": [0, 0, 0], "rotation_rpy": [0, 0, 0], "gripper": 0.0}}, "calls": 10, "max_step": 0.05}
+  ]
+}

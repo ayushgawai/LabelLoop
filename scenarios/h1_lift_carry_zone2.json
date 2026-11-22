@@ -1,0 +1,8 @@
+{
+  "name": "h1_lift_carry_zone2",
+  "goal": "Hybrid, slow: WALLX two-arm squeeze-lift (until the box leaves its spot), then scripted two-arm carry to zone 2 (box centre = claw midpoint to ~[0.38, 0.02] in the right arm frame), lower, open, retreat, home.",
+  "setup": "Tape zones; IQBAR flat near the middle; arms at rest.",
+  "relay": "--sequence scenarios/h1_steps.json",
+  "seconds": 130,
+  "wording": {}
+}
