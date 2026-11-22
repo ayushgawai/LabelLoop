@@ -276,6 +276,9 @@ class Relay:
                     locked = set(self.lock_arm) | set(harness.lock_arms() if harness and hasattr(harness, "lock_arms") else ())
                     if locked and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
                         held = hold_response(req["embodiment"], state)["actions"]
+                        for arm, g in (getattr(harness, "hold_grip", None) or {}).items():  # a locked arm holding the phone keeps its grip
+                            if arm + "_ee" in held:
+                                held[arm + "_ee"]["gripper"] = [float(g)] * len(held[arm + "_ee"]["gripper"])
                         for arm in locked:
                             if arm + "_ee" in reply["actions"]:
                                 reply["actions"][arm + "_ee"] = held[arm + "_ee"]

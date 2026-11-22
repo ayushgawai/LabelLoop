@@ -401,45 +401,81 @@
   "id": "phone",
   "label": "Phone scan",
   "trial": null,
-  "run": "scenarios/wx/phone_wallx.json",
-  "recipe": "scenarios/wx/phone_wallx.json",
-  "relay": "--sequence scenarios/wx/phone_wallx_steps.json --slow 0.4 --open-wide 1.5 --deep-close 0.04",
-  "title": "Phone scanner in the left hand: the left arm scans the label with the phone, the harness routes it, WALLX delivers the parcel with the right arm",
+  "run": "scenarios/wx/phone_sort.json",
+  "recipe": "scenarios/wx/phone_sort.json",
+  "relay": "--sequence scenarios/wx/phone_sort_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "title": "Handheld scanner: the left hand holds the phone, the right hand holds the parcel; the phone scans the label, the harness routes it, WALLX sorts the parcel",
   "steps": [
    {
     "who": "robot",
-    "title": "Left arm brings the phone over the parcel",
-    "prompt": "Left arm: hold the phone over the parcel's label.",
-    "detail": "The left claw holds the phone (3x camera) about 24 cm above the middle of the table, camera on the label."
+    "title": "Both hands open at the scan pose",
+    "prompt": "Both arms: open the claws in front of the robot, facing each other.",
+    "detail": "The two claws face each other about 20 cm apart, 18 cm above the table."
    },
    {
     "who": "harness",
-    "title": "Phone scans the label; the harness routes the code",
-    "prompt": "Read the label with the handheld scanner, choose the zone.",
-    "detail": "The phone sends camera frames to the dashboard, which decodes the barcode / QR / pincode and puts it on the package board. The harness takes the newest scan, routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold still until a scan arrives."
+    "title": "Load the phone (left) and the parcel (right)",
+    "prompt": "Put the phone in the LEFT claw (camera toward the right claw) and the parcel in the RIGHT claw (label toward the phone).",
+    "detail": "25 s to place both."
    },
    {
     "who": "robot",
-    "title": "Left arm takes the phone back to rest",
-    "prompt": "Left arm: back to rest with the phone.",
-    "detail": "The left claw keeps the phone."
+    "title": "Gentle grip on the phone and the parcel",
+    "prompt": "Close slowly until the fingers touch; hold the phone without squeezing.",
+    "detail": "Each claw closes in small steps and stops as soon as its fingers meet the object (the measured opening stops following); the phone is held just 0.02 past contact, the parcel a little firmer. That hold is kept for the rest of the run."
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "The phone (3x) sends frames to the dashboard, which decodes the barcode / QR / pincode; the harness routes it (940/941/950/951 → zone 1, 900-902 → zone 2, else zone 3) and writes the zone into the WALLX sentence. The arms hold still until a scan arrives."
+   },
+   {
+    "who": "robot",
+    "title": "Left hand takes the phone out of the way",
+    "prompt": "Left arm: back toward rest, keep holding the phone.",
+    "detail": "The phone stays gripped."
    },
    {
     "who": "wallx",
-    "title": "WALLX picks up the parcel with the right arm and puts it into the scanned zone",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call. The left arm (holding the phone) is locked. 90 calls."
+    "title": "WALLX carries the parcel into the scanned zone (right arm)",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call. The left arm (holding the phone) is locked and keeps its gentle grip. 60 calls."
    },
    {
     "who": "robot",
-    "title": "Release",
-    "prompt": "Open the claw fully and lift straight up.",
-    "detail": "The right claw opens where WALLX left it, then lifts 8 cm."
+    "title": "Release the parcel",
+    "prompt": "Open the right claw and lift straight up.",
+    "detail": "The parcel drops into the zone."
    },
    {
     "who": "robot",
     "title": "Right arm home",
     "prompt": "Right arm: go to rest.",
-    "detail": "The right arm goes to rest."
+    "detail": ""
+   },
+   {
+    "who": "robot",
+    "title": "Left hand brings the phone back",
+    "prompt": "Left arm: bring the phone back to the front.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Take the phone",
+    "prompt": "Take the phone out of the LEFT claw now (hold it: the claw opens next).",
+    "detail": "20 s."
+   },
+   {
+    "who": "robot",
+    "title": "Left claw opens",
+    "prompt": "Open the left claw slowly.",
+    "detail": "Opens to 1.2 (not the full width)."
+   },
+   {
+    "who": "robot",
+    "title": "Left arm home",
+    "prompt": "Left arm: go to rest.",
+    "detail": ""
    },
    {
     "who": "done",

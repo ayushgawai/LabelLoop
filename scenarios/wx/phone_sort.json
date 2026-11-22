@@ -1,0 +1,8 @@
+{
+ "name": "phone_sort",
+ "goal": "Handheld scanner + parcel in the two hands: both claws open at the scan pose; a person puts the phone (scanner page, 3x) in the LEFT claw and the parcel in the RIGHT claw; both close gently until they touch (phone: barely any squeeze); the phone scans the parcel's label; the harness routes the code (zone) and prompts WALLX, which carries the parcel with the right arm into that zone; right arm home; left arm brings the phone back, waits, opens slowly for the person to take it; home.",
+ "setup": "Phone scanner page open (https://192.168.1.157:8443/scan, 3x). Arms at rest. Stand by the robot to put the phone and parcel into the claws when they open (25 s) and to take the phone back at the end.",
+ "relay": "--sequence scenarios/wx/phone_sort_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "seconds": 420,
+ "wording": {}
+}

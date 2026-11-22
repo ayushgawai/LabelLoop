@@ -1,0 +1,157 @@
+{
+ "watchdog": false,
+ "zones": {
+  "blue": "1 at the top left corner of the table",
+  "red": "2 at the top right corner of the table",
+  "black": "3 at the bottom right corner of the table"
+ },
+ "steps": [
+  {
+   "move": {
+    "left": {
+     "position": [
+      0.296,
+      0.002,
+      0.181
+     ],
+     "rotation_rpy": [
+      -0.77,
+      -0.03,
+      -1.25
+     ],
+     "gripper": 1.5
+    },
+    "right": {
+     "position": [
+      0.348,
+      0.0,
+      0.182
+     ],
+     "rotation_rpy": [
+      0.91,
+      0.06,
+      1.73
+     ],
+     "gripper": 1.5
+    }
+   },
+   "calls": 14,
+   "max_step": 0.04
+  },
+  {
+   "wait": "Put the phone in the LEFT claw (camera toward the right claw) and the parcel in the RIGHT claw (label toward the phone).",
+   "calls": 25
+  },
+  {
+   "grip": {
+    "left": 0.02,
+    "right": 0.08
+   },
+   "rate": 0.05,
+   "contact": 0.1,
+   "calls": 40
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 30,
+   "wait_calls": 60
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0.05
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 12,
+   "max_step": 0.04
+  },
+  {
+   "say": "Put the package you are holding into zone {zone}.",
+   "calls": 60,
+   "arm": "right"
+  },
+  {
+   "release": "right",
+   "calls": 4,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 8,
+   "max_step": 0.05
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0.296,
+      0.002,
+      0.181
+     ],
+     "rotation_rpy": [
+      -0.77,
+      -0.03,
+      -1.25
+     ]
+    }
+   },
+   "calls": 12,
+   "max_step": 0.04
+  },
+  {
+   "wait": "Take the phone out of the LEFT claw now (hold it: the claw opens next).",
+   "calls": 20
+  },
+  {
+   "release": "left",
+   "to": 1.2,
+   "calls": 3,
+   "open_calls": 3,
+   "lift": 0.0
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 10,
+   "max_step": 0.04
+  }
+ ]
+}

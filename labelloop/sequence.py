@@ -122,6 +122,7 @@ class Sequence:
 
     def reset(self):
         self.i, self.calls, self.code, self.mat, self.source = 0, 0, None, "black", None
+        self.hold_grip, self.gcmd = {}, {}  # arm -> gripper command that holds a delicate object (phone) without squeezing it
         self.subgoal_changed, self.done, self.state_name, self.last_log = True, False, "SEQ0", None
         self.spot, self.spot0 = None, None  # the parcel's start box and its non-mat fraction (for "until": "lifted")
         self.bin_mat0, self.binhit, self.held = None, 0, False
@@ -244,6 +245,18 @@ class Sequence:
             self.calls += 1
             if self.calls >= s.get("calls", 6):
                 self.i, self.calls = self.i + 1, 0
+        elif s is not None and "wait" in s:  # hold still (e.g. a person puts the phone / parcel into a claw), grips kept
+            instr = "(wait %d)" % self.i
+            self.calls += 1
+            if self.calls >= s.get("calls", 10):
+                self.i, self.calls = self.i + 1, 0
+        elif s is not None and "grip" in s:  # gentle grip: close slowly until the fingers stop on the object, then hold just there
+            instr = "(grip %d)" % self.i
+            self.calls += 1
+            if self._grip_update(s, state) or self.calls >= s.get("calls", 40):
+                for arm in s["grip"]:
+                    self.hold_grip[arm] = self.hold_grip.get(arm, self.gcmd.get(arm, 0.0))
+                self.i, self.calls, self.gcmd = self.i + 1, 0, {}
         elif s is not None and "move" in s:  # scripted move (organisers allowed simple scripted steps): scripted_reply drives it
             instr = "(scripted move %d)" % self.i
             self.calls += 1
@@ -349,16 +362,49 @@ class Sequence:
             targets[a] = {"position": nxt.tolist(), "rotation_rpy": p0[a][1], "gripper": g}
         return move_response(embodiment, state, targets)
 
+    def _grip_update(self, s, state):
+        """One call of a gentle grip: each arm's command steps down by `rate`; when the measured opening stops following (the
+        fingers touch the object), hold at measured - squeeze[arm]. True when every arm has contact."""
+        rate, done = s.get("rate", 0.05), True
+        for arm, squeeze in s["grip"].items():
+            if arm in self.hold_grip:
+                continue
+            g = float(state[arm + "_ee"]["gripper"])
+            cmd = self.gcmd.get(arm, g)
+            if cmd < 1.4 and g - cmd > s.get("contact", 0.10):  # blocked by the object: contact
+                self.hold_grip[arm] = max(0.0, g - squeeze)
+                continue
+            self.gcmd[arm] = max(0.0, cmd - rate)
+            done = False
+        return done
+
+    def _with_grips(self, state, targets):
+        """Every arm holding a delicate object keeps its hold command (a plain 'hold still' would command the measured opening:
+        no grip force, the phone could slip)."""
+        for arm, g in self.hold_grip.items():
+            k = arm + "_ee"
+            t = targets.setdefault(k, {"position": list(state[k]["position"]), "rotation_rpy": list(state[k]["rotation_rpy"])})
+            t.setdefault("gripper", g)
+        return targets
+
     def scripted_reply(self, embodiment, state):
         s = self.active
+        if s and "grip" in s:
+            t = {a + "_ee": {"position": list(state[a + "_ee"]["position"]), "rotation_rpy": list(state[a + "_ee"]["rotation_rpy"]),
+                             "gripper": self.hold_grip.get(a, self.gcmd.get(a, float(state[a + "_ee"]["gripper"])))} for a in s["grip"]}
+            return move_response(embodiment, state, self._with_grips(state, t))
+        if s and ("wait" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
+            return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
             arm = {"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else s["release"]
             k = arm + "_ee"
             pos = np.asarray(state[k]["position"], float)
             if self.calls == 0 or self.calls > s.get("open_calls", 2):  # step advanced (calls reset) or lifting phase
                 pos = pos + np.array([0, 0, min(0.04, s.get("lift", 0.08))])
-            g = 1.5 if s.get("open", True) else float(state[k]["gripper"])  # "open": false = just lift clear, claw as it is
-            return move_response(embodiment, state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}})
+            g = s.get("to", 1.5) if s.get("open", True) else float(state[k]["gripper"])  # "open": false = lift clear, claw as it is
+            if s.get("open", True):
+                self.hold_grip.pop(arm, None)  # let go: no more hold command for this arm
+            return move_response(embodiment, state, self._with_grips(state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}}))
         if s and "carry" in s:
             return self._carry(embodiment, state, s)
         if s and "replay" in s:
@@ -387,7 +433,7 @@ class Sequence:
             targets[key] = {"position": nxt.tolist(), "rotation_rpy": t.get("rotation_rpy", list(state[key]["rotation_rpy"]))}
             if "gripper" in t:
                 targets[key]["gripper"] = t["gripper"]
-        return move_response(embodiment, state, targets)
+        return move_response(embodiment, state, self._with_grips(state, targets))
 
     def log_reply(self, latency_s, error=None):
         if self.runlog:
