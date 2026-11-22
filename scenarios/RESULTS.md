@@ -52,3 +52,5 @@
 - 2026-11-21 23:24 | sc2_miro_right_zone2 run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 23:27 | sc2_miro_right_zone2 run_3 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 23:27 | SCENARIO 2 FINAL 3/3 (sc2_miro_right_zone2 run_1..3) | recipe scenarios/keepers/sc2/recipe.json | videos runs/scenarios/sc2_miro_right_zone2/run_*/demo.mp4
+- 2026-11-21 23:43 | sc3_turn_handover_zone1 run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 00:04 | sc3_turn_handover_zone1 run_1 | harness no verdict in None s | observed: - | states {} | flags []

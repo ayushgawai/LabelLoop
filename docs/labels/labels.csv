@@ -7,7 +7,7 @@ LL-05,420/90015/001,90015,900,B,bin_red,Sofia Lindqvist,1400 S Figueroa St,Los A
 LL-06,420/60601/001,60601,606,reject,reject_bin,Marcus Webb,77 E Randolph St,Chicago,IL,LLX 5678 5988 4106 21,3.0,2026-11-20,small,z60601,"sim only (white retail box 5 x 3.5 x 2.5 in), not yet bought"
 LL-07,420/95014/001,95014,950,A,bin_blue,Hana Kimura,10300 De Anza Blvd,Cupertino,CA,LLX 2839 0467 7002 11,1.2,2026-11-20,large,z95014,"sim only (large kraft box 12 x 10 x 6 in), not yet bought"
 LL-08,420/95126/001,95126,951,A,bin_blue,Olivia Grant,415 Union Ave,San Jose,CA,LLX 6606 1424 0526 09,1.2,2026-11-20,large,bhindi,Bhindi Masala ready-meal box 6.5 x 4 x 1.5 in
-LL-09,420/94043/001,94043,940,A,bin_blue,Noah Patel,600 Castro St,Mountain View,CA,LLX 6718 9962 5003 55,1.5,2026-11-20,large,z10001,soft plastic bag parcel (padded mailer 10 x 8.5 in); sim id kept from its old label
+LL-09,420/94043/001,94043,940,B,bin_red,Noah Patel,600 Castro St,Mountain View,CA,LLX 6718 9962 5003 55,1.5,2026-11-20,large,z10001,soft plastic bag parcel (padded mailer 10 x 8.5 in); sim id kept from its old label
 LL-10,420/95054/001,95054,950,A,bin_blue,Lena Fischer,2250 Lawrence Rd,Santa Clara,CA,LLX 6737 4690 8732 41,1.6,2026-11-20,large,garbage,perfume box 6 x 4 x 2 in (lies flat); sim id kept
 LL-11,420/90024/001,90024,900,B,bin_red,Carlos Mendoza,405 Hilgard Ave,Los Angeles,CA,LLX 8055 0572 6616 58,3.0,2026-11-20,large,iqbar_a,IQBAR protein bar pack 10.5 x 4 x 2.5 in
 LL-12,420/90012/001,90012,900,B,bin_red,Ruth Adler,200 N Spring St,Los Angeles,CA,LLX 9928 8923 9806 85,1.7,2026-11-20,large,miro,Miro box 8.5 x 6.5 x 1.5 in
