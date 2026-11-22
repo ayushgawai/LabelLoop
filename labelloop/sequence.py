@@ -353,7 +353,9 @@ class Sequence:
                     if arm == "auto":
                         arm = "left" if px[0] < images["front"].shape[1] / 2 else "right"
                     x, y = pix_to_arm(px[0], px[1], arm)
-                    x, y = x + c.get("dx", 0.0), y + c.get("dy", 0.0)
+                    # retries walk a small search pattern around the estimate (the pixel->arm map is ~4-7 cm off at the table edges)
+                    ox, oy = [(0, 0), (0.04, 0), (-0.04, 0), (0, 0.04), (0, -0.04), (0.04, 0.04), (-0.04, -0.04), (0.04, -0.04)][(getattr(self, "pick_try", 1) - 1) % 8]
+                    x, y = x + c.get("dx", 0.0) + ox, y + c.get("dy", 0.0) + oy
                     zg, zh, rpy = c.get("z", 0.0), c.get("z_high", 0.15), c.get("rpy", GRASP_RPY[arm])
                     self.pick_arm, self.pick_px = arm, [round(px[0]), round(px[1])]
                     from labelloop.dashboard.track import find_parcel as _fp
@@ -369,13 +371,15 @@ class Sequence:
                 self.calls += 1
                 self.pick_k = self.calls  # (scripted_reply runs after the index may have advanced and calls reset)
                 if self.calls >= sum(p[3] for p in self.pick_plan):
-                    if self._pick_spot_covered(images["front"]) and getattr(self, "pick_try", 1) < c.get("tries", 3):
-                        self.pick_try = getattr(self, "pick_try", 1) + 1  # the parcel is still on its spot: pick again (fresh detection)
-                        self.pick_plan, self.calls, self.pick_retry_flag = None, 0, True
+                    covered = self._pick_spot_covered(images["front"])
+                    if covered and getattr(self, "pick_try", 1) < c.get("tries", 3):
+                        self.pick_try = getattr(self, "pick_try", 1) + 1  # the parcel is still on its spot: pick again (fresh detection,
+                        self.pick_plan, self.calls, self.pick_retry_flag = None, 0, True  # next offset of the search pattern)
                     else:
                         self.i, self.calls, self.pick_try = self.i + 1, 0, 1
                         self.pick_plan_done = self.pick_plan
-                        self.holding_arm = self.pick_arm  # the relay keeps this claw shut (a soft bag reads 'closed' even when held)
+                        # verified -> the relay keeps this claw shut (a soft bag reads 'closed'); not verified -> WALLX may grab it itself
+                        self.holding_arm = None if covered else self.pick_arm
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
