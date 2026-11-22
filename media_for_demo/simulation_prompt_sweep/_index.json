@@ -1,0 +1,156 @@
+[
+ [
+  1,
+  "Short one-shot",
+  "Put the IQBAR box into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  2,
+  "Object description",
+  "Put the dark-brown IQBAR carton, about 20 by 10 by 5 centimeters, standing on its long edge near the center of the table, into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  3,
+  "Detailed one-shot",
+  "Approach the upright IQBAR box in the middle of the table from above with the claw open. Place the jaws on either side of its thin width, across the broad faces, instead of gripping the two short ends. Lower the open jaws past the top edge before closing firmly around the box. Lift the box clear of the table, carry it to the taped square at the back right, lower it inside zone 2, and release it.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  4,
+  "Atomic sequence",
+  "Open the claw and move it directly above the IQBAR box. | Lower the open claw around the IQBAR box, with one jaw on each broad face. | Close the claw around the sides of the IQBAR box. | Lift the IQBAR box straight up without opening the claw. | Keep holding the IQBAR box and carry it above the taped square at the back right. | Lower the IQBAR box inside zone 2 and set it down. | Open the claw to release the IQBAR box and lift the empty claw away.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  21,
+  "2610-dualhead-v2"
+ ],
+ [
+  5,
+  "Pick then place",
+  "Pick up the IQBAR box. | Put the IQBAR box into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  6,
+  "Named arm and grip",
+  "Use the right arm to grip the IQBAR box from above, with the jaws across the two broad sides. Lift it and put it into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  7,
+  "State and negation",
+  "The IQBAR box is not in zone 2 yet. Pick up the box from the middle of the table, then put it down fully inside the taped square at the back right.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  8,
+  "Container grammar",
+  "Put the IQBAR box into the tray.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  9,
+  "Three fresh-history rounds",
+  "Put the IQBAR box into zone 2. | Put the IQBAR box into zone 2. | Put the IQBAR box into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  24,
+  "2610-dualhead-v2"
+ ],
+ [
+  10,
+  "Displacement with history reset",
+  "Put the IQBAR box into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ],
+ [
+  11,
+  "Object description",
+  "Put the dark-brown IQBAR carton, about 20 by 10 by 5 centimeters, standing on its long edge near the center of the table, into zone 2.",
+  {
+   "claw_opened": true,
+   "grasped": false,
+   "lifted": false,
+   "placed_inside_zone_2": false,
+   "followed_literally": false
+  },
+  20,
+  "2610-dualhead-v2"
+ ]
+]

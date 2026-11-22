@@ -7,3 +7,4 @@ outputs/
 runs/
 # organizer PDFs contain the WALLX key; keep them out of git
 instructions/
+media_for_demo/**/*.mp4
