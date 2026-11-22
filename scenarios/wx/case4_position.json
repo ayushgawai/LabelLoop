@@ -2,7 +2,7 @@
  "name": "case4_position",
  "goal": "Case 4 position change: round 1 = scenario 1 recording slowed 2x (bag centre -> zone 1); a person takes it out and puts it in the centre; the harness sees it; the left arm picks it up (recording, slowed 2x) and WALLX carries it into zone 1 (head camera only, the scenario 4 prompt style that worked); the harness sees it in the bin and homes; once more.",
  "setup": "White mailer bag in the centre (scenario 1 start marks), label up; arms at rest. After each put-back (arms home), take it out and put it in the centre again.",
- "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
  "seconds": 470,
  "wording": {},
  "quick": true

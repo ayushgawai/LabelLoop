@@ -39,7 +39,9 @@
   },
   {
    "wait_parcel": true,
-   "calls": 150
+   "calls": 200,
+   "bin_box": 0,
+   "out_area": 2500
   },
   {
    "replay": "scenarios/wx/case4_pick_slow.json"

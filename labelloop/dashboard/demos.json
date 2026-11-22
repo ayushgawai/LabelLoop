@@ -208,7 +208,7 @@
   "trial": null,
   "run": "scenarios/wx/case4_position.json",
   "recipe": "scenarios/wx/case4_position.json",
-  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "relay": "--sequence scenarios/wx/case4_position_steps.json --slow 0.4 --no-reset-on-subgoal --front-only --grip-binary 0.7",
   "title": "Case 4, position change (harness + WALLX): the bag goes into zone 1; a person takes it out and puts it in the centre; the harness sees it, picks it up and WALLX puts it back into zone 1",
   "steps": [
    {

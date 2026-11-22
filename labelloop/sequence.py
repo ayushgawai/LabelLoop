@@ -293,9 +293,17 @@ class Sequence:
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
-            self.seen_n = getattr(self, "seen_n", 0) + 1 if locate_parcel(images["front"], self.spec.get("parcel", "dark")) else 0
+            kind = self.spec.get("parcel", "dark")
+            if "bin_box" in s:  # first the parcel must LEAVE the bin (its area there drops), only then count it on the table
+                area = parcel_in_box(images["front"], ZONE_BOXES[s["bin_box"]], kind)
+                if self.calls == 1:
+                    self.bin_full = area
+                    self.left_bin = area < s.get("full_area", 5000)  # already out of the bin when watching starts: fine
+                self.left_bin = self.left_bin or area < self.bin_full - s.get("out_area", 2500)
+            on_table = locate_parcel(images["front"], kind) and ("bin_box" not in s or self.left_bin)
+            self.seen_n = getattr(self, "seen_n", 0) + 1 if on_table else 0
             if self.seen_n >= 3:
-                self.seen_n, self.i, self.calls, self.parcel_back = 0, self.i + 1, 0, True
+                self.seen_n, self.i, self.calls, self.parcel_back, self.left_bin = 0, self.i + 1, 0, True, False
             elif self.calls >= s.get("calls", 120):  # nobody took it out: finish (skip the remaining steps)
                 self.i, self.calls = len(self.spec["steps"]) - 1, 0
         elif s is not None and "grip" in s:  # gentle grip: close slowly until the fingers stop on the object, then hold just there
