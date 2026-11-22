@@ -180,7 +180,7 @@ class Harness:
             now = self._spot_presence(front, cfg, spot)
             ev["spot_cleared"] = initial > cfg["presence_min"] and now <= initial * (1 - self.cfg["stage_grasp"]["spot_drop"])
         instr = self.sm.step(ev)
-        if self.sm.state == "PICK" and self.sm.calls == 0:
+        if self.sm.state in ("PICK", "PLACE") and self.sm.calls == 0 and (self.sm.state == "PICK" or self.pick_spot is None):  # the parcel's start spot (PLACE: unstaged)
             self.pick_spot = (self.obj_box, self._spot_presence(front, cfg, self.obj_box)) if self.obj_box is not None else None
         if before == "SCAN" and self.sm.state == "LOOK":  # parcel point from the changed pixels of the zone, once
             self.plan_look(front, cfg)

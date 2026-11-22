@@ -215,6 +215,8 @@ class StateMachine:
         if not self.lane and self.cfg.get("reject_mode", "tray") == "floor_right":
             return ev["presence"] < sc["presence_min"]  # swiped off the table: the zone is empty
         bin_ = self.cfg["lanes"][self.lane] if self.lane else "black"
+        if "spot_cleared" in ev:  # the parcel's start spot is known: it left that spot + the target bin changed (s2: the arm kept hovering, zone 0.14-0.39)
+            return bool(ev["spot_cleared"]) and ev["bins"][bin_] >= sc.get("success_bin_gain", sc["bin_gain"])
         if ev.get("obj"):  # event_fast: a parcel-sized object is still on the table (s1 v1: box pushed against a bin read as "gone" by presence)
             return False
         return (ev["presence"] < sc.get("success_presence_max", sc["presence_min"])  # real table: resting arms keep the zone at 0.06-0.15 after a drop
@@ -381,7 +383,7 @@ class StateMachine:
                 self._retry_delivery()
         elif s in ACTIONS and cfg.get("event_fast"):  # verified DURING the calls; a retry goes straight back to the action, HOME only to end the parcel
             self.ok = self.ok + 1 if self._success(ev) else 0
-            if self.ok >= cfg["ok_calls"]:
+            if self.ok >= cfg.get("success_calls", cfg["ok_calls"]):  # recipes may require a sustained drop (the arm passing over the bin is transient)
                 self.landed = True
                 self._go("HOME", "outcome ok")
             elif self.calls >= cfg["max_calls"][s] or over or (not self.staged and self._bad_grasp(ev)):
