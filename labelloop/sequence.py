@@ -488,7 +488,8 @@ class Sequence:
         self.done = s is None
         self.state_name = "SEQ%d" % before
         self.last_log = {"step": before, "instruction": instr, "code": self.code, "source": self.source, "bin": self.mat,
-                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "pick": getattr(self, "pick_px", None), "waiting_phone": getattr(self, "waiting_phone", False),
+                         "lock": list(self.lock_arms()), "where": getattr(self, "where_xy", None), "pick": getattr(self, "pick_px", None), "pick_mat": getattr(self, "pick_mat", None),
+                         "pick_try": getattr(self, "pick_try", None), "waiting_phone": getattr(self, "waiting_phone", False),
                          "flags": (["re-scan: parcel at %s, task given again" % self.where] if locals().get("moved") == "reissue"
                                    else ["parcel moved to %s: new WALLX prompt" % self.where] if locals().get("moved")
                                    else ["no phone scan arrived: no zone guessed, going home"] if getattr(self, "no_scan", False) and self.i != before
@@ -597,6 +598,10 @@ class Sequence:
                 if getattr(self, "holding_arm", None) == arm:
                     self.holding_arm = None
             return move_response(embodiment, state, self._with_grips(state, {k: {"position": pos.tolist(), "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": g}}))
+        if s and "autopick" in s and not getattr(self, "pick_plan", None):  # between pick attempts: open the claw, hold still
+            k = (getattr(self, "pick_arm", None) or "right") + "_ee"  # (never fall through: that sent '(autopick N)' to WALLX)
+            return move_response(embodiment, state, self._with_grips(state, {k: {"position": list(state[k]["position"]),
+                                                                                  "rotation_rpy": list(state[k]["rotation_rpy"]), "gripper": 1.5}}))
         if s and "autopick" in s and getattr(self, "pick_plan", None):
             k, n = getattr(self, "pick_k", self.calls), 0
             for pos, rpy, g, calls in self.pick_plan:  # the waypoint this call heads for
