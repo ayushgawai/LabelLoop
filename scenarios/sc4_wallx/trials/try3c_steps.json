@@ -43,7 +43,7 @@
    "read": true
   },
   {
-   "replay": "scenarios/w4x/sc4_pick_handover.json"
+   "replay": "scenarios/sc4_wallx/trials/sc4_pick_handover.json"
   },
   {
    "move": {
@@ -78,7 +78,7 @@
    "max_step": 0.04
   },
   {
-   "say": "Put the purple box into the square on the left side of the table.",
+   "say": "Put the box into the bowl.",
    "calls": 40,
    "arm": "left"
   },

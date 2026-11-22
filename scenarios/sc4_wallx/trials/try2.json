@@ -2,7 +2,7 @@
  "name": "w4x_try2",
  "goal": "Scenario 4 with WALLX, try 2 (one change from try 1: no in_zone cut-off): replayed right-arm pick + handover, right arm homes, then WALLX places with the left arm (right locked) for up to 40 calls: 'Put the box on the number 1.'; then the scripted release (if still held) and home.",
  "setup": "Bhindi box on the scenario 4 start marks (right side, in front of zone 2); arms at rest.",
- "relay": "--sequence scenarios/w4x/try2_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "relay": "--sequence scenarios/sc4_wallx/trials/try2_steps.json --slow 0.4 --no-reset-on-subgoal",
  "seconds": 180,
  "wording": {}
 }

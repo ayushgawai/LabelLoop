@@ -1,8 +1,0 @@
-{
- "name": "w4x_demo",
- "goal": "Scenario 4 demo recipe = try 3 unchanged (3-in-a-row check): replayed pick + handover, then WALLX (left arm, right locked, 40 calls): 'Put the purple box into the square on the left side of the table.'; scripted release + home.",
- "setup": "Bhindi box STANDING on its long narrow edge just in front of zone 2's front-left corner, big face toward the camera, long side left-right (slightly angled), as in try 3 run 1 after placement (runs/manual/sc4_demo_start_pose.jpg); arms at rest.",
- "relay": "--sequence scenarios/w4x/try3_steps.json --slow 0.4 --no-reset-on-subgoal",
- "seconds": 180,
- "wording": {}
-}

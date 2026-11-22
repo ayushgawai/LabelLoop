@@ -43,7 +43,7 @@
    "read": true
   },
   {
-   "replay": "scenarios/w4x/sc4_pick_handover.json"
+   "replay": "scenarios/sc4_wallx/trials/sc4_pick_handover.json"
   },
   {
    "move": {
@@ -79,8 +79,10 @@
   },
   {
    "say": "Put the box on the number {zone}.",
-   "calls": 40,
-   "arm": "left"
+   "calls": 60,
+   "arm": "left",
+   "until": "in_zone",
+   "zone_calls": 2
   },
   {
    "release": "left",

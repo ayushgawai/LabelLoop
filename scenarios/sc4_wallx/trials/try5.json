@@ -2,7 +2,7 @@
  "name": "w4x_try5",
  "goal": "Scenario 4 with WALLX doing the pick (handout idea 3): WALLX right arm 'Pick up the purple box.' (left locked) until the box left its spot and the right claw grips it (else skip to home); scripted lift 10 cm (claw closed); slow scripted move of both arms to the demo's 34 s poses; replay of the demo 34-59.2 s (gradual wrist turn, handover: left claw takes the box, right opens); right arm homes; WALLX left arm 'Put the purple box into the square on the left side of the table.' (try 3's sentence, 40 calls); release; home.",
  "setup": "Bhindi box anywhere in the right half of the table, in reach of the right arm; arms at rest.",
- "relay": "--sequence scenarios/w4x/try5_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1",
+ "relay": "--sequence scenarios/sc4_wallx/trials/try5_steps.json --slow 0.4 --no-reset-on-subgoal --z-offset -1",
  "seconds": 240,
  "wording": {}
 }

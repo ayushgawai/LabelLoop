@@ -160,7 +160,7 @@
    "max_step": 0.03
   },
   {
-   "replay": "scenarios/w4x/sc4_from_lift.json"
+   "replay": "scenarios/sc4_wallx/trials/sc4_from_lift.json"
   },
   {
    "move": {
