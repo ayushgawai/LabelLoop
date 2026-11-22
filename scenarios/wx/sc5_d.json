@@ -1,0 +1,8 @@
+{
+ "name": "sc5_d",
+ "goal": "sc5 CLI test D: = C (all cameras, 90 calls, --slow 0.3) + --open-wide 1.5 (claw fully open when WALLX opens it) + --deep-close 0.04 (claw sinks 4 cm open before closing)",
+ "setup": "IQBAR box standing sideways in the middle",
+ "relay": "--sequence scenarios/wx/sc5_c_steps.json --slow 0.3 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04",
+ "seconds": 230,
+ "wording": {}
+}

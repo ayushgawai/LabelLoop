@@ -1,0 +1,8 @@
+{
+ "name": "sc5_b",
+ "goal": "sc5 CLI test B: all 3 cameras (no --front-only), one destination sentence, 40 calls, --slow 0.3",
+ "setup": "IQBAR box standing sideways in the middle",
+ "relay": "--sequence scenarios/wx/sc5_b_steps.json --slow 0.3 --no-reset-on-subgoal",
+ "seconds": 160,
+ "wording": {}
+}

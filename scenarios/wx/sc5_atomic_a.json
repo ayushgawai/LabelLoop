@@ -1,0 +1,8 @@
+{
+ "name": "sc5_atomic_a",
+ "goal": "sc5 CLI test A: atomic WALLX steps (open+above, lower, close, lift, put into zone), few calls each, --slow 0.3",
+ "setup": "IQBAR box standing sideways in the middle, label up",
+ "relay": "--sequence scenarios/wx/sc5_atomic_a_steps.json --slow 0.3 --no-reset-on-subgoal --front-only",
+ "seconds": 220,
+ "wording": {}
+}

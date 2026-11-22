@@ -121,3 +121,6 @@
 - 2026-11-22 09:35 | sc5_wallx run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 09:39 | sc5_atomic_a run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-22 09:41 | sc5_b run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 09:45 | sc5_c run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-22 09:52 | sc5_d run_1 (IQBAR box sideways, all 3 cameras, 'Pick up the IQBAR box and put it into zone 2.', 90 calls, --slow 0.3 --open-wide 1.5 --deep-close 0.04) | USER: picked it up and placed it (first IQBAR pick by WALLX today); earlier: front-only never opened the claw (sc5 run_1, atomic A), all cameras opened it but closed too high (B, C) | video runs/scenarios/sc5_d/run_1/demo.mp4
+- 2026-11-22 09:48 | sc5_d run_1 | harness no verdict in None s | observed: - | states {} | flags []
