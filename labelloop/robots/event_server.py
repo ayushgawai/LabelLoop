@@ -65,6 +65,7 @@ class Relay:
         self.endpoint, self.headers, self.make_harness, self.make_client, self.save_dir, self.hold = endpoint, headers, make_harness, make_client, save_dir, hold
         self.recorder, self.record_meta = recorder, dict(record_meta or {})
         self.overlay_mode = overlay_mode
+        self.lock_arm = ()  # arms whose WALLX actions are replaced by a hold (--lock-arm)
 
     def _overlay_front(self, harness, req, frame_index):
         mask_bins = getattr(harness, "mask_bins", None)
@@ -205,6 +206,11 @@ class Relay:
                     latency_ms = (time.monotonic() - t1) * 1000
                     if harness:
                         harness.log_reply(latency_ms / 1000, err)
+                    if self.lock_arm and isinstance(reply, dict) and isinstance(reply.get("actions"), dict):  # hard rule: the idle arm holds still
+                        held = hold_response(req["embodiment"], state)["actions"]
+                        for arm in self.lock_arm:
+                            if arm + "_ee" in reply["actions"]:
+                                reply["actions"][arm + "_ee"] = held[arm + "_ee"]
                     await downstream.send(pack(reply))
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 if trial:
@@ -236,6 +242,7 @@ async def main():
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--wording", default="", help="JSON file overriding WALLX instruction templates, e.g. {\"PLACE\": \"put the small box at the {where} into the {mat} bin\"}")
+    p.add_argument("--lock-arm", default="", help="comma list of arms (left,right) whose WALLX motion is replaced by holding still (hard rule: the idle arm cannot grab a bin)")
     p.add_argument("--cfg", default="", help="JSON merged into the task config (recipes), e.g. '{\"tries\": {\"STAND\": 2}}'")
     p.add_argument("--assume-code", default="", help="PRACTICE ONLY: treat the object on the table as carrying this code (manipulation trials without label reading)")
     p.add_argument("--stage", action=argparse.BooleanOptionalAction, default=False, help="event_fast staged delivery with per-stage bin masking (hard rule: WALLX cannot see the bins it must not grab)")
@@ -269,6 +276,7 @@ async def main():
     recorder = TrialRecorder(a.record) if a.record else None
     meta = {"profile": a.profile, "real_safe": a.real_safe, "fast": a.fast, "hold": a.hold, "passthrough": a.passthrough}
     relay = Relay(None, None, make_harness, WallxClient.from_env, a.save_images or None, a.hold, recorder, meta, a.overlay)  # backend from configs/wallx.yaml
+    relay.lock_arm = tuple(x for x in a.lock_arm.split(",") if x in ("left", "right"))
     async with start(relay, a.host, a.port):
         print(f"Relay listening at ws://{a.host}:{a.port}", flush=True)
         await asyncio.Future()
