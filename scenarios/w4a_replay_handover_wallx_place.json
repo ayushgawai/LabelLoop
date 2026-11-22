@@ -1,0 +1,8 @@
+{
+ "name": "w4a_replay_handover_wallx_place",
+ "goal": "Scenario 4 with WALLX (V1): harness reads the label (demo code 95126 -> blue -> zone 1), replays the recorded right-arm pick + handover, right arm homes, then WALLX places with the left arm: 'Put the box into the square marked 1.' (spoon-example style); harness cuts WALLX off when the box is over zone 1, releases, homes.",
+ "setup": "Bhindi box on the scenario 4 start marks; arms at rest.",
+ "relay": "--sequence scenarios/w4a_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 180,
+ "wording": {}
+}
