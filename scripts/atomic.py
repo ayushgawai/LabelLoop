@@ -48,6 +48,7 @@ def main():
     a.add_argument("instructions", nargs="*")
     a.add_argument("--recipe", default="", help="scenarios/<atomic recipe>.json (instruction, relay, seconds); runs append to scenarios/RESULTS.md")
     a.add_argument("--seconds", type=int, default=25)
+    a.add_argument("--no-watchdog", action="store_true", help="do not stop on a moved bin (tape zones: no bins)")
     a.add_argument("--relay", default="", help="extra relay flags for every session, e.g. '--lock-arm right'")
     o = a.parse_args()
     rec = json.loads(Path(o.recipe).read_text()) if o.recipe else None
@@ -78,7 +79,7 @@ def main():
             with open(ROOT / "scenarios/RESULTS.md", "a") as f:
                 f.write(f"- {time.strftime('%Y-%m-%d %H:%M')} | {rec['name']} | parcel_moved {r.get('parcel_moved')} gone {r.get('parcel_gone')} | "
                         f"bin_moved {r.get('bin_moved')} | {out.relative_to(ROOT)} | observed: (fill in)\n")
-        if r.get("bin_moved"):
+        if r.get("bin_moved") and not o.no_watchdog:
             print("STOP: bin moved:", r["bin_moved"], flush=True)
             break
     if tiles:

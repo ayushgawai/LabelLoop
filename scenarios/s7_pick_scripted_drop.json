@@ -1,0 +1,9 @@
+{
+  "name": "s7_pick_scripted_drop",
+  "goal": "Hybrid: WALLX picks the IQBAR (right arm, left locked) until lifted; scripted carry to zone 2 (drop pose from s2 run 3 shifted 9 cm right), open, retreat, home.",
+  "setup": "Tape zones; IQBAR standing on its narrow side, front-to-back, right of centre, about 15 cm in front of zone 2; arms at rest.",
+  "relay": "--sequence scenarios/s7_steps.json",
+  "seconds": 75,
+  "wording": {},
+  "notes": "Organisers allowed simple scripted steps. Drop pose (home-relative, right arm): s2 run 3 released over the red bin at [0.447, 0.141, 0.101]."
+}

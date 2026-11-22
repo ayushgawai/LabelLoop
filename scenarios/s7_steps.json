@@ -1,0 +1,10 @@
+{
+  "watchdog": false,
+  "steps": [
+    {"say": "pick up the IQBAR box", "calls": 20, "arm": "right", "until": "lifted"},
+    {"move": {"right": {"position": [0.40, 0.05, 0.20]}}, "calls": 5},
+    {"move": {"right": {"position": [0.45, 0.05, 0.12], "gripper": 0.85}}, "calls": 3},
+    {"move": {"right": {"position": [0.25, 0.0, 0.22], "gripper": 0.0}}, "calls": 3},
+    {"move": {"right": {"position": [0.0, 0.0, 0.0], "rotation_rpy": [0.0, 0.0, 0.0]}}, "calls": 5}
+  ]
+}

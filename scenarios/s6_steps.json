@@ -1,0 +1,8 @@
+{
+  "watchdog": false,
+  "steps": [
+    {"say": "push the box to the right with the left arm", "calls": 12, "arm": "left"},
+    {"say": "push the box away from you with the right arm", "calls": 12, "arm": "right"},
+    {"say": "put both arms back to the home position", "calls": 3}
+  ]
+}

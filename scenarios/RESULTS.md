@@ -19,3 +19,4 @@
 - 2026-11-21 17:57 | s4_atomic_read_pick_turn_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 18:01 | s4_atomic_read_pick_turn_place run_2 | harness no verdict in None s | observed: - | states {} | flags []
 - 2026-11-21 18:06 | s5_read_pick_place run_1 | harness no verdict in None s | observed: - | states {} | flags []
+- 2026-11-21 18:41 | s6_two_push run_1 | harness no verdict in None s | observed: - | states {} | flags []

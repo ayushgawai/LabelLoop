@@ -1,0 +1,8 @@
+{
+  "name": "s6_two_push",
+  "goal": "Slide the box to zone 2 with two adjacent-side pushes: left arm pushes it right (right arm locked), then right arm pushes it away (left arm locked).",
+  "setup": "Tape zones (1 back-left, 2 back-right, 3 right edge), IQBAR flat in the middle, arms at rest.",
+  "relay": "--sequence scenarios/s6_steps.json",
+  "seconds": 70,
+  "wording": {}
+}

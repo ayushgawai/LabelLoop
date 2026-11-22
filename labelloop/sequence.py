@@ -14,6 +14,7 @@ import numpy as np
 
 from labelloop.perception import label_ocr, scene
 from labelloop.perception.qr import locate
+from labelloop.wallx_client import move_response
 
 ZIP3 = {"blue": ("940", "941", "950", "951"), "red": ("900", "901", "902")}
 
@@ -33,7 +34,8 @@ class Sequence:
         self.i, self.calls, self.code, self.mat, self.source = 0, 0, None, "black", None
         self.subgoal_changed, self.done, self.state_name, self.last_log = True, False, "SEQ0", None
         self.spot, self.spot0 = None, None  # the parcel's start box and its non-mat fraction (for "until": "lifted")
-        self.bin_mat0, self.binhit, self.held = None, 0, False  # bin watchdog: mat uncovered where a bin stood -> hold for good
+        self.bin_mat0, self.binhit, self.held = None, 0, False
+        self.active = None  # the step executed this call (scripted_reply needs it)  # bin watchdog: mat uncovered where a bin stood -> hold for good
 
     @property
     def step_spec(self):
@@ -69,7 +71,7 @@ class Sequence:
     def step(self, images, state):
         before, self.subgoal_changed = self.i, False
         sc = self.spec.get("scene")
-        if sc and sc.get("bin_rois"):  # watchdog (s4 run 2: with no box in the gripper WALLX dragged the red bin)
+        if sc and sc.get("bin_rois") and self.spec.get("watchdog", True):  # watchdog (s4 run 2: with no box in the gripper WALLX dragged the red bin)
             mats = {c: scene.mat_fraction(images["front"], sc, b) for c, b in sc["bin_rois"].items()}
             if self.bin_mat0 is None:
                 self.bin_mat0 = mats
@@ -90,8 +92,13 @@ class Sequence:
             self.i += 1
             self.calls = 0
         s = self.step_spec
-        instr = None
-        if s is not None:
+        instr, self.active = None, s
+        if s is not None and "move" in s:  # scripted move (organisers allowed simple scripted steps): scripted_reply drives it
+            instr = "(scripted move %d)" % self.i
+            self.calls += 1
+            if self.calls >= s.get("calls", 3):
+                self.i, self.calls = self.i + 1, 0
+        elif s is not None:
             instr = s["say"].format(mat=self.mat)
             self.calls += 1
             lifted = (s.get("until") == "lifted" and self.spot is not None and self.spot0
@@ -108,7 +115,20 @@ class Sequence:
         return instr
 
     def scripted_reply(self, embodiment, state):
-        return None
+        s = self.active
+        if not s or "move" not in s:
+            return None
+        cap, targets = s.get("max_step", 0.10), {}
+        for arm, t in s["move"].items():  # {"right": {"position": [...], "rotation_rpy": [...], "gripper": g}} home-relative
+            key = arm + "_ee"
+            cur = np.asarray(state[key]["position"], float)
+            goal = np.asarray(t.get("position", cur), float)
+            d = np.linalg.norm(goal - cur)
+            nxt = goal if d <= cap else cur + (goal - cur) * cap / d  # at most `cap` metres per call
+            targets[key] = {"position": nxt.tolist(), "rotation_rpy": t.get("rotation_rpy", list(state[key]["rotation_rpy"]))}
+            if "gripper" in t:
+                targets[key]["gripper"] = t["gripper"]
+        return move_response(embodiment, state, targets)
 
     def log_reply(self, latency_s, error=None):
         if self.runlog:
