@@ -1,0 +1,8 @@
+{
+ "name": "sc5_e",
+ "goal": "sc5 test E: stricter harness + prompt: 3 rounds x 30 WALLX calls, WALLX history wiped at the start of every round (fresh plan from the current image), prompt 'Grab the IQBAR box wherever it is on the table, pick it up and put it into zone {zone}.'; all cameras, --slow 0.3 --open-wide 1.5 --deep-close 0.04",
+ "setup": "IQBAR box sideways near zone 1 (left of centre)",
+ "relay": "--sequence scenarios/wx/sc5_e_steps.json --slow 0.3 --open-wide 1.5 --deep-close 0.04",
+ "seconds": 240,
+ "wording": {}
+}
