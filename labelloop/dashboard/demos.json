@@ -403,8 +403,8 @@
   "trial": null,
   "run": "scenarios/wx/phone_scan.json",
   "recipe": "scenarios/wx/phone_scan.json",
-  "relay": "--sequence scenarios/wx/phone_scan_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Handheld scanner: the left hand holds the phone and scans the parcel's label; the harness routes it; the right hand picks the parcel and WALLX sorts it into the scanned zone",
+  "relay": "--sequence scenarios/wx/phone_scan_steps.json --slow 0.4 --no-reset-on-subgoal --open-wide 1.5 --deep-close 0.04 --deep-to 0.03",
+  "title": "Handheld scanner: the left hand holds the phone and scans the parcel's label; the harness routes it; WALLX picks the parcel up with the right hand and sorts it into the scanned zone",
   "steps": [
    {
     "who": "robot",
@@ -416,7 +416,7 @@
     "who": "harness",
     "title": "Load the phone",
     "prompt": "Put the phone in the LEFT claw now (scanner page open, 3x).",
-    "detail": "20 s."
+    "detail": "5 s."
    },
    {
     "who": "robot",
@@ -443,15 +443,9 @@
     "detail": ""
    },
    {
-    "who": "robot",
-    "title": "Right hand picks up the parcel",
-    "prompt": "Right arm: pick up the parcel and lift it.",
-    "detail": ""
-   },
-   {
     "who": "wallx",
-    "title": "WALLX carries the parcel into the scanned zone (right arm)",
-    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera + both arms' state + the sentence above every call and moves the right arm; it never opens or closes a claw: the left arm (phone) is locked with its gentle grip, the right claw keeps the parcel until the release step. 50 calls."
+    "title": "WALLX picks up the parcel with the right hand and puts it into the scanned zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2) gets the head camera and both gripper cameras + both arms' state + the sentence above every call and drives the right arm and claw. The left arm (phone) is locked and keeps its gentle grip. 120 calls."
    },
    {
     "who": "robot",

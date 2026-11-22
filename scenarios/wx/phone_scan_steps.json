@@ -27,7 +27,7 @@
   },
   {
    "wait": "Put the phone in the LEFT claw now (scanner page open, 3x, camera facing out of the claw tip).",
-   "calls": 20
+   "calls": 5
   },
   {
    "grip": {
@@ -50,15 +50,9 @@
    "replay": "scenarios/wx/phone_scan_B.json"
   },
   {
-   "replay": "scenarios/wx/phone_scan_C.json"
-  },
-  {
-   "say": "Put the package you are holding into zone {zone}.",
-   "calls": 50,
-   "arm": "right",
-   "keep_claws": {
-    "right": 0.0
-   }
+   "say": "Use the right arm to pick up the package from the table and put it into zone {zone}.",
+   "calls": 120,
+   "arm": "right"
   },
   {
    "release": "right",
