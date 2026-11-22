@@ -1,0 +1,8 @@
+{
+ "name": "sc5f",
+ "goal": "Scenario 5 F: harness reads the label (cap 90291 -> zone 2, right arm), harness call moves the right arm over the cap (Ayush's demo, first 11 s, pre-grasp view), then WALLX (all cameras, 90 calls) grabs it and puts it into zone 2; release, home.",
+ "setup": "Cap in the middle of the table; arms at rest.",
+ "relay": "--sequence scenarios/wx/sc5f_steps.json --slow 0.4 --no-reset-on-subgoal",
+ "seconds": 220,
+ "wording": {}
+}
