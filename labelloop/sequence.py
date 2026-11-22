@@ -35,14 +35,17 @@ def norm_code(text):
 
 
 def any_barcodes(img):
-    """Texts of every 1D / 2D barcode zxing finds (all formats), with an upscaled + sharpened retry for small labels."""
+    """(text, (cx, cy)) of every 1D / 2D barcode zxing finds (all formats), with an upscaled + sharpened retry for small labels."""
     import cv2
     import zxingcpp
-    out = [b.text for b in zxingcpp.read_barcodes(img)]
+    def c(b, s=1.0):
+        p = b.position
+        return ((p.top_left.x + p.bottom_right.x) / 2 / s, (p.top_left.y + p.bottom_right.y) / 2 / s)
+    out = [(b.text, c(b)) for b in zxingcpp.read_barcodes(img)]
     if not out:
         s = min(3.0, 3840 / max(img.shape[:2]))
         g = cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC)
-        out = [b.text for b in zxingcpp.read_barcodes(cv2.addWeighted(g, 1.8, cv2.GaussianBlur(g, (0, 0), 2), -0.8, 0))]
+        out = [(b.text, c(b, s)) for b in zxingcpp.read_barcodes(cv2.addWeighted(g, 1.8, cv2.GaussianBlur(g, (0, 0), 2), -0.8, 0))]
     return out
 
 
@@ -72,18 +75,23 @@ class Sequence:
         arm = self._arm(s) if s and "say" in s else None
         return tuple(x for x in ("left", "right") if arm and x != arm)
 
-    def _read(self, images):
-        front = images["front"]
-        codes = [c for c in map(norm_code, [t for t, _ in locate(front)] + any_barcodes(front)) if c]
+    def _read(self, images, step=None):
+        """A read step may override "roi" (where on the head image to look; also filters barcodes) and "code_hint" (two parcels: one per
+        half of the table)."""
+        opt = lambda k, d=None: (step or {}).get(k, self.spec.get(k, d))  # noqa: E731
+        front, roi = images["front"], opt("roi", [0.02, 0.48, 0.78, 1.0])
+        H, W = front.shape[:2]
+        inside = lambda c: step is None or "roi" not in step or (roi[0] * W <= c[0] <= roi[2] * W and roi[1] * H <= c[1] <= roi[3] * H)  # noqa: E731
+        codes = [c for c in (norm_code(t) for t, ctr in locate(front) + any_barcodes(front) if inside(ctr)) if c]
         source = "qr" if codes else None
         if not codes:
-            zips = [z for z, _ in label_ocr.zips(front, self.spec.get("roi", [0.02, 0.48, 0.78, 1.0]))]
-            if not zips and self.spec.get("zip_vote"):  # small labels: multi-crop OCR vote, known pincodes preferred
-                v = label_ocr.zip_vote(front, self.spec.get("roi", [0.02, 0.48, 0.78, 1.0]))
+            zips = [z for z, _ in label_ocr.zips(front, roi)]
+            if not zips and opt("zip_vote"):  # small labels: multi-crop OCR vote, known pincodes preferred
+                v = label_ocr.zip_vote(front, roi)
                 zips = [v[0]] if v else []
             codes, source = (["420/%s/000" % zips[0]], "zip") if zips else ([], None)
-        if not codes and self.spec.get("code_hint"):
-            codes, source = [self.spec["code_hint"]], "demo"  # DEMO: the label counts as read
+        if not codes and opt("code_hint"):
+            codes, source = [opt("code_hint")], "demo"  # DEMO: the label counts as read
         if codes:
             self.code, self.source, self.mat = codes[0], source, bin_for(codes[0])
 
@@ -132,7 +140,7 @@ class Sequence:
             self.spot = scene.object_box(images["front"], None, self.spec["scene"]) if self.spec.get("scene") else None
             self.spot0 = self._nonmat(images["front"], self.spot) if self.spot else None
         while self.step_spec is not None and "read" in self.step_spec:  # reads cost no robot call
-            self._read(images)
+            self._read(images, self.step_spec)
             self.i += 1
             self.calls = 0
         s = self.step_spec

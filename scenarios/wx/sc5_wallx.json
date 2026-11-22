@@ -1,0 +1,8 @@
+{
+ "name": "sc5_wallx",
+ "goal": "Scenario 5, human interference: harness reads the label -> zone + arm -> WALLX prompt; WALLX picks + places (90 calls, re-planning from the head camera every call); a person moves the parcel mid-grasp and WALLX goes after it again.",
+ "setup": "Cap with the 90291 label (zone 2) in the middle of the table, label up; arms at rest. A person moves the cap once while WALLX reaches for it.",
+ "relay": "--sequence scenarios/wx/sc5_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "seconds": 192,
+ "wording": {}
+}

@@ -1,0 +1,8 @@
+{
+ "name": "sc7_wallx",
+ "goal": "Scenario 7, exception lane: harness reads an out-of-area pincode -> zone 3 (exceptions) -> right arm; WALLX picks it up and puts it into zone 3 at the bottom right.",
+ "setup": "A parcel whose label pincode is outside our zones (e.g. 10001, New York) in the middle of the table, label up; arms at rest.",
+ "relay": "--sequence scenarios/wx/sc7_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "seconds": 153,
+ "wording": {}
+}
