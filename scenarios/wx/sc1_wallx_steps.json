@@ -1,5 +1,6 @@
 {
  "watchdog": false,
+ "code_hint": "420/94043/001",
  "zones": {
   "blue": "1",
   "red": "2",
@@ -7,15 +8,15 @@
  },
  "steps": [
   {
-   "replay": "scenarios/wx/sc1_pick.json"
+   "read": true
   },
   {
-   "say": "Put the bag into the square on the left side of the table.",
-   "calls": 40,
-   "arm": "left"
+   "say": "Use the {arm} arm to pick up the white bag from the middle of the table, stretch to the top {arm} corner of the table and put the bag into zone {zone}.",
+   "calls": 60,
+   "arm": "lane"
   },
   {
-   "release": "left",
+   "release": "lane",
    "calls": 4,
    "open_calls": 2,
    "lift": 0.08

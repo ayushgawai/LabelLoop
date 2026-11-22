@@ -199,5 +199,41 @@
     "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
    }
   ]
+ },
+ {
+  "id": "sc1",
+  "label": "Scenario 1",
+  "trial": null,
+  "run": "scenarios/wx/sc1_wallx.json",
+  "recipe": "scenarios/wx/sc1_wallx.json",
+  "relay": "--sequence scenarios/wx/sc1_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+  "title": "Scenario 1: the harness reads the label and picks the zone and arm, WALLX picks the bag up and puts it into that zone",
+  "steps": [
+   {
+    "who": "harness",
+    "title": "Harness call (read the label, choose zone + arm, build the WALLX prompt)",
+    "detail": "Head camera: QR decode, then printed-ZIP OCR, then the preset demo code if neither reads (the 'source' below says which). ZIP3 940/941/950/951 -> blue = zone 1 -> left arm; 900-902 -> red = zone 2 -> right arm; else black = zone 3. The zone number and arm are written into the WALLX sentence."
+   },
+   {
+    "who": "wallx",
+    "title": "WALLX picks the bag up and puts it into the zone",
+    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts from rest. Every call it gets the HEAD camera image (black wrist images) + both arms' state + the sentence above and returns an action chunk for both arms. The harness LOCKS the arm the zone does not use, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone does the grasp, the lift, the carry and the set-down."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (release)",
+    "detail": "The acting claw opens fully where WALLX left it, then lifts 8 cm straight up."
+   },
+   {
+    "who": "harness",
+    "title": "Harness call (both arms home)",
+    "detail": "Slow harness move of both arms to home (≤ 5 cm per call)."
+   },
+   {
+    "who": "done",
+    "title": "Done",
+    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+   }
+  ]
  }
 ]

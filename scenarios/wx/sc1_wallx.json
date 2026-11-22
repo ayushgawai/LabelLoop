@@ -1,9 +1,9 @@
 {
- "name": "sc1_wallx_v1",
- "goal": "Scenario 1 with WALLX: replayed left-arm pick + lift (slice of the locked keeper), then WALLX (left arm, other locked, 40 calls): 'Put the bag into the square on the left side of the table.'; scripted release + home. Same pattern as scenarios/w4x/saved/sc4_wallx_v1.",
- "setup": "Mailer bag on its taped start marks in the middle of the table; arms at rest.",
- "relay": "--sequence scenarios/wx/sc1_wallx_steps.json --slow 0.4 --no-reset-on-subgoal",
- "seconds": 200,
+ "name": "sc1_wallx",
+ "goal": "Scenario 1, WALLX does the manipulation: harness reads the label (QR -> printed ZIP -> demo code), routes it (ZIP3 rule) to a zone and arm (zone 1 = left, zone 2 = right), builds the WALLX prompt from that; WALLX (that arm, other locked, head camera only, 60 calls) picks the bag up and puts it into the zone; harness calls release + home.",
+ "setup": "Mailer bag on its scenario 1 taped start marks in the middle of the table; arms at rest.",
+ "relay": "--sequence scenarios/wx/sc1_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
+ "seconds": 240,
  "wording": {},
- "prompt": "Put the bag into the square on the left side of the table."
+ "prompt": "Use the {arm} arm to pick up the white bag from the middle of the table, stretch to the top {arm} corner of the table and put the bag into zone {zone}."
 }
