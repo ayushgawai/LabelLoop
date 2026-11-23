@@ -414,6 +414,13 @@ class Sequence:
                 self.seen_n, self.i, self.calls, self.parcel_back, self.left_bin = 0, self.i + 1, 0, True, False
             elif self.calls >= s.get("calls", 120):  # nobody took it out: finish (skip the remaining steps)
                 self.i, self.calls = len(self.spec["steps"]) - 1, 0
+        elif s is not None and "hold_claw" in s:  # the claw already holds something (the phone): keep it as it is, just a bit firmer
+            instr = "(hold claw %d)" % self.i
+            for arm, squeeze in s["hold_claw"].items():
+                self.hold_grip[arm] = max(0.0, float(state[arm + "_ee"]["gripper"]) - squeeze)
+            self.calls += 1
+            if self.calls >= s.get("calls", 1):
+                self.i, self.calls = self.i + 1, 0
         elif s is not None and "grip" in s:  # gentle grip: close slowly until the fingers stop on the object, then hold just there
             instr = "(grip %d)" % self.i
             self.calls += 1
@@ -648,7 +655,7 @@ class Sequence:
             t = {a + "_ee": {"position": list(state[a + "_ee"]["position"]), "rotation_rpy": list(state[a + "_ee"]["rotation_rpy"]),
                              "gripper": self.hold_grip.get(a, self.gcmd.get(a, float(state[a + "_ee"]["gripper"])))} for a in s["grip"]}
             return move_response(embodiment, state, self._with_grips(state, t))
-        if s and ("wait" in s or "wait_parcel" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
+        if s and ("wait" in s or "wait_parcel" in s or "hold_claw" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
             return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
             arm = ({"blue": "left"}.get(self.mat, "right") if s["release"] == "lane" else
