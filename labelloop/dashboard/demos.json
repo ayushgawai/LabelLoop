@@ -2,66 +2,87 @@
  {
   "id": "case1",
   "label": "1 · Roll & scan",
-  "trial": "20261122_080641",
-  "run": "scenarios/wx/sc3b_wallx.json",
-  "recipe": "scenarios/wx/sc3b_wallx.json",
-  "relay": "--sequence scenarios/wx/sc3b_wallx_steps.json --slow 0.4 --no-reset-on-subgoal --front-only",
-  "title": "Case 1, roll & scan: the left arm rolls the label-down parcel label-up for the scan; WALLX picks it and puts it into its zone",
+  "trial": null,
+  "run": "scenarios/wx/case1_phone.json",
+  "recipe": "scenarios/wx/case1_phone.json",
+  "relay": "--sequence scenarios/wx/case1_phone_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
+  "title": "Case 1, roll & scan: the left arm rolls the bag label-up, the handheld scanner (phone in the left claw) reads it, the harness routes it, WALLX puts it into the scanned box with the right arm",
   "steps": [
    {
     "who": "harness",
-    "title": "Flip the bag label up",
-    "detail": "Left arm: pick the label-down mailer, turn it over, set it down label up, lift away.",
-    "sub": [
-     {
-      "call": 1,
-      "text": "left arm moves to the bag"
-     },
-     {
-      "call": 9,
-      "text": "left claw opens and lowers onto the bag"
-     },
-     {
-      "call": 13,
-      "text": "left claw closes on the bag (grasp)"
-     },
-     {
-      "call": 14,
-      "text": "left arm lifts and turns the bag over"
-     },
-     {
-      "call": 25,
-      "text": "bag set down label up, claw opens"
-     },
-     {
-      "call": 26,
-      "text": "left arm lifts away (WALLX starts from here)"
-     }
-    ],
-    "prompt": "Left arm: pick up the white bag, turn it over so the label faces up, set it down."
+    "title": "Roll the bag label-up",
+    "prompt": "Left arm: pick up the bag, turn it over, set it down label up.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (5 s).",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Grip the phone",
+    "prompt": "Close until the fingers touch the phone, then a little firmer.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Hold the phone over the bag",
+    "prompt": "Left arm: hold the phone over the label.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "The phone scans the label; the harness routes the code",
+    "prompt": "Read the label with the handheld scanner, choose the zone.",
+    "detail": "No scan in 3 min → no zone guessed, arms home."
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home with the phone",
+    "prompt": "Left arm: back to rest, keep the phone.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Find the bag on the camera and pick it up (right arm)",
+    "prompt": "Find the bag, move above it, open, down, close, lift.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX picks the bag up and puts it into zone 1 (left arm)",
-    "prompt": "Pick up the white bag and stretch to the top left corner of the table to put it into zone 1.",
-    "detail": "WALLX (wall-x 2610-dualhead-v2, organisers' server) starts right where the harness left the arm. Every call it gets the HEAD camera image (black wrist images) + both arms' state + this sentence and returns an action chunk for both arms. The harness LOCKS the right arm, runs 40% of each chunk per call (--slow 0.4) and keeps the same sub-goal (--no-reset-on-subgoal). 60 calls. WALLX alone decides how to grasp the bag, where to carry it and where to set it down."
+    "title": "WALLX puts the bag into the scanned zone (right arm)",
+    "detail": "Prompt: “Use the right arm to put the white bag you are holding into zone {zone}.” Stopped only when the arm is at that box (or the bag is seen in it)."
    },
    {
     "who": "harness",
     "title": "Release",
-    "detail": "The left claw opens fully where WALLX left it, then lifts 8 cm straight up.",
-    "prompt": "Open the claw fully and lift straight up."
+    "prompt": "Open the claw and lift.",
+    "detail": ""
    },
    {
     "who": "harness",
-    "title": "Both arms home",
-    "detail": "Both arms go to rest (≤ 5 cm per call).",
-    "prompt": "Both arms: go to rest."
+    "title": "Right arm home",
+    "prompt": "",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home",
+    "prompt": "",
+    "detail": ""
    },
    {
     "who": "done",
     "title": "Done",
-    "detail": "Session ends; video, every call (state, actions, images) and the log are saved."
+    "detail": "Session ends; take the phone out."
    }
   ]
  },

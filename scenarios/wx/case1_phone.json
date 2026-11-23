@@ -1,0 +1,9 @@
+{
+ "name": "case1_phone",
+ "goal": "Case 1 roll & scan with the handheld scanner: the left arm rolls the label-down bag label-up; the left claw opens 5 s for the phone, grips it; the left arm holds the phone over the bag until it decodes the label; the harness routes the code; the right arm picks the bag up; WALLX (right arm) puts it into the scanned zone; the harness confirms at the box, releases, homes; the left arm keeps the phone.",
+ "setup": "White mailer bag label DOWN on the scenario 3 marks (middle, between the boxes). Phone ready (scanner page open, Start camera, 3x). Arms at rest. Put the phone into the left claw when it opens (after the flip).",
+ "relay": "--sequence scenarios/wx/case1_phone_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
+ "seconds": 470,
+ "wording": {},
+ "quick": true
+}
