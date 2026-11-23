@@ -1,8 +1,8 @@
 {
  "watchdog": false,
  "bins": {
-  "A": "on the right side of the table",
-  "B": "on the left side of the table"
+  "A": "back right corner of the table (bin A)",
+  "B": "back left corner of the table (bin B)"
  },
  "ab_map": {
   "blue": "A",
@@ -46,25 +46,14 @@
   {
    "autopick": {
     "arm": "right",
-    "sized": true,
+    "target": "label",
     "latch": false,
     "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2,
-    "fallback_next": true,
-    "then_skip": 1,
-    "max_area": 60000
+    "down_calls": 2
    }
-  },
-  {
-   "say": "Pick up one of the IQBAR boxes on the table.",
-   "calls": 60,
-   "arm": "right",
-   "until": "holding",
-   "lift_z": 0.08,
-   "on_timeout": 39
   },
   {
    "present": {
@@ -86,14 +75,30 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 25,
-   "turn_after": 12,
-   "turn_arm": "right",
-   "on_fail": 9
+   "wait_calls": 40,
+   "on_fail": 11
   },
   {
-   "say": "Put the parcel you are holding into the bin {bin_where}.",
-   "calls": 90,
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "say": "Put the parcel you are holding into the tray at the {bin_where}.",
+   "calls": 120,
    "arm": "right",
    "until": "released",
    "min_calls": 6
@@ -121,30 +126,66 @@
     }
    },
    "calls": 4,
+   "max_step": 0.12,
+   "then": 14
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.04
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
    "max_step": 0.12
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_A2.json"
   },
   {
    "autopick": {
     "arm": "right",
-    "sized": true,
+    "target": "label",
     "latch": false,
     "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2,
-    "fallback_next": true,
-    "then_skip": 1,
-    "max_area": 60000
+    "down_calls": 2
    }
-  },
-  {
-   "say": "Pick up one of the IQBAR boxes on the table.",
-   "calls": 60,
-   "arm": "right",
-   "until": "holding",
-   "lift_z": 0.08,
-   "on_timeout": 39
   },
   {
    "present": {
@@ -166,14 +207,30 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 25,
-   "turn_after": 12,
-   "turn_arm": "right",
-   "on_fail": 16
+   "wait_calls": 40,
+   "on_fail": 22
   },
   {
-   "say": "Put the parcel you are holding into the bin {bin_where}.",
-   "calls": 90,
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "say": "Put the parcel you are holding into the tray at the {bin_where}.",
+   "calls": 120,
    "arm": "right",
    "until": "released",
    "min_calls": 6
@@ -201,30 +258,66 @@
     }
    },
    "calls": 4,
+   "max_step": 0.12,
+   "then": 25
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.04
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
    "max_step": 0.12
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_A2.json"
   },
   {
    "autopick": {
     "arm": "right",
-    "sized": true,
+    "target": "label",
     "latch": false,
     "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2,
-    "fallback_next": true,
-    "then_skip": 1,
-    "max_area": 60000
+    "down_calls": 2
    }
-  },
-  {
-   "say": "Pick up one of the IQBAR boxes on the table.",
-   "calls": 60,
-   "arm": "right",
-   "until": "holding",
-   "lift_z": 0.08,
-   "on_timeout": 39
   },
   {
    "present": {
@@ -246,14 +339,30 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 25,
-   "turn_after": 12,
-   "turn_arm": "right",
-   "on_fail": 23
+   "wait_calls": 40,
+   "on_fail": 33
   },
   {
-   "say": "Put the parcel you are holding into the bin {bin_where}.",
-   "calls": 90,
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "say": "Put the parcel you are holding into the tray at the {bin_where}.",
+   "calls": 120,
    "arm": "right",
    "until": "released",
    "min_calls": 6
@@ -281,30 +390,66 @@
     }
    },
    "calls": 4,
+   "max_step": 0.12,
+   "then": 36
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.04
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
    "max_step": 0.12
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_A2.json"
   },
   {
    "autopick": {
     "arm": "right",
-    "sized": true,
+    "target": "label",
     "latch": false,
     "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2,
-    "fallback_next": true,
-    "then_skip": 1,
-    "max_area": 60000
+    "down_calls": 2
    }
-  },
-  {
-   "say": "Pick up one of the IQBAR boxes on the table.",
-   "calls": 60,
-   "arm": "right",
-   "until": "holding",
-   "lift_z": 0.08,
-   "on_timeout": 39
   },
   {
    "present": {
@@ -326,14 +471,30 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 25,
-   "turn_after": 12,
-   "turn_arm": "right",
-   "on_fail": 30
+   "wait_calls": 40,
+   "on_fail": 44
   },
   {
-   "say": "Put the parcel you are holding into the bin {bin_where}.",
-   "calls": 90,
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
+  },
+  {
+   "say": "Put the parcel you are holding into the tray at the {bin_where}.",
+   "calls": 120,
    "arm": "right",
    "until": "released",
    "min_calls": 6
@@ -361,68 +522,14 @@
     }
    },
    "calls": 4,
-   "max_step": 0.12
-  },
-  {
-   "autopick": {
-    "arm": "right",
-    "sized": true,
-    "latch": false,
-    "z": 0.03,
-    "tries": 4,
-    "max_step": 0.15,
-    "approach_calls": 3,
-    "down_calls": 2,
-    "fallback_next": true,
-    "then_skip": 1,
-    "max_area": 60000
-   }
-  },
-  {
-   "say": "Pick up one of the IQBAR boxes on the table.",
-   "calls": 60,
-   "arm": "right",
-   "until": "holding",
-   "lift_z": 0.08,
-   "on_timeout": 39
-  },
-  {
-   "present": {
-    "right": [
-     0.34,
-     0.25,
-     0.07
-    ],
-    "left": [
-     0.3,
-     -0.25,
-     0.25
-    ]
-   },
-   "calls": 5,
-   "max_step": 0.08
-  },
-  {
-   "read": true,
-   "from_phone": true,
-   "max_age": 60,
-   "wait_calls": 25,
-   "turn_after": 12,
-   "turn_arm": "right",
-   "on_fail": 37
-  },
-  {
-   "say": "Put the parcel you are holding into the bin {bin_where}.",
-   "calls": 90,
-   "arm": "right",
-   "until": "released",
-   "min_calls": 6
+   "max_step": 0.12,
+   "then": 47
   },
   {
    "release": "right",
    "calls": 3,
    "open_calls": 2,
-   "lift": 0.08
+   "lift": 0.04
   },
   {
    "move": {
@@ -442,6 +549,24 @@
    },
    "calls": 4,
    "max_step": 0.12
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 7,
+   "max_step": 0.06
   },
   {
    "move": {

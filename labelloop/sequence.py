@@ -225,6 +225,47 @@ def find_parcels_px(img_rgb, max_area=25000, min_area=2500):
     return [c for _, c in sorted(out, reverse=True)]
 
 
+def find_labels_px(img_rgb, min_area=3000, max_area=20000, min_edge=0.22, merge=60):
+    """(u, v) of every parcel LABEL on the open table (white sticker with a QR / barcode), so an unlabeled look-alike is never picked.
+    The head camera can't decode them, but: OpenCV QR detection (no decode) at 2x / 3x, plus white blobs of label size with dense
+    print (edge share); a QR point inside a white blob wins (the blob may have merged with a white cup). Trays / bins masked."""
+    import cv2
+    H, W = img_rgb.shape[:2]
+    free = table_free_mask(img_rgb)
+    bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    qr = []
+    for det in (cv2.QRCodeDetector, getattr(cv2, "QRCodeDetectorAruco", None)):
+        for sc in (2, 3):
+            if det is None:
+                continue
+            try:
+                ok, pts = det().detectMulti(cv2.resize(bgr, None, fx=sc, fy=sc, interpolation=cv2.INTER_CUBIC))
+            except cv2.error:
+                ok = False
+            for p in (pts if ok else []):
+                u, v = (p.reshape(-1, 2).mean(0) / sc).tolist()
+                if 0 <= int(v) < H and 0 <= int(u) < W and free[int(v), int(u)] and all(np.hypot(u - a, v - b) > merge for a, b in qr):
+                    qr.append((u, v))
+    g = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+    m = cv2.morphologyEx(light_mask(img_rgb), cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8)) & free
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    n, lab, st, cen = cv2.connectedComponentsWithStats(m)
+    out = list(qr)
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if not (min_area <= a <= max_area):
+            continue
+        inside = lab[y:y + h, x:x + w] == i
+        if (np.abs(cv2.Laplacian(g[y:y + h, x:x + w], cv2.CV_32F)) > 40)[inside].mean() < min_edge:
+            continue  # plain white (a cup, a bag without its label in view): not a label
+        if any(x <= u <= x + w and y <= v <= y + h for u, v in qr):
+            continue  # this blob's QR point is already in
+        u, v = float(cen[i][0]), float(cen[i][1])
+        if all(np.hypot(u - a_, v - b_) > merge for a_, b_ in out):
+            out.append((u, v))
+    return sorted(out, key=lambda c: -c[0])  # rightmost first (the right arm picks)
+
+
 def where_words(x, y):
     """Image fractions -> table grid words for the WALLX prompt: rows back / middle / front, columns left / middle / right."""
     col = "left" if x < 0.38 else "middle" if x < 0.62 else "right"
@@ -434,6 +475,11 @@ class Sequence:
                 if c.get("sized"):  # several parcels + sort bins on the table: parcel-sized blobs only (never a bin)
                     cands = find_parcels_px(images["front"], c.get("max_area", 25000))
                     px = cands[0] if cands else None
+                if c.get("target") == "label":  # look-alikes: only an object with a label (unlabeled boxes stay on the table)
+                    cands = find_labels_px(images["front"])
+                    px = cands[0] if cands else None
+                    self.labels_seen = [[round(u), round(v)] for u, v in cands]
+                    tb = (int(px[0]) - 45, int(px[1]) - 35, 90, 70) if px else None  # pick check on the label's spot
                 if px is None and c.get("fallback_next"):  # camera finds nothing (e.g. kraft mat): the next step (WALLX picks) takes over
                     self.i, self.calls = self.i + 1, 0
                     instr = "(autopick %d: camera found nothing, WALLX picks)" % self.i
@@ -521,7 +567,7 @@ class Sequence:
             instr = "(scripted move %d)" % self.i
             self.calls += 1
             if self.calls >= s.get("calls", 3):
-                self.i, self.calls = self.i + 1, 0
+                self.i, self.calls = s.get("then", self.i + 1), 0  # "then": jump (skip the unreadable-parcel branch)
         elif s is not None and ("read" in s or "locate" in s):  # waiting for the phone scan: hold
             instr = None
         elif s is not None:
@@ -771,11 +817,16 @@ class Sequence:
             return move_response(embodiment, state, self._with_grips(state, {k: {"position": nxt.tolist(), "rotation_rpy": GRASP_RPY[arm]}}))
         if s and "read" in s and s.get("turn_after") and getattr(self, "waiting_phone", False) and self.calls > s["turn_after"]:
             arm = (getattr(self, "pick_arm", "right") if s.get("turn_arm", "right") == "picked" else s.get("turn_arm", "right")) + "_ee"  # label not readable: turn the held parcel over for the scanner
-            r0 = list(state[arm]["rotation_rpy"])
-            if getattr(self, "_turn_step", None) != self.i:
-                self._turn_goal, self._turn_step = r0[0] + np.pi, self.i
+            r0, p0 = list(state[arm]["rotation_rpy"]), list(state[arm]["position"])
+            if getattr(self, "_turn_step", None) != self.i:  # pin where the turn starts: the roll must never walk the arm away
+                self._turn_goal, self._turn_step = r0[0] + s.get("turn_rad", np.pi), self.i
+                self._turn_pos, self._turn_rpy, self._turn_off = p0, r0, False
+            if np.linalg.norm(np.subtract(p0, self._turn_pos)) > s.get("turn_drift", 0.05):
+                self._turn_off = True  # the arm drifted (wrist limit): give up the turn, go back to the pinned pose
+            if self._turn_off:
+                return move_response(embodiment, state, self._with_grips(state, {arm: {"position": self._turn_pos, "rotation_rpy": self._turn_rpy}}))
             tgt = [r0[0] + float(np.clip(self._turn_goal - r0[0], -0.35, 0.35)), r0[1], r0[2]]
-            return move_response(embodiment, state, self._with_grips(state, {arm: {"position": list(state[arm]["position"]), "rotation_rpy": tgt}}))
+            return move_response(embodiment, state, self._with_grips(state, {arm: {"position": self._turn_pos, "rotation_rpy": tgt}}))
         if s and ("wait" in s or "wait_parcel" in s or "hold_claw" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
             return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)
