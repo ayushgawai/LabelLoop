@@ -431,7 +431,10 @@ class Sequence:
                 if c.get("sized"):  # several parcels + sort bins on the table: parcel-sized blobs only (never a bin)
                     cands = find_parcels_px(images["front"], c.get("max_area", 25000))
                     px = cands[0] if cands else None
-                if px is None:  # nothing found: skip this parcel (pick + WALLX place + release) to the next parcel's step, else the end
+                if px is None and c.get("fallback_next"):  # camera finds nothing (e.g. kraft mat): the next step (WALLX picks) takes over
+                    self.i, self.calls = self.i + 1, 0
+                    instr = "(autopick %d: camera found nothing, WALLX picks)" % self.i
+                elif px is None:  # nothing found: skip this parcel (pick + WALLX place + release) to the next parcel's step, else the end
                     self.no_parcel = True
                     S = self.spec["steps"]  # the NEXT parcel: its pick (or the read just before it), never this parcel's own read
                     nxt = [j for j in range(self.i + 1, len(S)) if "autopick" in S[j] or "wait_parcel" in S[j]]
@@ -470,7 +473,7 @@ class Sequence:
                         self.pick_try = getattr(self, "pick_try", 1) + 1  # the parcel is still on its spot: pick again (fresh detection,
                         self.pick_plan, self.calls, self.pick_retry_flag = None, 0, True  # next offset of the search pattern)
                     else:
-                        self.i, self.calls, self.pick_try = self.i + 1, 0, 1
+                        self.i, self.calls, self.pick_try = self.i + 1 + (0 if covered else c.get("then_skip", 0)), 0, 1
                         self.pick_plan_done = self.pick_plan
                         # verified -> the relay keeps this claw shut (a soft bag reads 'closed'); not verified -> WALLX may grab it itself
                         self.holding_arm = None if (covered or not c.get("latch", True)) else self.pick_arm

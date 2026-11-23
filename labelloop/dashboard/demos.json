@@ -726,9 +726,15 @@
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Pick 1: find an IQBAR box and pick it up (camera)",
+    "prompt": "Parcel-sized object on the head camera → pick, check it lifted.",
+    "detail": "If the camera finds nothing (kraft mat), WALLX picks instead."
+   },
+   {
     "who": "wallx",
-    "title": "Pick 1: WALLX picks up a box",
-    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+    "title": "Pick 1: WALLX picks up an IQBAR box (only if the camera found none)",
+    "detail": "Prompt: “Pick up one of the IQBAR boxes on the table.”"
    },
    {
     "who": "harness",
@@ -760,9 +766,15 @@
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Pick 2: find an IQBAR box and pick it up (camera)",
+    "prompt": "Parcel-sized object on the head camera → pick, check it lifted.",
+    "detail": "If the camera finds nothing (kraft mat), WALLX picks instead."
+   },
+   {
     "who": "wallx",
-    "title": "Pick 2: WALLX picks up a box",
-    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+    "title": "Pick 2: WALLX picks up an IQBAR box (only if the camera found none)",
+    "detail": "Prompt: “Pick up one of the IQBAR boxes on the table.”"
    },
    {
     "who": "harness",
@@ -794,9 +806,15 @@
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Pick 3: find an IQBAR box and pick it up (camera)",
+    "prompt": "Parcel-sized object on the head camera → pick, check it lifted.",
+    "detail": "If the camera finds nothing (kraft mat), WALLX picks instead."
+   },
+   {
     "who": "wallx",
-    "title": "Pick 3: WALLX picks up a box",
-    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+    "title": "Pick 3: WALLX picks up an IQBAR box (only if the camera found none)",
+    "detail": "Prompt: “Pick up one of the IQBAR boxes on the table.”"
    },
    {
     "who": "harness",
@@ -828,9 +846,15 @@
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Pick 4: find an IQBAR box and pick it up (camera)",
+    "prompt": "Parcel-sized object on the head camera → pick, check it lifted.",
+    "detail": "If the camera finds nothing (kraft mat), WALLX picks instead."
+   },
+   {
     "who": "wallx",
-    "title": "Pick 4: WALLX picks up a box",
-    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+    "title": "Pick 4: WALLX picks up an IQBAR box (only if the camera found none)",
+    "detail": "Prompt: “Pick up one of the IQBAR boxes on the table.”"
    },
    {
     "who": "harness",
@@ -862,9 +886,15 @@
     "detail": ""
    },
    {
+    "who": "harness",
+    "title": "Pick 5: find an IQBAR box and pick it up (camera)",
+    "prompt": "Parcel-sized object on the head camera → pick, check it lifted.",
+    "detail": "If the camera finds nothing (kraft mat), WALLX picks instead."
+   },
+   {
     "who": "wallx",
-    "title": "Pick 5: WALLX picks up a box",
-    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+    "title": "Pick 5: WALLX picks up an IQBAR box (only if the camera found none)",
+    "detail": "Prompt: “Pick up one of the IQBAR boxes on the table.”"
    },
    {
     "who": "harness",

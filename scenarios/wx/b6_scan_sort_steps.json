@@ -19,12 +19,26 @@
    "replay": "scenarios/wx/phone_scan_A2.json"
   },
   {
-   "say": "Pick up one of the boxes on the table.",
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1
+   }
+  },
+  {
+   "say": "Pick up one of the IQBAR boxes on the table.",
    "calls": 60,
    "arm": "right",
    "until": "holding",
    "lift_z": 0.08,
-   "on_timeout": 32
+   "on_timeout": 37
   },
   {
    "present": {
@@ -49,7 +63,7 @@
    "wait_calls": 25,
    "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 6
+   "on_fail": 7
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -84,12 +98,26 @@
    "max_step": 0.12
   },
   {
-   "say": "Pick up one of the boxes on the table.",
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1
+   }
+  },
+  {
+   "say": "Pick up one of the IQBAR boxes on the table.",
    "calls": 60,
    "arm": "right",
    "until": "holding",
    "lift_z": 0.08,
-   "on_timeout": 32
+   "on_timeout": 37
   },
   {
    "present": {
@@ -114,7 +142,7 @@
    "wait_calls": 25,
    "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 12
+   "on_fail": 14
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -149,12 +177,26 @@
    "max_step": 0.12
   },
   {
-   "say": "Pick up one of the boxes on the table.",
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1
+   }
+  },
+  {
+   "say": "Pick up one of the IQBAR boxes on the table.",
    "calls": 60,
    "arm": "right",
    "until": "holding",
    "lift_z": 0.08,
-   "on_timeout": 32
+   "on_timeout": 37
   },
   {
    "present": {
@@ -179,7 +221,7 @@
    "wait_calls": 25,
    "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 18
+   "on_fail": 21
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -214,12 +256,26 @@
    "max_step": 0.12
   },
   {
-   "say": "Pick up one of the boxes on the table.",
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1
+   }
+  },
+  {
+   "say": "Pick up one of the IQBAR boxes on the table.",
    "calls": 60,
    "arm": "right",
    "until": "holding",
    "lift_z": 0.08,
-   "on_timeout": 32
+   "on_timeout": 37
   },
   {
    "present": {
@@ -244,7 +300,7 @@
    "wait_calls": 25,
    "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 24
+   "on_fail": 28
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -279,12 +335,26 @@
    "max_step": 0.12
   },
   {
-   "say": "Pick up one of the boxes on the table.",
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1
+   }
+  },
+  {
+   "say": "Pick up one of the IQBAR boxes on the table.",
    "calls": 60,
    "arm": "right",
    "until": "holding",
    "lift_z": 0.08,
-   "on_timeout": 32
+   "on_timeout": 37
   },
   {
    "present": {
@@ -309,7 +379,7 @@
    "wait_calls": 25,
    "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 30
+   "on_fail": 35
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
