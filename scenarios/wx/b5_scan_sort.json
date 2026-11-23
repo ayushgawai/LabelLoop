@@ -1,0 +1,9 @@
+{
+ "name": "b5_scan_sort",
+ "goal": "B5 judge intervention: 3 parcels (B, A, B), labels up; same flow; the harness re-finds every parcel before each pick, so a parcel the judge slid 100 mm is picked where it is now.",
+ "setup": "Bin A on the right, bin B on the left. 3 parcels, labels up. Phone already in the left claw, scanner page live (3x). Arms at rest.",
+ "relay": "--sequence scenarios/wx/b5_scan_sort_steps.json --slow 1.0 --no-reset-on-subgoal",
+ "seconds": 480,
+ "wording": {},
+ "quick": true
+}

@@ -49,7 +49,7 @@ def phone_code(max_age=180.0, path=None, since=None, exclude=()):
     t = float(cur.get("last_seen") or cur.get("scanned") or 0)
     if since is not None and t < since:  # an old scan (an earlier parcel) never counts
         return None
-    code = norm_code(cur.get("code")) if cur.get("code") and time.time() - t <= max_age else None
+    code = (norm_code(cur.get("code")) or str(cur.get("code")).strip()) if cur.get("code") and time.time() - t <= max_age else None
     return None if code in exclude else code
 
 
@@ -193,6 +193,35 @@ def find_parcel_px(img_rgb, roi=None):
     return (b[0] + b[2] / 2, b[1] + b[3] / 2) if b else None
 
 
+def ab_bin(code, ab_map=None):
+    """Sorting bin 'A' / 'B' from a decoded label: an explicit A/B in the text ('A', 'BIN A', 'DEST-B', ...) wins, else the
+    ZIP rule mapped by ab_map (default blue -> A, red -> B); None = cannot tell (never guessed)."""
+    t = str(code or "").upper().strip()
+    if re.fullmatch(r"[AB]", t):
+        return t
+    m = re.search(r"(?:BIN|DEST(?:INATION)?|SORT|TO)[\s_:/-]*([AB])(?![A-Z])", t) or re.search(r"[\s_:/-]([AB])$", t)
+    if m:
+        return m.group(1)
+    mat = bin_for(norm_code(t) or t)
+    return (ab_map or {"blue": "A", "red": "B"}).get(mat)
+
+
+def find_parcels_px(img_rgb, max_area=25000, min_area=2500):
+    """Parcel-sized objects on the open table (bins / trays are bigger and dropped), largest first: [(u, v), ...]."""
+    import cv2
+    H, W = img_rgb.shape[:2]
+    hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    mat = ((hsv[..., 0] > 70) & (hsv[..., 0] < 100) & (hsv[..., 1] > 60)).astype(np.uint8)
+    inside = np.zeros((H, W), np.uint8)
+    cv2.fillConvexPoly(inside, np.array([[int(x * W), int(y * H)] for x, y in TABLE_POLY], np.int32), 1)
+    inside[int(0.60 * H):, :int(0.20 * W)] = 0
+    inside[int(0.55 * H):, int(0.78 * W):] = 0
+    m = cv2.morphologyEx(((mat == 0) & (inside > 0)).astype(np.uint8), cv2.MORPH_OPEN, np.ones((15, 15), np.uint8))
+    n, _, st, cen = cv2.connectedComponentsWithStats(m)
+    out = [(int(st[i][4]), (float(cen[i][0]), float(cen[i][1]))) for i in range(1, n) if min_area <= st[i][4] <= max_area]
+    return [c for _, c in sorted(out, reverse=True)]
+
+
 def where_words(x, y):
     """Image fractions -> table grid words for the WALLX prompt: rows back / middle / front, columns left / middle / right."""
     col = "left" if x < 0.38 else "middle" if x < 0.62 else "right"
@@ -314,9 +343,18 @@ class Sequence:
                     break
                 self.waiting_phone = False
                 if code:
-                    self.code, self.source, self.mat = code, "phone", bin_for(code)
+                    self.code, self.source, self.mat = code, "phone", bin_for(norm_code(code) or code)
                     self.phone_codes = getattr(self, "phone_codes", []) + [code]
+                    if self.spec.get("bins"):  # judges' sort bins A / B: which one, from the label
+                        self.ab = ab_bin(code, self.spec.get("ab_map"))
+                        if self.ab is None and self.step_spec.get("on_fail") is not None:  # read, but no bin for it: never guess
+                            self.i, self.calls = self.step_spec["on_fail"], 0
+                            continue
                     self.i, self.calls = self.i + 1, 0
+                    continue
+                if self.step_spec.get("on_fail") is not None:  # no scan, even after turning it over: put it down, next parcel
+                    self.no_scan = True
+                    self.i, self.calls = self.step_spec["on_fail"], 0
                     continue
                 if self.step_spec.get("required", True):  # no scan in time: never guess a zone; skip to the last step (home)
                     self.no_scan = True
@@ -358,6 +396,9 @@ class Sequence:
             if self.calls == 0:
                 tb = self._scanned_parcel(images["front"], c) if c.get("target") == "scan" else None  # several parcels: the scanned one
                 px = (tb[0] + tb[2] / 2, tb[1] + tb[3] / 2) if tb else find_parcel_px(images["front"], c.get("roi"))
+                if c.get("sized"):  # several parcels + sort bins on the table: parcel-sized blobs only (never a bin)
+                    cands = find_parcels_px(images["front"], c.get("max_area", 25000))
+                    px = cands[0] if cands else None
                 if px is None:  # nothing found: skip this parcel (pick + WALLX place + release) to the next parcel's step, else the end
                     self.no_parcel = True
                     nxt = [j for j in range(self.i + 1, len(self.spec["steps"]))
@@ -397,7 +438,9 @@ class Sequence:
                         self.i, self.calls, self.pick_try = self.i + 1, 0, 1
                         self.pick_plan_done = self.pick_plan
                         # verified -> the relay keeps this claw shut (a soft bag reads 'closed'); not verified -> WALLX may grab it itself
-                        self.holding_arm = None if covered else self.pick_arm
+                        self.holding_arm = None if (covered or not c.get("latch", True)) else self.pick_arm
+                        if not c.get("latch", True):
+                            self.hold_grip[self.pick_arm] = 0.0  # harness moves keep it shut; WALLX (unlocked arm) releases it in the bin
         elif s is not None and "wait_parcel" in s:  # arms at rest, the harness keeps looking: the parcel back on the table
             instr = "(watch %d)" % self.i                # (a person took it out of the bin) -> next step (WALLX again)
             self.calls += 1
@@ -453,8 +496,15 @@ class Sequence:
                     moved = "reissue"
             tmpl = s["say_moved"] if s.get("say_moved") and getattr(self, "moved_n", 0) else s["say"]
             instr = tmpl.format(mat=self.mat, zone=self.spec.get("zones", {}).get(self.mat, ""), arm=self._arm(s) or "right",
-                                    where=getattr(self, "where", "the centre"))
+                                    where=getattr(self, "where", "the centre"),
+                                    bin_where=self.spec.get("bins", {}).get(getattr(self, "ab", None) or "", "the sorting bin"))
             self.calls += 1
+            if s.get("until") == "released":  # WALLX put it into the bin and let go (claw open again)
+                g = float(state.get((self._arm(s) or "right") + "_ee", {}).get("gripper", 0.0))
+                self.relcount = getattr(self, "relcount", 0) + 1 if self.calls > s.get("min_calls", 6) and g > 1.0 else 0
+                if self.relcount >= 2:
+                    self.i, self.calls, self.relcount, self.task_done = self.i + 1, 0, 0, True
+                    self.subgoal_changed = True
             if s.get("until") == "in_bin":  # the harness keeps looking: parcel in the target zone's tray and gone from the table
                 box = ZONE_BOXES[s["bin_box"] if "bin_box" in s else {"blue": 0, "red": 1}.get(self.mat, 2)]  # bin_box: fixed target
                 kind = s.get("parcel", self.spec.get("parcel", "dark"))
@@ -655,6 +705,13 @@ class Sequence:
             t = {a + "_ee": {"position": list(state[a + "_ee"]["position"]), "rotation_rpy": list(state[a + "_ee"]["rotation_rpy"]),
                              "gripper": self.hold_grip.get(a, self.gcmd.get(a, float(state[a + "_ee"]["gripper"])))} for a in s["grip"]}
             return move_response(embodiment, state, self._with_grips(state, t))
+        if s and "read" in s and s.get("turn_after") and getattr(self, "waiting_phone", False) and self.calls > s["turn_after"]:
+            arm = s.get("turn_arm", "right") + "_ee"  # label not readable: turn the held parcel over for the scanner
+            r0 = list(state[arm]["rotation_rpy"])
+            if getattr(self, "_turn_step", None) != self.i:
+                self._turn_goal, self._turn_step = r0[0] + np.pi, self.i
+            tgt = [r0[0] + float(np.clip(self._turn_goal - r0[0], -0.35, 0.35)), r0[1], r0[2]]
+            return move_response(embodiment, state, self._with_grips(state, {arm: {"position": list(state[arm]["position"]), "rotation_rpy": tgt}}))
         if s and ("wait" in s or "wait_parcel" in s or "hold_claw" in s or (("read" in s or "locate" in s) and getattr(self, "waiting_phone", False))):
             return move_response(embodiment, state, self._with_grips(state, {}))
         if s and "release" in s:  # open the acting arm's claw fully where it is, then lift it (release over the zone)

@@ -1,0 +1,9 @@
+{
+ "name": "b4_scan_sort",
+ "goal": "B4 turn over to rescan: 3 parcels (A, A, B) at different angles, one with its top label covered; the phone in the left claw at the scan pose; for each parcel: right arm picks it (harness, camera), holds it under the phone; the phone decodes the label (if not after 20 calls, the right wrist turns the parcel over); the harness routes A/B; WALLX puts it into that bin and lets go; right arm home.",
+ "setup": "Bin A at the back, bin B at the front. 3 parcels on the open table. Phone already in the left claw, scanner page live (3x). Arms at rest.",
+ "relay": "--sequence scenarios/wx/b4_scan_sort_steps.json --slow 1.0 --no-reset-on-subgoal",
+ "seconds": 480,
+ "wording": {},
+ "quick": true
+}

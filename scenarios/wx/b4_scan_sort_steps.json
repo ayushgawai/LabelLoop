@@ -1,0 +1,253 @@
+{
+ "watchdog": false,
+ "bins": {
+  "A": "at the back of the table",
+  "B": "at the front of the table"
+ },
+ "ab_map": {
+  "blue": "A",
+  "red": "B"
+ },
+ "steps": [
+  {
+   "hold_claw": {
+    "left": 0.03
+   },
+   "calls": 1
+  },
+  {
+   "replay": "scenarios/wx/phone_scan_A2.json"
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.02,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
+   }
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.34,
+      0.25,
+      0.07
+     ],
+     "rotation_rpy": [
+      0.11,
+      1.01,
+      0.38
+     ]
+    }
+   },
+   "calls": 5,
+   "max_step": 0.08
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 60,
+   "wait_calls": 50,
+   "turn_after": 20,
+   "turn_arm": "right",
+   "on_fail": 6
+  },
+  {
+   "say": "Put the parcel you are holding into the bin {bin_where}.",
+   "calls": 90,
+   "arm": "right",
+   "until": "released",
+   "min_calls": 6
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.02,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
+   }
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.34,
+      0.25,
+      0.07
+     ],
+     "rotation_rpy": [
+      0.11,
+      1.01,
+      0.38
+     ]
+    }
+   },
+   "calls": 5,
+   "max_step": 0.08
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 60,
+   "wait_calls": 50,
+   "turn_after": 20,
+   "turn_arm": "right",
+   "on_fail": 12
+  },
+  {
+   "say": "Put the parcel you are holding into the bin {bin_where}.",
+   "calls": 90,
+   "arm": "right",
+   "until": "released",
+   "min_calls": 6
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.02,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
+   }
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0.34,
+      0.25,
+      0.07
+     ],
+     "rotation_rpy": [
+      0.11,
+      1.01,
+      0.38
+     ]
+    }
+   },
+   "calls": 5,
+   "max_step": 0.08
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 60,
+   "wait_calls": 50,
+   "turn_after": 20,
+   "turn_arm": "right",
+   "on_fail": 18
+  },
+  {
+   "say": "Put the parcel you are holding into the bin {bin_where}.",
+   "calls": 90,
+   "arm": "right",
+   "until": "released",
+   "min_calls": 6
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.12
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "calls": 6,
+   "max_step": 0.06
+  }
+ ]
+}
