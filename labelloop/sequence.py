@@ -539,6 +539,17 @@ class Sequence:
                                     where=getattr(self, "where", "the centre"),
                                     bin_where=self.spec.get("bins", {}).get(getattr(self, "ab", None) or "", "the sorting bin"))
             self.calls += 1
+            if s.get("until") == "holding":  # WALLX picked something up: claw stopped on an object and lifted
+                k_ = (self._arm(s) or "right") + "_ee"
+                g = float(state.get(k_, {}).get("gripper", 1.5)); z = float(state.get(k_, {}).get("position", [0, 0, 0])[2])
+                self.holdcount = getattr(self, "holdcount", 0) + 1 if 0.06 < g < 1.2 and z > s.get("lift_z", 0.08) else 0
+                if self.holdcount >= 2:
+                    self.i, self.calls, self.holdcount = self.i + 1, 0, 0
+                    self.pick_arm = self._arm(s) or "right"
+                    self.hold_grip[self.pick_arm] = 0.0  # harness moves keep it shut until the bin
+                    self.subgoal_changed = True
+                elif self.calls >= s.get("calls", 60) and s.get("on_timeout") is not None:  # nothing picked: finish
+                    self.i, self.calls = s["on_timeout"], 0
             if s.get("until") == "released":  # WALLX put it into the bin and let go (claw open again)
                 g = float(state.get((self._arm(s) or "right") + "_ee", {}).get("gripper", 0.0))
                 self.relcount = getattr(self, "relcount", 0) + 1 if self.calls > s.get("min_calls", 6) and g > 1.0 else 0

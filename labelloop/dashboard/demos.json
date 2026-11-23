@@ -706,69 +706,199 @@
  },
  {
   "id": "case6",
-  "label": "6 · Look-alikes",
+  "label": "6 · B6 Look-alikes",
   "trial": null,
-  "run": "scenarios/wx/case6_auto.json",
-  "recipe": "scenarios/wx/case6_auto.json",
-  "relay": "--sequence scenarios/wx/case6_auto_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
-  "title": "Case 6, look-alikes: two identical IQBAR boxes; the one with a barcode goes to its zone, the one without a readable label goes to the reject zone 3",
+  "run": "scenarios/wx/b6_scan_sort.json",
+  "recipe": "scenarios/wx/b6_scan_sort.json",
+  "relay": "--sequence scenarios/wx/b6_scan_sort_steps.json --slow 1.0 --no-reset-on-subgoal",
+  "title": "B6, look-alikes on a kraft mat: WALLX picks each box, the phone scans it, labelled parcels go into bin A (right) / B (left), unlabeled boxes stay on the table",
   "steps": [
    {
     "who": "harness",
-    "title": "Read the label, choose the zone",
-    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
-    "detail": "Unreadable → reject zone 3."
+    "title": "Keep holding the phone",
+    "prompt": "Left claw: keep the phone.",
+    "detail": ""
    },
    {
     "who": "harness",
-    "title": "Find the parcel on the camera and pick it up there",
-    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
-    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
+    "title": "Phone to the scan pose",
+    "prompt": "Left arm: hold the phone over the table centre.",
+    "detail": ""
    },
    {
     "who": "wallx",
-    "title": "WALLX carries the parcel into its zone",
-    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
+    "title": "Pick 1: WALLX picks up a box",
+    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+   },
+   {
+    "who": "harness",
+    "title": "Pick 1: hold it under the phone",
+    "prompt": "Right arm: present the label to the scanner.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Pick 1: scan; turn it over if needed",
+    "prompt": "The barcode value pops up on the dashboard.",
+    "detail": "Unreadable (unlabeled box) → set back down on the table, never guessed."
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 1: WALLX puts it into its bin",
+    "detail": "“Put the parcel you are holding into the bin on the right / left side of the table.”"
    },
    {
     "who": "harness",
     "title": "Release",
-    "prompt": "Open the claw and lift.",
+    "prompt": "Open the claw, lift.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
+    "title": "Right arm home",
+    "prompt": "",
     "detail": ""
-   },
-   {
-    "who": "harness",
-    "title": "Read the label, choose the zone",
-    "prompt": "Read the label (barcode reader, pincode OCR fallback).",
-    "detail": "Unreadable → reject zone 3."
-   },
-   {
-    "who": "harness",
-    "title": "Find the parcel on the camera and pick it up there",
-    "prompt": "Find the parcel on the head camera, move above it, open, go down, close tight, lift.",
-    "detail": "Pixel → arm position from the head camera; works wherever the parcel is."
    },
    {
     "who": "wallx",
-    "title": "WALLX carries the parcel into its zone",
-    "detail": "WALLX (head camera) moves the arm holding the parcel; it cannot drop it on the way (grip lock)."
+    "title": "Pick 2: WALLX picks up a box",
+    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+   },
+   {
+    "who": "harness",
+    "title": "Pick 2: hold it under the phone",
+    "prompt": "Right arm: present the label to the scanner.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Pick 2: scan; turn it over if needed",
+    "prompt": "The barcode value pops up on the dashboard.",
+    "detail": "Unreadable (unlabeled box) → set back down on the table, never guessed."
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 2: WALLX puts it into its bin",
+    "detail": "“Put the parcel you are holding into the bin on the right / left side of the table.”"
    },
    {
     "who": "harness",
     "title": "Release",
-    "prompt": "Open the claw and lift.",
+    "prompt": "Open the claw, lift.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Both arms home",
-    "prompt": "Both arms: go to rest.",
+    "title": "Right arm home",
+    "prompt": "",
+    "detail": ""
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 3: WALLX picks up a box",
+    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+   },
+   {
+    "who": "harness",
+    "title": "Pick 3: hold it under the phone",
+    "prompt": "Right arm: present the label to the scanner.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Pick 3: scan; turn it over if needed",
+    "prompt": "The barcode value pops up on the dashboard.",
+    "detail": "Unreadable (unlabeled box) → set back down on the table, never guessed."
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 3: WALLX puts it into its bin",
+    "detail": "“Put the parcel you are holding into the bin on the right / left side of the table.”"
+   },
+   {
+    "who": "harness",
+    "title": "Release",
+    "prompt": "Open the claw, lift.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "",
+    "detail": ""
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 4: WALLX picks up a box",
+    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+   },
+   {
+    "who": "harness",
+    "title": "Pick 4: hold it under the phone",
+    "prompt": "Right arm: present the label to the scanner.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Pick 4: scan; turn it over if needed",
+    "prompt": "The barcode value pops up on the dashboard.",
+    "detail": "Unreadable (unlabeled box) → set back down on the table, never guessed."
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 4: WALLX puts it into its bin",
+    "detail": "“Put the parcel you are holding into the bin on the right / left side of the table.”"
+   },
+   {
+    "who": "harness",
+    "title": "Release",
+    "prompt": "Open the claw, lift.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "",
+    "detail": ""
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 5: WALLX picks up a box",
+    "detail": "Prompt: “Pick up one of the boxes on the table.” The harness sees the claw stop on it and lift."
+   },
+   {
+    "who": "harness",
+    "title": "Pick 5: hold it under the phone",
+    "prompt": "Right arm: present the label to the scanner.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Pick 5: scan; turn it over if needed",
+    "prompt": "The barcode value pops up on the dashboard.",
+    "detail": "Unreadable (unlabeled box) → set back down on the table, never guessed."
+   },
+   {
+    "who": "wallx",
+    "title": "Pick 5: WALLX puts it into its bin",
+    "detail": "“Put the parcel you are holding into the bin on the right / left side of the table.”"
+   },
+   {
+    "who": "harness",
+    "title": "Release",
+    "prompt": "Open the claw, lift.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Right arm home",
+    "prompt": "",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Left arm home with the phone",
+    "prompt": "",
     "detail": ""
    },
    {
