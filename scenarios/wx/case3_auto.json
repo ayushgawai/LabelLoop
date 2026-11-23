@@ -1,7 +1,7 @@
 {
  "name": "case3_auto",
- "goal": "Case 3 multi-parcel: the parcel on the left half goes into the left box (left arm), the parcel on the right half into the right box (right arm); harness finds and picks each, WALLX carries it, harness confirms at the box and homes.",
- "setup": "Two parcels: one anywhere on the LEFT half, one anywhere on the RIGHT half of the open table (not in the boxes); arms at rest.",
+ "goal": "Case 3 multi-parcel (4 parcels): left half -> left arm -> left box, right half -> right arm -> right box, alternating, twice each; harness finds + picks each, WALLX carries it, harness confirms at the box; a half with no parcel left is skipped.",
+ "setup": "4 parcels on the open table: 2 on the LEFT half, 2 on the RIGHT half, spread out, not in the boxes; arms at rest.",
  "relay": "--sequence scenarios/wx/case3_auto_steps.json --slow 1.0 --no-reset-on-subgoal --grip-binary 0.7",
  "seconds": 470,
  "wording": {},

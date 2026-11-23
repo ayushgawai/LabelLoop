@@ -21,7 +21,7 @@
      0.0,
      0.5
     ],
-    "tries": 8,
+    "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
     "down_calls": 2
@@ -29,7 +29,7 @@
   },
   {
    "say": "Put the package you are holding into the box at the top left corner of the table.",
-   "calls": 170,
+   "calls": 75,
    "arm": "picked",
    "until": "in_bin",
    "parcel": "change",
@@ -87,7 +87,7 @@
      0.5,
      1.0
     ],
-    "tries": 8,
+    "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
     "down_calls": 2
@@ -95,7 +95,139 @@
   },
   {
    "say": "Put the package you are holding into the box at the top right corner of the table.",
-   "calls": 170,
+   "calls": 75,
+   "arm": "picked",
+   "until": "in_bin",
+   "parcel": "change",
+   "bin_box": 1,
+   "drop_at": [
+    0.42,
+    -0.04
+   ],
+   "drop_r": 0.05,
+   "drop_z": 0.12
+  },
+  {
+   "release": "picked",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 3,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "left",
+    "z": 0.02,
+    "roi": [
+     0.0,
+     0.5
+    ],
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
+   }
+  },
+  {
+   "say": "Put the package you are holding into the box at the top left corner of the table.",
+   "calls": 75,
+   "arm": "picked",
+   "until": "in_bin",
+   "parcel": "change",
+   "bin_box": 0,
+   "drop_at": [
+    0.42,
+    0.03
+   ],
+   "drop_r": 0.05,
+   "drop_z": 0.12
+  },
+  {
+   "release": "picked",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    },
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 3,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "z": 0.02,
+    "roi": [
+     0.5,
+     1.0
+    ],
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2
+   }
+  },
+  {
+   "say": "Put the package you are holding into the box at the top right corner of the table.",
+   "calls": 75,
    "arm": "picked",
    "until": "in_bin",
    "parcel": "change",
