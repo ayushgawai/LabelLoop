@@ -255,6 +255,8 @@ class Sequence:
         return {"blue": "left"}.get(self.mat, "right") if a == "lane" else a
 
     def lock_arms(self):
+        if (getattr(self, "active", None) or {}).get("nolock"):  # WALLX may use both claws
+            return ()
         s = getattr(self, "active", None) or self.step_spec  # the step that produced THIS call's instruction: on a say step's last call
         # the index has already advanced, and locking by step_spec let WALLX move the idle arm for that one call (sc5i left-claw bug)
         arm = self._arm(s) if s and "say" in s else None
@@ -332,6 +334,36 @@ class Sequence:
                 else:
                     self.i, self.calls = self.i + 1, 0
                 continue
+            if self.step_spec.get("cams"):  # read the held parcel's label on the head AND both wrist cameras; wait / turn it over
+                code = None
+                for cam in ("front", "left_wrist", "right_wrist"):
+                    img = images.get(cam)
+                    if img is None:
+                        continue
+                    hits = [c for c in (norm_code(t) or (t.strip() if t else None) for t, _ in locate(img) + any_barcodes(img)) if c]
+                    if hits:
+                        code = hits[0]
+                        break
+                if not code and self.step_spec.get("zip_ocr", True):
+                    z = label_ocr.zip_vote(images["front"], self.spec.get("roi", [0.02, 0.17, 0.98, 1.0]))
+                    code = "420/%s/000" % z[0] if z else None
+                if not code and self.calls < self.step_spec.get("wait_calls", 0):
+                    self.calls += 1
+                    self.waiting_phone = True  # (same hold / turn-over behaviour as the phone wait)
+                    break
+                self.waiting_phone = False
+                if code:
+                    self.code, self.source, self.mat = code, "camera", bin_for(norm_code(code) or code)
+                    self.ab = ab_bin(code, self.spec.get("ab_map")) if self.spec.get("bins") else None
+                    if self.spec.get("bins") and self.ab is None and self.step_spec.get("on_fail") is not None:
+                        self.i, self.calls = self.step_spec["on_fail"], 0
+                        continue
+                    self.i, self.calls = self.i + 1, 0
+                    continue
+                if self.step_spec.get("on_fail") is not None:
+                    self.no_scan = True
+                    self.i, self.calls = self.step_spec["on_fail"], 0
+                    continue
             if self.step_spec.get("from_phone"):  # the label comes from the phone scanner: hold (arms still) until it has read one
                 if getattr(self, "_phone_step", None) != self.i:  # each read step waits for a scan made after IT started
                     self._phone_step, self._phone_since = self.i, __import__("time").time() - 2.0  # (2nd parcel: never the 1st one's)
@@ -401,9 +433,12 @@ class Sequence:
                     px = cands[0] if cands else None
                 if px is None:  # nothing found: skip this parcel (pick + WALLX place + release) to the next parcel's step, else the end
                     self.no_parcel = True
-                    nxt = [j for j in range(self.i + 1, len(self.spec["steps"]))
-                           if any(k in self.spec["steps"][j] for k in ("autopick", "read", "wait_parcel"))]
-                    self.i, self.calls = (nxt[0] if nxt else len(self.spec["steps"]) - 1), 0
+                    S = self.spec["steps"]  # the NEXT parcel: its pick (or the read just before it), never this parcel's own read
+                    nxt = [j for j in range(self.i + 1, len(S)) if "autopick" in S[j] or "wait_parcel" in S[j]]
+                    j = nxt[0] if nxt else len(S) - 1
+                    if nxt and j - 1 > self.i and "read" in S[j - 1]:
+                        j -= 1
+                    self.i, self.calls = j, 0
                     instr = "(autopick %d: no parcel)" % self.i
                 else:
                     arm = c.get("arm", "auto")
@@ -457,6 +492,11 @@ class Sequence:
                 self.seen_n, self.i, self.calls, self.parcel_back, self.left_bin = 0, self.i + 1, 0, True, False
             elif self.calls >= s.get("calls", 120):  # nobody took it out: finish (skip the remaining steps)
                 self.i, self.calls = len(self.spec["steps"]) - 1, 0
+        elif s is not None and "present" in s:  # the picked arm holds the parcel up for the cameras
+            instr = "(present %d)" % self.i
+            self.calls += 1
+            if self.calls >= s.get("calls", 5):
+                self.i, self.calls = self.i + 1, 0
         elif s is not None and "hold_claw" in s:  # the claw already holds something (the phone): keep it as it is, just a bit firmer
             instr = "(hold claw %d)" % self.i
             for arm, squeeze in s["hold_claw"].items():
@@ -705,8 +745,15 @@ class Sequence:
             t = {a + "_ee": {"position": list(state[a + "_ee"]["position"]), "rotation_rpy": list(state[a + "_ee"]["rotation_rpy"]),
                              "gripper": self.hold_grip.get(a, self.gcmd.get(a, float(state[a + "_ee"]["gripper"])))} for a in s["grip"]}
             return move_response(embodiment, state, self._with_grips(state, t))
+        if s and "present" in s:
+            arm = getattr(self, "pick_arm", "right")
+            pos = s["present"].get(arm)
+            k = arm + "_ee"
+            cur = np.asarray(state[k]["position"], float); goal = np.asarray(pos, float); d = np.linalg.norm(goal - cur); cap = s.get("max_step", 0.08)
+            nxt = goal if d <= cap else cur + (goal - cur) * cap / d
+            return move_response(embodiment, state, self._with_grips(state, {k: {"position": nxt.tolist(), "rotation_rpy": GRASP_RPY[arm]}}))
         if s and "read" in s and s.get("turn_after") and getattr(self, "waiting_phone", False) and self.calls > s["turn_after"]:
-            arm = s.get("turn_arm", "right") + "_ee"  # label not readable: turn the held parcel over for the scanner
+            arm = (getattr(self, "pick_arm", "right") if s.get("turn_arm", "right") == "picked" else s.get("turn_arm", "right")) + "_ee"  # label not readable: turn the held parcel over for the scanner
             r0 = list(state[arm]["rotation_rpy"])
             if getattr(self, "_turn_step", None) != self.i:
                 self._turn_goal, self._turn_step = r0[0] + np.pi, self.i

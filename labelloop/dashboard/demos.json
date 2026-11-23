@@ -451,42 +451,30 @@
   "run": "scenarios/wx/b4_scan_sort.json",
   "recipe": "scenarios/wx/b4_scan_sort.json",
   "relay": "--sequence scenarios/wx/b4_scan_sort_steps.json --slow 1.0 --no-reset-on-subgoal",
-  "title": "B4, turn over to rescan: 3 parcels; the phone (left claw) scans each one the right arm presents, turning it over when the label is covered; WALLX puts each into bin A (back) or B (front)",
+  "title": "B4, turn over to rescan: 3 parcels; each is picked, read on the head and wrist cameras (turned over if the label is covered), and WALLX puts it into bin A (back) or B (front) with either claw",
   "steps": [
    {
     "who": "harness",
-    "title": "Keep holding the phone",
-    "prompt": "Left claw: keep the phone.",
+    "title": "Parcel 1: find it and pick it up (nearer arm)",
+    "prompt": "Find a parcel-sized object on the head camera (never a bin), pick it, check it lifted.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Phone to the scan pose",
-    "prompt": "Left arm: hold the phone over the table centre.",
+    "title": "Parcel 1: hold it up for the cameras",
+    "prompt": "Lift the parcel in front of the cameras.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 1: find it on the camera and pick it up (right arm)",
-    "prompt": "Find a parcel-sized object (never a bin), pick it, check it lifted.",
-    "detail": ""
-   },
-   {
-    "who": "harness",
-    "title": "Parcel 1: hold it under the phone",
-    "prompt": "Right arm: present the label to the scanner.",
-    "detail": ""
-   },
-   {
-    "who": "harness",
-    "title": "Parcel 1: scan; turn it over if the label is covered",
-    "prompt": "Wait for the phone to decode; after 20 calls turn the parcel over. The barcode value pops up on the dashboard.",
-    "detail": "Bin from the label: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
+    "title": "Parcel 1: read the label; turn it over if covered",
+    "prompt": "Head + both wrist cameras: barcode / QR / pincode. After 10 calls the wrist turns it over. Value shown in the step panel.",
+    "detail": "Bin: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
    },
    {
     "who": "wallx",
-    "title": "Parcel 1: WALLX puts it into its bin",
-    "detail": "Prompt: “Put the parcel you are holding into the bin <where>.” WALLX lets go in the bin; the harness sees the claw open and continues."
+    "title": "Parcel 1: WALLX puts it into its bin (both claws allowed)",
+    "detail": "Prompt: “Put the parcel you are holding into the bin at the back / front of the table.” WALLX lets go in the bin."
    },
    {
     "who": "harness",
@@ -496,32 +484,32 @@
    },
    {
     "who": "harness",
-    "title": "Right arm home",
+    "title": "Both arms home",
     "prompt": "",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 2: find it on the camera and pick it up (right arm)",
-    "prompt": "Find a parcel-sized object (never a bin), pick it, check it lifted.",
+    "title": "Parcel 2: find it and pick it up (nearer arm)",
+    "prompt": "Find a parcel-sized object on the head camera (never a bin), pick it, check it lifted.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 2: hold it under the phone",
-    "prompt": "Right arm: present the label to the scanner.",
+    "title": "Parcel 2: hold it up for the cameras",
+    "prompt": "Lift the parcel in front of the cameras.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 2: scan; turn it over if the label is covered",
-    "prompt": "Wait for the phone to decode; after 20 calls turn the parcel over. The barcode value pops up on the dashboard.",
-    "detail": "Bin from the label: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
+    "title": "Parcel 2: read the label; turn it over if covered",
+    "prompt": "Head + both wrist cameras: barcode / QR / pincode. After 10 calls the wrist turns it over. Value shown in the step panel.",
+    "detail": "Bin: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
    },
    {
     "who": "wallx",
-    "title": "Parcel 2: WALLX puts it into its bin",
-    "detail": "Prompt: “Put the parcel you are holding into the bin <where>.” WALLX lets go in the bin; the harness sees the claw open and continues."
+    "title": "Parcel 2: WALLX puts it into its bin (both claws allowed)",
+    "detail": "Prompt: “Put the parcel you are holding into the bin at the back / front of the table.” WALLX lets go in the bin."
    },
    {
     "who": "harness",
@@ -531,32 +519,32 @@
    },
    {
     "who": "harness",
-    "title": "Right arm home",
+    "title": "Both arms home",
     "prompt": "",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 3: find it on the camera and pick it up (right arm)",
-    "prompt": "Find a parcel-sized object (never a bin), pick it, check it lifted.",
+    "title": "Parcel 3: find it and pick it up (nearer arm)",
+    "prompt": "Find a parcel-sized object on the head camera (never a bin), pick it, check it lifted.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 3: hold it under the phone",
-    "prompt": "Right arm: present the label to the scanner.",
+    "title": "Parcel 3: hold it up for the cameras",
+    "prompt": "Lift the parcel in front of the cameras.",
     "detail": ""
    },
    {
     "who": "harness",
-    "title": "Parcel 3: scan; turn it over if the label is covered",
-    "prompt": "Wait for the phone to decode; after 20 calls turn the parcel over. The barcode value pops up on the dashboard.",
-    "detail": "Bin from the label: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
+    "title": "Parcel 3: read the label; turn it over if covered",
+    "prompt": "Head + both wrist cameras: barcode / QR / pincode. After 10 calls the wrist turns it over. Value shown in the step panel.",
+    "detail": "Bin: explicit A/B, else 940/941/950/951 → A, 900–902 → B; unreadable → put down, never guessed."
    },
    {
     "who": "wallx",
-    "title": "Parcel 3: WALLX puts it into its bin",
-    "detail": "Prompt: “Put the parcel you are holding into the bin <where>.” WALLX lets go in the bin; the harness sees the claw open and continues."
+    "title": "Parcel 3: WALLX puts it into its bin (both claws allowed)",
+    "detail": "Prompt: “Put the parcel you are holding into the bin at the back / front of the table.” WALLX lets go in the bin."
    },
    {
     "who": "harness",
@@ -566,13 +554,7 @@
    },
    {
     "who": "harness",
-    "title": "Right arm home",
-    "prompt": "",
-    "detail": ""
-   },
-   {
-    "who": "harness",
-    "title": "Left arm home with the phone",
+    "title": "Both arms home",
     "prompt": "",
     "detail": ""
    },
