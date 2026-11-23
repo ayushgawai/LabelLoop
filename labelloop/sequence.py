@@ -216,9 +216,12 @@ def find_parcels_px(img_rgb, max_area=25000, min_area=2500):
     cv2.fillConvexPoly(inside, np.array([[int(x * W), int(y * H)] for x, y in TABLE_POLY], np.int32), 1)
     inside[int(0.60 * H):, :int(0.20 * W)] = 0
     inside[int(0.55 * H):, int(0.78 * W):] = 0
+    for x0, y0, x1, y1 in ZONE_BOXES:  # the trays / bins are never a parcel
+        inside[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)] = 0
     m = cv2.morphologyEx(((mat == 0) & (inside > 0)).astype(np.uint8), cv2.MORPH_OPEN, np.ones((15, 15), np.uint8))
+    m = cv2.erode(m, np.ones((31, 31), np.uint8))  # touching parcels come apart (each keeps its core)
     n, _, st, cen = cv2.connectedComponentsWithStats(m)
-    out = [(int(st[i][4]), (float(cen[i][0]), float(cen[i][1]))) for i in range(1, n) if min_area <= st[i][4] <= max_area]
+    out = [(int(st[i][4]), (float(cen[i][0]), float(cen[i][1]))) for i in range(1, n) if 600 <= st[i][4] <= max_area]
     return [c for _, c in sorted(out, reverse=True)]
 
 

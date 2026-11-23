@@ -54,7 +54,8 @@
     "approach_calls": 3,
     "down_calls": 2,
     "fallback_next": true,
-    "then_skip": 1
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
@@ -133,7 +134,8 @@
     "approach_calls": 3,
     "down_calls": 2,
     "fallback_next": true,
-    "then_skip": 1
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
@@ -212,7 +214,8 @@
     "approach_calls": 3,
     "down_calls": 2,
     "fallback_next": true,
-    "then_skip": 1
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
@@ -291,7 +294,8 @@
     "approach_calls": 3,
     "down_calls": 2,
     "fallback_next": true,
-    "then_skip": 1
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
@@ -370,7 +374,8 @@
     "approach_calls": 3,
     "down_calls": 2,
     "fallback_next": true,
-    "then_skip": 1
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {

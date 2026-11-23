@@ -25,7 +25,7 @@
     "max_step": 0.15,
     "approach_calls": 3,
     "down_calls": 2,
-    "max_area": 40000
+    "max_area": 60000
    }
   },
   {
@@ -108,7 +108,7 @@
     "max_step": 0.15,
     "approach_calls": 3,
     "down_calls": 2,
-    "max_area": 40000
+    "max_area": 60000
    }
   },
   {
@@ -191,7 +191,7 @@
     "max_step": 0.15,
     "approach_calls": 3,
     "down_calls": 2,
-    "max_area": 40000
+    "max_area": 60000
    }
   },
   {

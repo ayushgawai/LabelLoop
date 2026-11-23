@@ -10,10 +10,35 @@
  },
  "steps": [
   {
-   "hold_claw": {
-    "left": 0.03
+   "move": {
+    "left": {
+     "position": [
+      0,
+      0,
+      0.06
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 1.5
+    }
    },
-   "calls": 1
+   "calls": 6,
+   "max_step": 0.05
+  },
+  {
+   "wait": "Put the phone in the LEFT claw now (scanner page open, Start camera, 3x). Hands off after that.",
+   "calls": 5
+  },
+  {
+   "grip": {
+    "left": 0.08
+   },
+   "rate": 0.12,
+   "contact": 0.1,
+   "calls": 40
   },
   {
    "replay": "scenarios/wx/phone_scan_A2.json"
@@ -23,27 +48,36 @@
     "arm": "right",
     "sized": true,
     "latch": false,
-    "z": 0.02,
+    "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
-   "move": {
-    "right": {
-     "position": [
-      0.34,
-      0.25,
-      0.07
-     ],
-     "rotation_rpy": [
-      0.11,
-      1.01,
-      0.38
-     ]
-    }
+   "say": "Pick up one of the parcels on the table.",
+   "calls": 60,
+   "arm": "right",
+   "until": "holding",
+   "lift_z": 0.08,
+   "on_timeout": 39
+  },
+  {
+   "present": {
+    "right": [
+     0.34,
+     0.25,
+     0.07
+    ],
+    "left": [
+     0.3,
+     -0.25,
+     0.25
+    ]
    },
    "calls": 5,
    "max_step": 0.08
@@ -52,10 +86,10 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 50,
-   "turn_after": 20,
+   "wait_calls": 25,
+   "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 6
+   "on_fail": 9
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -94,27 +128,36 @@
     "arm": "right",
     "sized": true,
     "latch": false,
-    "z": 0.02,
+    "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
-   "move": {
-    "right": {
-     "position": [
-      0.34,
-      0.25,
-      0.07
-     ],
-     "rotation_rpy": [
-      0.11,
-      1.01,
-      0.38
-     ]
-    }
+   "say": "Pick up one of the parcels on the table.",
+   "calls": 60,
+   "arm": "right",
+   "until": "holding",
+   "lift_z": 0.08,
+   "on_timeout": 39
+  },
+  {
+   "present": {
+    "right": [
+     0.34,
+     0.25,
+     0.07
+    ],
+    "left": [
+     0.3,
+     -0.25,
+     0.25
+    ]
    },
    "calls": 5,
    "max_step": 0.08
@@ -123,10 +166,10 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 50,
-   "turn_after": 20,
+   "wait_calls": 25,
+   "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 12
+   "on_fail": 16
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
@@ -165,27 +208,36 @@
     "arm": "right",
     "sized": true,
     "latch": false,
-    "z": 0.02,
+    "z": 0.03,
     "tries": 4,
     "max_step": 0.15,
     "approach_calls": 3,
-    "down_calls": 2
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1,
+    "max_area": 60000
    }
   },
   {
-   "move": {
-    "right": {
-     "position": [
-      0.34,
-      0.25,
-      0.07
-     ],
-     "rotation_rpy": [
-      0.11,
-      1.01,
-      0.38
-     ]
-    }
+   "say": "Pick up one of the parcels on the table.",
+   "calls": 60,
+   "arm": "right",
+   "until": "holding",
+   "lift_z": 0.08,
+   "on_timeout": 39
+  },
+  {
+   "present": {
+    "right": [
+     0.34,
+     0.25,
+     0.07
+    ],
+    "left": [
+     0.3,
+     -0.25,
+     0.25
+    ]
    },
    "calls": 5,
    "max_step": 0.08
@@ -194,10 +246,170 @@
    "read": true,
    "from_phone": true,
    "max_age": 60,
-   "wait_calls": 50,
-   "turn_after": 20,
+   "wait_calls": 25,
+   "turn_after": 12,
    "turn_arm": "right",
-   "on_fail": 18
+   "on_fail": 23
+  },
+  {
+   "say": "Put the parcel you are holding into the bin {bin_where}.",
+   "calls": 90,
+   "arm": "right",
+   "until": "released",
+   "min_calls": 6
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1,
+    "max_area": 60000
+   }
+  },
+  {
+   "say": "Pick up one of the parcels on the table.",
+   "calls": 60,
+   "arm": "right",
+   "until": "holding",
+   "lift_z": 0.08,
+   "on_timeout": 39
+  },
+  {
+   "present": {
+    "right": [
+     0.34,
+     0.25,
+     0.07
+    ],
+    "left": [
+     0.3,
+     -0.25,
+     0.25
+    ]
+   },
+   "calls": 5,
+   "max_step": 0.08
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 60,
+   "wait_calls": 25,
+   "turn_after": 12,
+   "turn_arm": "right",
+   "on_fail": 30
+  },
+  {
+   "say": "Put the parcel you are holding into the bin {bin_where}.",
+   "calls": 90,
+   "arm": "right",
+   "until": "released",
+   "min_calls": 6
+  },
+  {
+   "release": "right",
+   "calls": 3,
+   "open_calls": 2,
+   "lift": 0.08
+  },
+  {
+   "move": {
+    "right": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation_rpy": [
+      0,
+      0,
+      0
+     ],
+     "gripper": 0.0
+    }
+   },
+   "calls": 4,
+   "max_step": 0.12
+  },
+  {
+   "autopick": {
+    "arm": "right",
+    "sized": true,
+    "latch": false,
+    "z": 0.03,
+    "tries": 4,
+    "max_step": 0.15,
+    "approach_calls": 3,
+    "down_calls": 2,
+    "fallback_next": true,
+    "then_skip": 1,
+    "max_area": 60000
+   }
+  },
+  {
+   "say": "Pick up one of the parcels on the table.",
+   "calls": 60,
+   "arm": "right",
+   "until": "holding",
+   "lift_z": 0.08,
+   "on_timeout": 39
+  },
+  {
+   "present": {
+    "right": [
+     0.34,
+     0.25,
+     0.07
+    ],
+    "left": [
+     0.3,
+     -0.25,
+     0.25
+    ]
+   },
+   "calls": 5,
+   "max_step": 0.08
+  },
+  {
+   "read": true,
+   "from_phone": true,
+   "max_age": 60,
+   "wait_calls": 25,
+   "turn_after": 12,
+   "turn_arm": "right",
+   "on_fail": 37
   },
   {
    "say": "Put the parcel you are holding into the bin {bin_where}.",
