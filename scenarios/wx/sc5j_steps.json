@@ -20,7 +20,11 @@
    "relocate_calls": 230,
    "calls": 230,
    "arm": "lane",
-   "until": "in_bin"
+   "until": "in_bin",
+   "drop_auto": true,
+   "drop_r": 0.07,
+   "drop_z": 0.12,
+   "drop_front": 0.08
   },
   {
    "release": "lane",
