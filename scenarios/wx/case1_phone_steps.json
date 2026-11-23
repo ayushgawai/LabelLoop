@@ -97,7 +97,7 @@
    "arm": "right",
    "until": "in_bin",
    "drop_auto": true,
-   "drop_r": 0.07,
+   "drop_r": 0.05,
    "drop_z": 0.12,
    "parcel": "light",
    "bin_area": 3500

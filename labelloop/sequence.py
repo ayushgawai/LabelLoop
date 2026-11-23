@@ -164,8 +164,8 @@ def parcel_in_box(img_rgb, box, kind="dark", base=None):
 PIX2RIGHT = None
 BASE_SEP = 0.51
 DROP_POINTS = {  # recorded release points (home-relative) per zone colour and arm: zone 1 from scenarios 1 / 4 (left),
-    "blue": {"left": [0.40, 0.02], "right": [0.40, 0.53]},  # zone 2 from scenarios 2 / 3 / phone demo (right); other arm via the 0.51 m base offset
-    "red": {"right": [0.405, -0.04], "left": [0.405, -0.55]}}
+    "blue": {"left": [0.42, 0.03], "right": [0.42, 0.54]},  # zone 2 from scenarios 2 / 3 / phone demo (right); other arm via the 0.51 m base offset
+    "red": {"right": [0.42, -0.04], "left": [0.42, -0.55]}}  # (+2 cm back into the box: a release at the recorded point landed on the front edge)
 GRASP_RPY = {"left": [-0.13, 0.80, -0.29], "right": [0.11, 1.01, 0.38]}  # recorded top-down grasp orientations
 
 
@@ -454,7 +454,8 @@ class Sequence:
                 drop0 = s.get("drop_at") or (DROP_POINTS.get(self.mat, {}).get(self._arm(s) or "right") if s.get("drop_auto") else None)
                 if drop0:  # the arm holding the parcel is AT the target bin's recorded drop point and lowered: strongest check
                     p_ = state.get((self._arm(s) or "right") + "_ee", {}).get("position", [9, 9, 9])
-                    near = np.hypot(p_[0] - drop0[0], p_[1] - drop0[1]) < s.get("drop_r", 0.12) and p_[2] < s.get("drop_z", 0.15)
+                    near = (np.hypot(p_[0] - drop0[0], p_[1] - drop0[1]) < s.get("drop_r", 0.12) and p_[2] < s.get("drop_z", 0.15)
+                            and p_[0] >= drop0[0] - s.get("drop_front", 0.03))  # never release in front of the box (lands on its front edge)
                     if not near and kind == "light":  # OR (white bag): WALLX already let it go into the box: seen in it, gone from the table
                         area = parcel_in_box(images["front"], box, "light")
                         if self.calls == 1 or getattr(self, "bin_base", None) is None:
