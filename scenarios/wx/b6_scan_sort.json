@@ -1,7 +1,7 @@
 {
  "name": "b6_scan_sort",
  "goal": "B6 look-alikes + kraft mat: phone in the left claw at the scan pose; up to 5 times: WALLX picks up a box (right arm; the harness sees the claw stopped on it and lifted), the harness holds it under the phone, the phone decodes it (turned over if needed); labelled -> WALLX puts it into bin A (right) / B (left); unreadable (unlabeled box) -> set back down on the table, never guessed.",
- "setup": "Bin A on the right, bin B on the left, kraft mat. 3 labelled parcels (B, A, B) + an unlabeled box + a 150x100 box. Phone already in the left claw, scanner page live (3x). Arms at rest.",
+ "setup": "Bin A on the right, bin B on the left, kraft mat. 3 labelled parcels (B, A, B) + an unlabeled box + a 150x100 box. Phone NOT in the claw: the left claw opens for 5 s, put the phone in, scanner page live (3x). Arms at rest.",
  "relay": "--sequence scenarios/wx/b6_scan_sort_steps.json --slow 1.0 --no-reset-on-subgoal",
  "seconds": 480,
  "wording": {},

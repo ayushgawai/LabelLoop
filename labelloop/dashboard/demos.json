@@ -715,8 +715,20 @@
   "steps": [
    {
     "who": "harness",
-    "title": "Keep holding the phone",
-    "prompt": "Left claw: keep the phone.",
+    "title": "Left claw opens for the phone",
+    "prompt": "Left arm: open the claw.",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Load the phone",
+    "prompt": "Put the phone in the LEFT claw now (5 s).",
+    "detail": ""
+   },
+   {
+    "who": "harness",
+    "title": "Grip the phone",
+    "prompt": "Close until the fingers touch, a bit firmer.",
     "detail": ""
    },
    {
